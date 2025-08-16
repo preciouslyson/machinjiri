@@ -67,7 +67,6 @@ class Container {
     $dir = self::FRAMEWORK_BASE . "routes/";
     $web = $dir . "web.php";
     $api = $dir . "api.php";
-    $console = $dir . "console.php";
     
     if (!is_dir($dir)) {
       @mkdir($dir, 0777);
@@ -81,11 +80,7 @@ class Container {
       throw new MachinjiriException("API Routing File not found", 1001414);
     }
     
-    if (!is_file($console)) {
-      throw new MachinjiriException("Console Routing File not found", 1001415);
-    }
-    
-    require $web; require $api; require $console;
+    require $web; require $api;
   }
   
   public static function routingBase () : string {

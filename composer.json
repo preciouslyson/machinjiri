@@ -38,5 +38,15 @@
     "sort-packages": true
   },
   "minimum-stability": "stable",
-  "prefer-stable": true
+  "prefer-stable": true,
+  "archive": {
+    "exclude": [
+      "/tests",
+      "/docs",
+      "/.gitignore",
+      "/.env",
+      "/node_modules",
+      "/.idea"
+    ]
+  }
 }

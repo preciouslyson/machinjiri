@@ -17,6 +17,7 @@ class Router
   
   public function __construct () {
     $this->httpRequest = HttpRequest::createFromGlobals();
+    $this->cacheFile = __DIR__ . "/../../../storage/cache/routes";
   }
 
   // Set base path for all routes
@@ -126,13 +127,6 @@ class Router
       ];
       
       $this->group(['cors' => array_merge($defaults, $config)], func_get_args()[1] ?? null);
-      return $this;
-  }
-
-  // Set route cache file
-  public function setCacheFile(string $file): self
-  {
-      $this->cacheFile = $file;
       return $this;
   }
 

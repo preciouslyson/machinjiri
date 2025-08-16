@@ -1,0 +1,20 @@
+<?php
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+use Mlangeni\Machinjiri\Core\Console\Kernel;
+use Mlangeni\Machinjiri\Core\Console\Commands\Migration;
+
+// Initialize console kernel
+$kernel = new Kernel();
+
+// Register commands via closure
+$kernel->registerCommands = function() {
+    return [
+        Migration::class,
+        // Add more commands here
+    ];
+};
+
+// Run the application
+$kernel->handle();

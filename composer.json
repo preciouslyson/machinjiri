@@ -2,6 +2,7 @@
   "name": "mlangenigroup/machinjiri",
   "description": "A full PHP Framework",
   "type": "framework",
+  "language": "PHP",
   "keywords": ["php", "framework", "plugin", "machinjiri"],
   "homepage": "https://github.com/preciouslyson/machinjiri",
   "version" : "1.0.0",

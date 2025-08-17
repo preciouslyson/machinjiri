@@ -33,6 +33,7 @@ return array(
     'DeepCopy\\TypeFilter\\Spl\\SplDoublyLinkedListFilter' => $vendorDir . '/myclabs/deep-copy/src/DeepCopy/TypeFilter/Spl/SplDoublyLinkedListFilter.php',
     'DeepCopy\\TypeFilter\\TypeFilter' => $vendorDir . '/myclabs/deep-copy/src/DeepCopy/TypeFilter/TypeFilter.php',
     'DeepCopy\\TypeMatcher\\TypeMatcher' => $vendorDir . '/myclabs/deep-copy/src/DeepCopy/TypeMatcher/TypeMatcher.php',
+    'Mlangeni\\Machinjiri\\App\\Controllers\\HomeController' => $baseDir . '/app/Controllers/HomeController.php',
     'Mlangeni\\Machinjiri\\Core\\Artisans\\Helpers\\Mkutumula' => $baseDir . '/src/Machinjiri/Artisans/Helpers/Mkutumula.php',
     'Mlangeni\\Machinjiri\\Core\\Authentication\\Cookie' => $baseDir . '/src/Machinjiri/Authentication/Cookie.php',
     'Mlangeni\\Machinjiri\\Core\\Authentication\\Session' => $baseDir . '/src/Machinjiri/Authentication/Session.php',

@@ -10,24 +10,6 @@
         'dev' => true,
     ),
     'versions' => array(
-        'axllent/jquery' => array(
-            'pretty_version' => '3.7.1',
-            'version' => '3.7.1.0',
-            'reference' => 'a7e0f33797bb8c87a2d18666dfd685da23b513e5',
-            'type' => 'component',
-            'install_path' => __DIR__ . '/../axllent/jquery',
-            'aliases' => array(),
-            'dev_requirement' => false,
-        ),
-        'components/font-awesome' => array(
-            'pretty_version' => '6.5.2',
-            'version' => '6.5.2.0',
-            'reference' => '399200378d29bacb524c0e19318ea5ff5d74aa7f',
-            'type' => 'component',
-            'install_path' => __DIR__ . '/../components/font-awesome',
-            'aliases' => array(),
-            'dev_requirement' => false,
-        ),
         'mlangenigroup/machinjiri' => array(
             'pretty_version' => '1.0.0',
             'version' => '1.0.0.0',
@@ -270,21 +252,6 @@
             'install_path' => __DIR__ . '/../theseer/tokenizer',
             'aliases' => array(),
             'dev_requirement' => true,
-        ),
-        'twbs/bootstrap' => array(
-            'pretty_version' => 'v5.3.7',
-            'version' => '5.3.7.0',
-            'reference' => 'e0032ae6a5a628a51a8552091816cec09b6434df',
-            'type' => 'library',
-            'install_path' => __DIR__ . '/../twbs/bootstrap',
-            'aliases' => array(),
-            'dev_requirement' => false,
-        ),
-        'twitter/bootstrap' => array(
-            'dev_requirement' => false,
-            'replaced' => array(
-                0 => 'v5.3.7',
-            ),
         ),
     ),
 );

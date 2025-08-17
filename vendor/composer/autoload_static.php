@@ -79,6 +79,7 @@ class ComposerStaticInit8cc5a18393cbc106e165aaf6c51c5cb8
         'DeepCopy\\TypeFilter\\Spl\\SplDoublyLinkedListFilter' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/TypeFilter/Spl/SplDoublyLinkedListFilter.php',
         'DeepCopy\\TypeFilter\\TypeFilter' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/TypeFilter/TypeFilter.php',
         'DeepCopy\\TypeMatcher\\TypeMatcher' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/TypeMatcher/TypeMatcher.php',
+        'Mlangeni\\Machinjiri\\App\\Controllers\\HomeController' => __DIR__ . '/../..' . '/app/Controllers/HomeController.php',
         'Mlangeni\\Machinjiri\\Core\\Artisans\\Helpers\\Mkutumula' => __DIR__ . '/../..' . '/src/Machinjiri/Artisans/Helpers/Mkutumula.php',
         'Mlangeni\\Machinjiri\\Core\\Authentication\\Cookie' => __DIR__ . '/../..' . '/src/Machinjiri/Authentication/Cookie.php',
         'Mlangeni\\Machinjiri\\Core\\Authentication\\Session' => __DIR__ . '/../..' . '/src/Machinjiri/Authentication/Session.php',

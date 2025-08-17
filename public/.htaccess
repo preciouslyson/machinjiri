@@ -2,3 +2,46 @@ RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ index.php [QSA]
+
+# --------------------
+# Security Enhancements
+# --------------------
+# Prevent directory listing
+Options -Indexes
+
+# Block access to sensitive files
+<FilesMatch "\.(env|htaccess|git|gitignore|DS_Store|composer\.json|composer\.lock|config\.php)$">
+    Require all denied
+</FilesMatch>
+
+# Disable server signature
+ServerSignature Off
+
+# Protect .htaccess file
+<Files .htaccess>
+    Require all denied
+</Files>
+
+# --------------------
+# Performance Optimizations
+# --------------------
+# Enable browser caching
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/jpg "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/gif "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType text/css "access plus 1 week"
+    ExpiresByType application/javascript "access plus 1 week"
+    ExpiresByType text/html "access plus 1 hour"
+</IfModule>
+
+# Enable compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css application/javascript
+</IfModule>
+
+# Remove ETag header
+FileETag None
+Header unset ETag

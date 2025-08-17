@@ -2,19 +2,25 @@
   "name": "mlangenigroup/machinjiri",
   "description": "A full PHP Framework",
   "type": "framework",
+  "keywords": ["php", "framework", "plugin", "machinjiri"],
+  "homepage": "https://github.com/preciouslyson/machinjiri",
   "version" : "1.0.0",
   "license": "MIT",
   "authors": [
     {
-      "name": "Mlangeni Group",
-      "email": "mlangenigroupqm@gmail.com"
+      "name": "Precious Lyson",
+      "email": "precious.lyson@gmail.com",
+      "homepage": "https://www.facebook.com/precious.lyson.developer",
+      "role": "Developer"
     }
   ],
+  "support": {
+    "email": "Mlangeniqme@gmail.com",
+    "issues": "https://github.com/preciouslyson/machinjiri/issues",
+    "source": "https://github.com/preciouslyson/machinjiri"
+  },
   "require": {
-    "php": "^8.0.6",
-    "twbs/bootstrap": "5.3.*",
-    "axllent/jquery": "3.7.*",
-    "components/font-awesome" : "^6.4"
+    "php": "^8.0.6"
   },
   "require-dev": {
     "phpunit/phpunit": "^10.0"

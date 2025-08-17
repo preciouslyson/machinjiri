@@ -1,10 +1,13 @@
 <?php
 
+
 namespace Mlangeni\Machinjiri\Core\Console;
 
+use Mlangeni\Machinjiri\Core\Console\Commands\Migration;
 class Kernel
 {
-    protected $commands = [];
+    public $commands = [];
+    public $registerCommands;
 
     public function __construct()
     {
@@ -15,6 +18,7 @@ class Kernel
     {
         return [
             // Commands will be registered here
+            Migration::class
         ];
     }
 
@@ -110,6 +114,7 @@ class Kernel
         echo "Available commands:\n";
 
         foreach ($this->commands as $commandClass) {
+            //$instance = "Mlangeni\\Machinjiri\\Core\\Console\\Commands\\$commandClass";
             $command = new $commandClass;
             
             if ($command->isGroup()) {

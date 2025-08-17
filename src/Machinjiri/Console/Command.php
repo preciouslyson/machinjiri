@@ -5,14 +5,14 @@ namespace Mlangeni\Machinjiri\Core\Console;
 abstract class Command
 {
     // Single command configuration
-    protected $name;
-    protected $description = '';
-    protected $arguments = [];
-    protected $options = [];
+    public $name;
+    public $description = '';
+    public $arguments = [];
+    public $options = [];
 
     // Multi-command configuration
-    protected $commands = [];
-    protected $defaultCommand;
+    public $commands = [];
+    public $defaultCommand;
 
     abstract public function handle();
 
@@ -91,7 +91,7 @@ abstract class Command
         $args = array_slice($argv, $commandIndex + 1);
         
         // Skip sub-command if this is a group
-        if ($this->isGroup() && isset($args[0]) {
+        if ($this->isGroup() && isset($args[0])) {
             if (isset($this->commands[$args[0]])) {
                 array_shift($args);
             }

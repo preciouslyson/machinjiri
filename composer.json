@@ -22,7 +22,7 @@
   "autoload": {
     "psr-4": {
       "Mlangeni\\Machinjiri\\Core\\": "src/Machinjiri/",
-      "Mlangeni\\Machinjiri\\Controllers\\" : "controllers/Controllers/"
+      "Mlangeni\\Machinjiri\\App\\" : "app/"
     }
   },
   "autoload-dev": {

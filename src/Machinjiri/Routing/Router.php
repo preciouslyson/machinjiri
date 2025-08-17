@@ -335,7 +335,7 @@ class Router
           call_user_func_array($handler, $params);
       } elseif (is_string($handler) && strpos($handler, '@') !== false) {
           [$controller, $method] = explode('@', $handler, 2);
-          $instance = "Mlangeni\\Machinjiri\\Controllers\\$controller";
+          $instance = "Mlangeni\\Machinjiri\\App\\Controllers\\$controller";
           $controllerInstance = new $instance();
           
           call_user_func_array([$controllerInstance, $method], $params);

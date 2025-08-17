@@ -9,6 +9,6 @@ return array(
     'PhpParser\\' => array($vendorDir . '/nikic/php-parser/lib/PhpParser'),
     'Mlangeni\\Machinjiri\\Tests\\' => array($baseDir . '/tests'),
     'Mlangeni\\Machinjiri\\Core\\' => array($baseDir . '/src/Machinjiri'),
-    'Mlangeni\\Machinjiri\\Controllers\\' => array($baseDir . '/controllers/Controllers'),
+    'Mlangeni\\Machinjiri\\App\\' => array($baseDir . '/app'),
     'DeepCopy\\' => array($vendorDir . '/myclabs/deep-copy/src/DeepCopy'),
 );

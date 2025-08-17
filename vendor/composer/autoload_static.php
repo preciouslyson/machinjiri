@@ -20,7 +20,7 @@ class ComposerStaticInit8cc5a18393cbc106e165aaf6c51c5cb8
         array (
             'Mlangeni\\Machinjiri\\Tests\\' => 26,
             'Mlangeni\\Machinjiri\\Core\\' => 25,
-            'Mlangeni\\Machinjiri\\Controllers\\' => 32,
+            'Mlangeni\\Machinjiri\\App\\' => 24,
         ),
         'D' => 
         array (
@@ -41,9 +41,9 @@ class ComposerStaticInit8cc5a18393cbc106e165aaf6c51c5cb8
         array (
             0 => __DIR__ . '/../..' . '/src/Machinjiri',
         ),
-        'Mlangeni\\Machinjiri\\Controllers\\' => 
+        'Mlangeni\\Machinjiri\\App\\' => 
         array (
-            0 => __DIR__ . '/../..' . '/controllers/Controllers',
+            0 => __DIR__ . '/../..' . '/app',
         ),
         'DeepCopy\\' => 
         array (
@@ -79,7 +79,9 @@ class ComposerStaticInit8cc5a18393cbc106e165aaf6c51c5cb8
         'DeepCopy\\TypeFilter\\Spl\\SplDoublyLinkedListFilter' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/TypeFilter/Spl/SplDoublyLinkedListFilter.php',
         'DeepCopy\\TypeFilter\\TypeFilter' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/TypeFilter/TypeFilter.php',
         'DeepCopy\\TypeMatcher\\TypeMatcher' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/TypeMatcher/TypeMatcher.php',
-        'Mlangeni\\Machinjiri\\Controllers\\HomeController' => __DIR__ . '/../..' . '/controllers/Controllers/HomeController.php',
+        'Mlangeni\\Machinjiri\\Core\\Artisans\\Helpers\\Mkutumula' => __DIR__ . '/../..' . '/src/Machinjiri/Artisans/Helpers/Mkutumula.php',
+        'Mlangeni\\Machinjiri\\Core\\Authentication\\Cookie' => __DIR__ . '/../..' . '/src/Machinjiri/Authentication/Cookie.php',
+        'Mlangeni\\Machinjiri\\Core\\Authentication\\Session' => __DIR__ . '/../..' . '/src/Machinjiri/Authentication/Session.php',
         'Mlangeni\\Machinjiri\\Core\\Console\\Command' => __DIR__ . '/../..' . '/src/Machinjiri/Console/Command.php',
         'Mlangeni\\Machinjiri\\Core\\Console\\Commands\\Migration' => __DIR__ . '/../..' . '/src/Machinjiri/Console/Commands/Migration.php',
         'Mlangeni\\Machinjiri\\Core\\Console\\Kernel' => __DIR__ . '/../..' . '/src/Machinjiri/Console/Kernel.php',
@@ -92,12 +94,22 @@ class ComposerStaticInit8cc5a18393cbc106e165aaf6c51c5cb8
         'Mlangeni\\Machinjiri\\Core\\Database\\MigrationHandler' => __DIR__ . '/../..' . '/src/Machinjiri/Database/MigrationHandler.php',
         'Mlangeni\\Machinjiri\\Core\\Database\\MySqlGrammar' => __DIR__ . '/../..' . '/src/Machinjiri/Database/MySqlGrammar.php',
         'Mlangeni\\Machinjiri\\Core\\Database\\QueryBuilder' => __DIR__ . '/../..' . '/src/Machinjiri/Database/QueryBuilder.php',
+        'Mlangeni\\Machinjiri\\Core\\Date\\DateTimeHandler' => __DIR__ . '/../..' . '/src/Machinjiri/Date/DateTimeHandler.php',
         'Mlangeni\\Machinjiri\\Core\\Exceptions\\MachinjiriException' => __DIR__ . '/../..' . '/src/Machinjiri/Exceptions/MachinjiriException.php',
+        'Mlangeni\\Machinjiri\\Core\\Files\\FileUploader' => __DIR__ . '/../..' . '/src/Machinjiri/Files/FileUploader.php',
+        'Mlangeni\\Machinjiri\\Core\\Forms\\FormValidator' => __DIR__ . '/../..' . '/src/Machinjiri/Forms/FormValidator.php',
+        'Mlangeni\\Machinjiri\\Core\\Forms\\Password' => __DIR__ . '/../..' . '/src/Machinjiri/Forms/Password.php',
+        'Mlangeni\\Machinjiri\\Core\\Forms\\RuleBuilder' => __DIR__ . '/../..' . '/src/Machinjiri/Forms/RuleBuilder.php',
         'Mlangeni\\Machinjiri\\Core\\Http\\HttpRequest' => __DIR__ . '/../..' . '/src/Machinjiri/Http/HttpRequest.php',
         'Mlangeni\\Machinjiri\\Core\\Http\\HttpResponse' => __DIR__ . '/../..' . '/src/Machinjiri/Http/HttpResponse.php',
         'Mlangeni\\Machinjiri\\Core\\Machinjiri' => __DIR__ . '/../..' . '/src/Machinjiri/Machinjiri.php',
+        'Mlangeni\\Machinjiri\\Core\\Network\\DHCPManager' => __DIR__ . '/../..' . '/src/Machinjiri/Network/DHCPManager.php',
+        'Mlangeni\\Machinjiri\\Core\\Network\\FTPHandler' => __DIR__ . '/../..' . '/src/Machinjiri/Network/FTPHandler.php',
         'Mlangeni\\Machinjiri\\Core\\Routing\\DotEnv' => __DIR__ . '/../..' . '/src/Machinjiri/Routing/DotEnv.php',
         'Mlangeni\\Machinjiri\\Core\\Routing\\Router' => __DIR__ . '/../..' . '/src/Machinjiri/Routing/Router.php',
+        'Mlangeni\\Machinjiri\\Core\\Security\\Encryption\\Cipher' => __DIR__ . '/../..' . '/src/Machinjiri/Security/Encryption/Cipher.php',
+        'Mlangeni\\Machinjiri\\Core\\Security\\SQL\\SQLInjectionChecker' => __DIR__ . '/../..' . '/src/Machinjiri/Security/SQL/SQLInjectionChecker.php',
+        'Mlangeni\\Machinjiri\\Core\\Security\\Tokens\\CSRFToken' => __DIR__ . '/../..' . '/src/Machinjiri/Security/Tokens/CSRFToken.php',
         'Mlangeni\\Machinjiri\\Core\\Views\\View' => __DIR__ . '/../..' . '/src/Machinjiri/Views/View.php',
         'PHPUnit\\Event\\Application\\Finished' => __DIR__ . '/..' . '/phpunit/phpunit/src/Event/Events/Application/Finished.php',
         'PHPUnit\\Event\\Application\\FinishedSubscriber' => __DIR__ . '/..' . '/phpunit/phpunit/src/Event/Events/Application/FinishedSubscriber.php',

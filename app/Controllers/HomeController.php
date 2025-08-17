@@ -1,13 +1,10 @@
 <?php
 
-namespace Mlangeni\Machinjiri\Controllers;
+namespace Mlangeni\Machinjiri\App\Controllers;
 use Mlangeni\Machinjiri\Core\Views\View;
-use Mlangeni\Machinjiri\Core\Machinjiri;
-
-final class HomeController {
+class HomeController {
   
   public function index () : void {
     View::make("welcome")->display();
   }
-  
-} 
+}

@@ -1,27 +1,26 @@
 <?php
 
 namespace Mlangeni\Machinjiri\Core\Console\Commands;
-
 use Mlangeni\Machinjiri\Core\Console\Command;
 use Mlangeni\Machinjiri\Core\Database\MigrationCreator;
 use Mlangeni\Machinjiri\Core\Database\MigrationHandler;
 
 class Migration extends Command
 {
-    protected $name = 'migration';
-    protected $description = 'Manage Database Migrations';
+    public $name = 'migration';
+    public $description = 'Create, Update and Delete App Migrations';
     
-    protected $commands = [
+    public $commands = [
         'create' => [
             'description' => 'Create a new migration',
             'arguments' => [
-                'name' => 'Migration name'
+                'name' => 'The name of the migration file'
             ]
         ],
-        'delete' => [
-            'description' => 'Remove migration',
+        'remove' => [
+            'description' => 'Delete a Migration',
             'arguments' => [
-                'name' => 'Migration name'
+                'name' => 'The name of the migration file'
             ]
         ],
         'list' => [
@@ -31,8 +30,7 @@ class Migration extends Command
 
     public function handle()
     {
-        // The actual command handling will depend on the sub-command
-        $subCommand = $this->argument(0);
+        $subCommand = $this->arguments[0];
         
         switch ($subCommand) {
             case 'create':
@@ -54,9 +52,9 @@ class Migration extends Command
     protected function handleCreate()
     {
         $name = $this->argument('name');
-        $migration = new MigrationCreator();
-        $migration->create($name);
-        $this->info("Created successfully");
+        $m = new MigrationCreator();
+        $m->create($name);
+        $this->info("Created: " . $name);
     }
 
 }

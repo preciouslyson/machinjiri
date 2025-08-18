@@ -1,5 +1,11 @@
-RewriteEngine On
-RewriteCond %{REQUEST_URI} !^/public/
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ public/$1 [L]
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Redirect direct requests to /public to root (visible redirect)
+    RewriteCond %{THE_REQUEST} ^[A-Z]{3,}\s/+public/([^\s]*) [NC]
+    RewriteRule ^public/(.*) public/$1 [R=301,L]
+
+    # Internally rewrite requests to the public folder
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>

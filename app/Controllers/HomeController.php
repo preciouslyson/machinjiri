@@ -7,4 +7,5 @@ class HomeController {
   public function index () : void {
     View::make("welcome")->display();
   }
+  
 }

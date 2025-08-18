@@ -4,6 +4,7 @@ namespace Mlangeni\Machinjiri\Core\Routing;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Http\HttpRequest;
 use Mlangeni\Machinjiri\Core\Http\HttpResponse;
+use \Exception;
 class Router
 {
   protected $routes = [];

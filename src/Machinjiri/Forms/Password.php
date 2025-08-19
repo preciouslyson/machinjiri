@@ -4,9 +4,7 @@ namespace Mlangeni\Machinjiri\Core\Forms;
 
 class Password {
   
-  private const MIN_LEN = 8;
-
-  public function __construct (private $password) {}
+  public function __construct (private $password, private int $min_length = 8) {}
 
   public function validatePassword () : bool
   {
@@ -14,7 +12,7 @@ class Password {
     $lowercase = preg_match('@[a-z]@', $this->password);
     $number = preg_match('@[0-9]@', $this->password);
     $specialChars = preg_match('@[^\w]@', $this->password);
-    if (!$uppercase || !$lowercase || !$number || !$specialChars || strlen($this->password) < self::MIN_LEN) {
+    if (!$uppercase || !$lowercase || !$number || !$specialChars || strlen($this->password) < $this->min_length) {
       return false;
     }
     return true;

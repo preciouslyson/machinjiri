@@ -1,7 +1,6 @@
 <?php
 
 use Mlangeni\Machinjiri\Core\Routing\Router;
-use Mlangeni\Machinjiri\App\Middleware\Auth;
 
 $router = new Router();
 

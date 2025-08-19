@@ -3,7 +3,7 @@
   "description": "A full PHP Framework",
   "type": "framework",
   "language": "PHP",
-  "keywords": ["php", "framework", "plugin", "machinjiri"],
+  "keywords": ["php", "framework", "mlangeni", "machinjiri"],
   "homepage": "https://github.com/preciouslyson/machinjiri",
   "version" : "1.0.0",
   "license": "MIT",
@@ -21,7 +21,10 @@
     "source": "https://github.com/preciouslyson/machinjiri"
   },
   "require": {
-    "php": "^8.0.6"
+    "php": "^8.0.6",
+    "mailersend/mailersend": "*",
+    "nyholm/psr7": "^1.8",
+    "symfony/http-client": "^7.3"
   },
   "require-dev": {
     "phpunit/phpunit": "^10.0"
@@ -42,7 +45,10 @@
   },
   "config": {
     "optimize-autoloader": true,
-    "sort-packages": true
+    "sort-packages": true,
+    "allow-plugins": {
+      "php-http/discovery": true
+    }
   },
   "minimum-stability": "stable",
   "prefer-stable": true,

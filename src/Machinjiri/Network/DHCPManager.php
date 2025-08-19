@@ -12,7 +12,7 @@ class DHCPManager {
     public function __construct(array $config) {
         $this->config = $config;
         $this->leaseTime = $config['leaseTime'] ?? 86400;
-        $this->logFile = $config['logFile'] ?? 'dhcp.log';
+        $this->logFile = $config['logFile'] ?? __DIR__ . '/../../../storage/logs/dhcp.log';
         
         // Initialize database
         $this->initDatabase();

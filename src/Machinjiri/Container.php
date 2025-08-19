@@ -87,5 +87,9 @@ class Container {
     return "/Mlangeni/public";
   }
   
+  public static function loggingBase () : string {
+    return self::FRAMEWORK_BASE . 'storage/logs/';
+  }
+  
   
 }

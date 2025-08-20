@@ -2,24 +2,45 @@
 
 namespace Mlangeni\Machinjiri\Core\Mail;
 
-use MailerSend\MailerSend;
-use MailerSend\Helpers\Builder\Recipient;
-use MailerSend\Helpers\Builder\EmailParams;
-use MailerSend\Exceptions\MailerSendException;
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception as PHPMailerException;
 
 class Mailer
 {
-    private MailerSend $mailerSend;
-    private ?string $defaultDomainId;
+    private PHPMailer $mailer;
+    private array $config;
 
-    public function __construct(?string $defaultDomainId = null)
+    public function __construct()
     {
-        $this->mailerSend = new MailerSend(['api_key' => $this->mailConfigurations()['MAIL_MAILER_KEY']]);
-        $this->defaultDomainId = $defaultDomainId;
+        $this->config = $this->mailConfigurations();
+        $this->mailer = new PHPMailer(true);
+        $this->configureMailer();
     }
     
-    private function mailConfigurations () : array {
-      return $_ENV;
+    private function mailConfigurations(): array
+    {
+        return $_ENV;
+    }
+
+    private function configureMailer(): void
+    {
+        // Server settings
+        $this->mailer->isSMTP();
+        $this->mailer->Host = $this->config['MAIL_HOST'];
+        $this->mailer->SMTPAuth = true;
+        $this->mailer->Username = $this->config['MAIL_USERNAME'];
+        $this->mailer->Password = $this->config['MAIL_PASSWORD'];
+        $this->mailer->SMTPSecure = $this->config['MAIL_ENCRYPTION'];
+        $this->mailer->Port = $this->config['MAIL_PORT'];
+
+        // Encoding
+        $this->mailer->CharSet = 'UTF-8';
+
+        // From address
+        $this->mailer->setFrom(
+            $this->config['MAIL_FROM_ADDRESS'],
+            $this->config['MAIL_FROM_NAME']
+        );
     }
 
     public function send(
@@ -29,37 +50,36 @@ class Mailer
         ?string $textContent = null
     ): string {
         try {
-            $recipients = array_map(function ($recipient) {
-                return new Recipient($recipient['email'], $recipient['name'] ?? '');
-            }, $to);
+            // Recipients
+            foreach ($to as $recipient) {
+                $this->mailer->addAddress(
+                    $recipient['email'],
+                    $recipient['name'] ?? ''
+                );
+            }
 
-            $emailParams = (new EmailParams())
-                ->setFrom($this->mailConfigurations()['MAIL_FROM_ADDRESS'])
-                ->setFromName($this->mailConfigurations()['MAIL_FROM_NAME'])
-                ->setRecipients($recipients)
-                ->setSubject($subject)
-                ->setHtml($htmlContent)
-                ->setText($textContent);
-
-            $response = $this->mailerSend->email->send($emailParams);
+            // Content
+            $this->mailer->isHTML(true);
+            $this->mailer->Subject = $subject;
+            $this->mailer->Body = $htmlContent;
             
-            return $response['X-Message-Id'] ?? 'Unknown message ID';
-        } catch (MailerSendException $e) {
-            throw new \RuntimeException('MailerSend error: ' . $e->getMessage());
+            if ($textContent !== null) {
+                $this->mailer->AltBody = $textContent;
+            }
+
+            $this->mailer->send();
+            
+            // Return the Message-ID header if available
+            return $this->mailer->getLastMessageID() ?: 'Unknown message ID';
+            
+        } catch (PHPMailerException $e) {
+            throw new \RuntimeException('PHPMailer error: ' . $e->getMessage());
         }
     }
 
+    // Note: Activity tracking is not available with PHPMailer
     public function getActivity(string $messageId, array $options = []): array
     {
-        if (!$this->defaultDomainId) {
-            throw new \RuntimeException('Domain ID is required to retrieve activity');
-        }
-
-        try {
-            $activityParams = array_merge(['message_id' => $messageId], $options);
-            return $this->mailerSend->activity->get($this->defaultDomainId, $activityParams);
-        } catch (MailerSendException $e) {
-            throw new \RuntimeException('Failed to retrieve activity: ' . $e->getMessage());
-        }
+        throw new \RuntimeException('Activity tracking is not supported when using PHPMailer');
     }
 }

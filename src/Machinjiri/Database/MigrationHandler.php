@@ -35,7 +35,7 @@ class MigrationHandler
     /**
      * Get all migrations that have been run
      */
-    protected function getRanMigrations(): array
+    public function getRanMigrations(): array
     {
         return $this->queryBuilder
             ->select(['migration'])
@@ -47,7 +47,7 @@ class MigrationHandler
     /**
      * Get all migration files from the migrations path
      */
-    protected function getMigrationFiles(): array
+    public function getMigrationFiles(): array
     {
         $files = glob($this->migrationsPath . '*.php');
         

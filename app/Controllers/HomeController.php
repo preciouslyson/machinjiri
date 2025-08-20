@@ -5,7 +5,7 @@ use Mlangeni\Machinjiri\Core\Views\View;
 class HomeController {
   
   public function index () : void {
-    View::make("welcome")->display();
+    //View::make("welcome")->display();
   }
   
 }

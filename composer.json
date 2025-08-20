@@ -22,9 +22,7 @@
   },
   "require": {
     "php": "^8.0.6",
-    "mailersend/mailersend": "*",
-    "nyholm/psr7": "^1.8",
-    "symfony/http-client": "^7.3"
+    "phpmailer/phpmailer": "*"
   },
   "require-dev": {
     "phpunit/phpunit": "^10.0"

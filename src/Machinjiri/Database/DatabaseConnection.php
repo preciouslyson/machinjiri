@@ -244,4 +244,61 @@ class DatabaseConnection
         };
     }
     
+    /**
+     * Begin a database transaction
+     * 
+     * @throws MachinjiriException If called with non-PDO connection or transaction fails
+     */
+    public static function beginTransaction(): void
+    {
+        $conn = self::getInstance();
+        if (!$conn instanceof PDO) {
+            throw new MachinjiriException("Transactions only supported for PDO connections.");
+        }
+
+        try {
+            $conn->beginTransaction();
+        } catch (PDOException $e) {
+            throw new MachinjiriException("Failed to begin transaction: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Commit the current transaction
+     * 
+     * @throws MachinjiriException If called with non-PDO connection or commit fails
+     */
+    public static function commit(): void
+    {
+        $conn = self::getInstance();
+        if (!$conn instanceof PDO) {
+            throw new MachinjiriException("Transactions only supported for PDO connections.");
+        }
+
+        try {
+            $conn->commit();
+        } catch (PDOException $e) {
+            throw new MachinjiriException("Failed to commit transaction: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Roll back the current transaction
+     * 
+     * @throws MachinjiriException If called with non-PDO connection or rollback fails
+     */
+    public static function rollback(): void
+    {
+        $conn = self::getInstance();
+        if (!$conn instanceof PDO) {
+            throw new MachinjiriException("Transactions only supported for PDO connections.");
+        }
+
+        try {
+            $conn->rollBack();
+        } catch (PDOException $e) {
+            throw new MachinjiriException("Failed to rollback transaction: " . $e->getMessage());
+        }
+    }
+    
 }

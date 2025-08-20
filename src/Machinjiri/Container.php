@@ -8,7 +8,7 @@ class Container {
   
   public const FRAMEWORK_BASE = __DIR__ . "/../../";
   
-  protected function getConfigurations () : array {
+  public function getConfigurations () : array {
     $dir = self::FRAMEWORK_BASE . "config/";
     $app = $dir . "app.php";
     $database = $dir . "database.php";

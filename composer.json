@@ -24,18 +24,10 @@
     "php": "^8.0.6",
     "phpmailer/phpmailer": "*"
   },
-  "require-dev": {
-    "phpunit/phpunit": "^10.0"
-  },
   "autoload": {
     "psr-4": {
       "Mlangeni\\Machinjiri\\Core\\": "src/Machinjiri/",
       "Mlangeni\\Machinjiri\\App\\" : "app/"
-    }
-  },
-  "autoload-dev": {
-    "psr-4": {
-      "Mlangeni\\Machinjiri\\Tests\\": "tests/"
     }
   },
   "scripts": {

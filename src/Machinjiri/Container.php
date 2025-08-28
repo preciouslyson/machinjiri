@@ -23,7 +23,10 @@ class Container {
   
   protected function _init () : void {
     if (!is_dir(self::$appBasePath)) {
-      throw new MachinjiriException("Specify Base");
+      throw new MachinjiriException("Specify Application Base");
+    }
+    if (!is_file($this->root() . ".env")) {
+      $this->bootstrapEnv();
     }
     $this->routes = $this->root() . "routes/";
     $this->resources = $this->root() . "resources/";
@@ -130,6 +133,21 @@ class Container {
     
     if (!is_file($web)) {
       @fopen($web, "w");
+      $template = <<<EOT
+<?php
+require __DIR__ . "/../vendor/autoload.php";
+use Mlangeni\Machinjiri\Core\Routing\Router;
+\$router = new Router();
+
+// declare your routes here...
+// example routes
+\$router->get('/', 'HomeController@index');
+
+
+// dispatching all routes
+\$router->dispatch();
+EOT;
+      file_put_contents($web, $template);
     }
     
     if (!is_file($api)) {
@@ -165,6 +183,7 @@ class Container {
     @mkdir($this->resources . 'views/', 0777);
     @mkdir($this->resources . 'views/layouts/', 0777);
     @mkdir($this->resources . 'views/partials/', 0777);
+    
     if (!is_file($this->resources . 'views/welcome.php')) {
       @fopen($this->resources . 'views/welcome.php', "w");
       $template = <<<EOT
@@ -246,7 +265,59 @@ class Container {
 EOT;
       file_put_contents($this->resources . 'views/welcome.php' ,$template);
     }
-    
+    if (!is_file(self::$appBasePath . "/.htaccess")) {
+      @fopen(self::$appBasePath . "/.htaccess", "w");
+      $rules = <<<EOT
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [QSA]
+
+# --------------------
+# Security Enhancements
+# --------------------
+# Prevent directory listing
+Options -Indexes
+
+# Block access to sensitive files
+<FilesMatch "\.(env|htaccess|git|gitignore|DS_Store|composer\.json|composer\.lock|config\.php)$">
+    Require all denied
+</FilesMatch>
+
+# Disable server signature
+ServerSignature Off
+
+# Protect .htaccess file
+<Files .htaccess>
+    Require all denied
+</Files>
+
+# --------------------
+# Performance Optimizations
+# --------------------
+# Enable browser caching
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/jpg "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/gif "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType text/css "access plus 1 week"
+    ExpiresByType application/javascript "access plus 1 week"
+    ExpiresByType text/html "access plus 1 hour"
+</IfModule>
+
+# Enable compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css application/javascript
+</IfModule>
+
+# Remove ETag header
+FileETag None
+Header unset ETag
+EOT;
+    file_put_contents(self::$appBasePath . "/.htaccess", $rules);
+    }
   }
   
 }

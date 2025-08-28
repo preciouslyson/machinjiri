@@ -7,10 +7,10 @@ final class MachinjiriException extends \Exception {
   public function display () : void {
     $message = $this->getMessage();
     $code = $this->getCode();
-    $trace = $this->getTraceAsString();
+    $trace = $this->getFile();
     $response = <<<EOT
 <?php
-// Clear any previous output
+
 while (ob_get_level()) {
     ob_end_clean();
 }
@@ -23,7 +23,7 @@ header('Content-Type: text/html; charset=UTF-8');
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Exception Report</title>
+  <title>Machinjiri - Exception</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body { font-family: monospace; background: #f9f9f9; color: #333; padding: 20px; }

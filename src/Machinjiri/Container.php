@@ -159,8 +159,8 @@ EOT;
   }
   
   public static function routingBase () : string {
-    $a = explode(DIRECTORY_SEPARATOR, rtrim($this->root(), DIRECTORY_SEPARATOR));
-    return DIRECTORY_SEPARATOR . end($a) . "/public";
+    $a = explode(DIRECTORY_SEPARATOR, rtrim(self::$appBasePath, DIRECTORY_SEPARATOR));
+    return DIRECTORY_SEPARATOR . ucfirst($a[(count($a) - 2)]) . "/public";
   }
   
   public static function loggingBase () : string {

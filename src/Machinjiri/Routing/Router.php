@@ -1,7 +1,7 @@
 <?php
 
 namespace Mlangeni\Machinjiri\Core\Routing;
-
+use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Http\HttpRequest;
 use Mlangeni\Machinjiri\Core\Http\HttpResponse;
@@ -11,7 +11,7 @@ class Router
 {
     protected $routes = [];
     protected $namedRoutes = [];
-    protected $basePath = '/Machinjiri/public';
+    protected $basePath;
     protected $groupStack = [];
     protected $middleware = [];
     protected $rateLimiters = [];
@@ -23,7 +23,8 @@ class Router
     {
         $this->httpRequest = HttpRequest::createFromGlobals();
         $this->httpResponse = new HttpResponse();
-        $this->cacheFile = __DIR__ . "/../../../storage/cache/routes";
+        $this->cacheFile = Container::$appBasePath . "/../storage/cache/routes";
+        $this->basePath = Container::routingBase();
     }
 
     // Set base path for all routes

@@ -30,7 +30,9 @@ In project folder, create a public folder and inside create an entry point file 
 // in public/index.php
 require __DIR__ . '/../vendor/autoload.php';
 use Mlangeni\Machinjiri\Core\Machinjiri;
-return (new Machinjiri())->init();
+// __DIR__ for the directory name of the entry point
+// set true if in development and false if in production
+return (new Machinjiri(__DIR__, true))->init();
 
 *Documentation*
 https://machingjiri.com/docs

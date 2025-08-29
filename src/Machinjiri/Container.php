@@ -183,6 +183,10 @@ EOT;
     @mkdir($this->resources . 'views/', 0777);
     @mkdir($this->resources . 'views/layouts/', 0777);
     @mkdir($this->resources . 'views/partials/', 0777);
+    @mkdir($this->storage . 'session/', 0777);
+    @mkdir($this->storage . 'cache/', 0777);
+    @mkdir($this->storage . 'logs/', 0777);
+    @mkdir($this->storage . 'cookies/', 0777);
     
     if (!is_file($this->resources . 'views/welcome.php')) {
       @fopen($this->resources . 'views/welcome.php', "w");

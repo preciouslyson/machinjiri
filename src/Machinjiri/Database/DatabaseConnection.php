@@ -17,7 +17,7 @@ class DatabaseConnection
     private function __construct() {}
     private function __clone() {}
     public function __wakeup() {
-        throw new MachinjiriException("Cannot unserialize a singleton.");
+        throw new MachinjiriException("Database Error: Cannot unserialize a singleton.", 101);
     }
 
     /**
@@ -44,18 +44,18 @@ class DatabaseConnection
      * Get the database connection instance
      * 
      * @return PDO|Client
-     * @throws MachinjiriException If configuration is incomplete or connection fails
+     * @throws  If configuration is incomplete or connection fails
      */
     public static function getInstance()
     {
         if (self::$connection === null) {
             if (self::$config === null) {
-                throw new MachinjiriException("Database configuration not set. Call setConfig() first.");
+                throw new MachinjiriException("Database Error: Database configuration not set. Call setConfig() first.", 102);
             }
 
             $driver = self::$config['driver'] ?? null;
             if (!$driver) {
-                throw new MachinjiriException("Database configuration must specify a 'driver'.");
+                throw new MachinjiriException("Database Error: Database configuration must specify a 'driver'.", 103);
             }
 
             switch ($driver) {
@@ -85,7 +85,7 @@ class DatabaseConnection
         $required = ['host', 'database', 'username', 'password'];
         foreach ($required as $key) {
             if (!isset(self::$config[$key]) && $key !== 'password') {
-                throw new MachinjiriException("Missing required configuration: {$key}");
+                throw new MachinjiriException("Database Error: Missing required configuration: {$key}", 104);
             }
         }
 
@@ -116,7 +116,7 @@ class DatabaseConnection
         try {
             return new PDO($dsn, $username, $password, $options);
         } catch (PDOException $e) {
-            throw new MachinjiriException("Database connection failed: " . $e->getMessage(), 10014);
+            throw new MachinjiriException("Database Error: Database connection failed: " . $e->getMessage(), 105);
         }
     }
 
@@ -144,7 +144,7 @@ class DatabaseConnection
         try {
             return new PDO($dsn, null, null, $options);
         } catch (PDOException $e) {
-            throw new MachinjiriException("SQLite connection failed: " . $e->getMessage());
+            throw new MachinjiriException("Database Error: SQLite connection failed: " . $e->getMessage(), 106);
         }
     }
 
@@ -154,7 +154,7 @@ class DatabaseConnection
     private static function createMongoConnection(): Client
     {
         if (!class_exists(Client::class)) {
-            throw new MachinjiriException("MongoDB PHP driver not installed.");
+            throw new MachinjiriException("Database Error: MongoDB PHP driver not installed.", 107);
         }
 
         $host = self::$config['host'] ?? 'localhost';
@@ -176,7 +176,7 @@ class DatabaseConnection
                 self::$config['driverOptions'] ?? []
             );
         } catch (MongoDBException $e) {
-            throw new MachinjiriException("MongoDB connection failed: " . $e->getMessage());
+            throw new MachinjiriException("Database Error: MongoDB connection failed: " . $e->getMessage(), 108);
         }
     }
 
@@ -186,7 +186,7 @@ class DatabaseConnection
     private static function createCustomPdoConnection(): PDO
     {
         if (empty(self::$config['dsn'])) {
-            throw new MachinjiriException("Custom PDO driver requires 'dsn' configuration.");
+            throw new MachinjiriException("Database Error: Custom PDO driver requires 'dsn' configuration.", 109);
         }
 
         $username = self::$config['username'] ?? null;
@@ -210,20 +210,20 @@ class DatabaseConnection
                 $options
             );
         } catch (PDOException $e) {
-            throw new MachinjiriException("PDO connection failed: " . $e->getMessage());
+            throw new MachinjiriException("Database Error: PDO connection failed: " . $e->getMessage(), 110);
         }
     }
 
     /**
      * Execute a prepared SQL statement
      * 
-     * @throws MachinjiriException If called with non-PDO connection
+     * @throws  If called with non-PDO connection
      */
     public static function executeQuery(string $sql, array $params = []): PDOStatement
     {
         $conn = self::getInstance();
         if (!$conn instanceof PDO) {
-            throw new MachinjiriException("executeQuery() only supports PDO connections.");
+            throw new MachinjiriException("Database Error: only supports PDO connections.", 111);
         }
 
         try {
@@ -231,7 +231,7 @@ class DatabaseConnection
             $stmt->execute($params);
             return $stmt;
         } catch (PDOException $e) {
-            throw new MachinjiriException("Query execution failed: " . $e->getMessage());
+            throw new MachinjiriException("Database Error: Query execution failed: " . $e->getMessage(), 112);
         }
     }
     
@@ -253,57 +253,57 @@ class DatabaseConnection
     /**
      * Begin a database transaction
      * 
-     * @throws MachinjiriException If called with non-PDO connection or transaction fails
+     * @throws  If called with non-PDO connection or transaction fails
      */
     public static function beginTransaction(): void
     {
         $conn = self::getInstance();
         if (!$conn instanceof PDO) {
-            throw new MachinjiriException("Transactions only supported for PDO connections.");
+            throw new MachinjiriException("Database Error: Transactions only supported for PDO connections.", 113);
         }
 
         try {
             $conn->beginTransaction();
         } catch (PDOException $e) {
-            throw new MachinjiriException("Failed to begin transaction: " . $e->getMessage());
+            throw new MachinjiriException("Database Error: Failed to begin transaction: " . $e->getMessage(), 114);
         }
     }
 
     /**
      * Commit the current transaction
      * 
-     * @throws MachinjiriException If called with non-PDO connection or commit fails
+     * @throws  If called with non-PDO connection or commit fails
      */
     public static function commit(): void
     {
         $conn = self::getInstance();
         if (!$conn instanceof PDO) {
-            throw new MachinjiriException("Transactions only supported for PDO connections.");
+            throw new MachinjiriException("Database Error: Transactions only supported for PDO connections.", 115);
         }
 
         try {
             $conn->commit();
         } catch (PDOException $e) {
-            throw new MachinjiriException("Failed to commit transaction: " . $e->getMessage());
+            throw new MachinjiriException("Database Error: Failed to commit transaction: " . $e->getMessage(), 116);
         }
     }
 
     /**
      * Roll back the current transaction
      * 
-     * @throws MachinjiriException If called with non-PDO connection or rollback fails
+     * @throws  If called with non-PDO connection or rollback fails
      */
     public static function rollback(): void
     {
         $conn = self::getInstance();
         if (!$conn instanceof PDO) {
-            throw new MachinjiriException("Transactions only supported for PDO connections.");
+            throw new MachinjiriException("Database Error: Transactions only supported for PDO connections.", 117);
         }
 
         try {
             $conn->rollBack();
         } catch (PDOException $e) {
-            throw new MachinjiriException("Failed to rollback transaction: " . $e->getMessage());
+            throw new MachinjiriException("Database Error: Failed to rollback transaction: " . $e->getMessage(), 118);
         }
     }
     

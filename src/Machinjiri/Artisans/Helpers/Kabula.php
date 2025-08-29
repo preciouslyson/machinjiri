@@ -1,7 +1,7 @@
 <?php
 
 namespace Mlangeni\Machinjiri\Core\Artisans\Helpers;
-
+use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Process\TaskInterface;
 use Mlangeni\Machinjiri\Core\Database\MigrationHandler;
 use Mlangeni\Machinjiri\Core\Database\MigrationCreator;
@@ -48,7 +48,7 @@ class Kabula
     public static function createTask(string $name, string $path = null): bool
     {
         if (!$path) {
-            $path = __DIR__ . '/../../../../app/Tasks/';
+            $path = Container::$appBasePath . '/../app/Tasks/';
         }
         
         // Ensure directory exists

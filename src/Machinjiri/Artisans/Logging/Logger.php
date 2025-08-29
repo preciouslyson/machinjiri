@@ -1,7 +1,7 @@
 <?php
 
 namespace Mlangeni\Machinjiri\Core\Artisans\Logging;
-
+use Mlangeni\Machinjiri\Core\Container;
 class Logger
 {
     const EMERGENCY = 'emergency';
@@ -15,11 +15,12 @@ class Logger
 
     protected $logFile;
     protected $minLevel;
-    protected const path = __DIR__ ."/../../../../storage/logs/";
+    protected $path;
 
     public function __construct(string $logFile = null, string $minLevel = self::DEBUG)
     {
-        $this->logFile = self::path . $logFile . '.log' ?? sys_get_temp_dir() . '/app.log';
+      $this->path = Container::$appBasePath . "/../storage/logs/";
+        $this->logFile = $this->path . $logFile . '.log' ?? sys_get_temp_dir() . '/app.log';
         $this->minLevel = $minLevel;
     }
 

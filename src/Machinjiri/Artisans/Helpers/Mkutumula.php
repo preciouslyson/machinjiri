@@ -2,7 +2,6 @@
 
 namespace Mlangeni\Machinjiri\Core\Artisans\Helpers;
 use Mlangeni\Machinjiri\Core\Container;
-
 class Mkutumula
 {
     private $basePath;

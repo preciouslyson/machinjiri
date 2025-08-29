@@ -1,6 +1,7 @@
 <?php
 
-namespace Mlangeni\Machinjiri\Core\Database;
+namespace Mlangeni\Machinjiri\Core\Database\Migrations;
+use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 

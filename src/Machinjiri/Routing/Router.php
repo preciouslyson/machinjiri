@@ -24,7 +24,7 @@ class Router
         $this->httpRequest = HttpRequest::createFromGlobals();
         $this->httpResponse = new HttpResponse();
         $this->cacheFile = Container::$appBasePath . "/../storage/cache/routes";
-        $this->basePath = Container::routingBase();
+        $this->basePath = Container::getRoutingBase();
     }
 
     // Set base path for all routes

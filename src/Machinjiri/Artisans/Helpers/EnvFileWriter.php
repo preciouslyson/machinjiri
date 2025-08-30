@@ -15,11 +15,11 @@ APP_DEBUG=true
 APP_URL=http://localhost
 
 # Database Configuration
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=myapp_db
-DB_USERNAME=root
+DB_CONNECTION=sqlite
+DB_HOST=
+DB_PORT=
+DB_DATABASE=
+DB_USERNAME=
 DB_PASSWORD=secret
 
 # Cache & Session

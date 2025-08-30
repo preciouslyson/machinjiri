@@ -142,7 +142,7 @@ class ErrorHandler
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Error - Application Exception</title>
+    <title>Machinjiri - Error</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -199,12 +199,8 @@ class ErrorHandler
 </head>
 <body>
     <div class="error-container">
-        <div class="error-header">Application Error</div>
+        <div class="error-header">Machinjiri - Application Error</div>
         <div class="error-body">
-            <div class="error-detail">
-                <span class="error-label">Exception Type:</span>
-                <span class="error-value">$errorClass</span>
-            </div>
             <div class="error-detail">
                 <span class="error-label">Message:</span>
                 <span class="error-value">$errorMessage</span>

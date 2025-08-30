@@ -5,15 +5,14 @@ use Mlangeni\Machinjiri\Core\Http\HttpResponse;
 
 final class MachinjiriException extends \Exception {
   
-  public function display () : void {
-    $code = $this->getCode();
-    $body = <<<HTML
+  public final function show () : void {
+    print <<<HTML
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Machinjiri - Error</title>
+    <title>Machinjiri - Exception</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -22,14 +21,6 @@ final class MachinjiriException extends \Exception {
             background-color: #f8f9fa;
             margin: 0;
             padding: 20px;
-        }
-        .container {
-          position: fixed;
-          background: #f3f3f3;
-          top: 0;
-          left:0;
-          height:100%;
-          width:100%;
         }
         .error-container {
             max-width: 800px;
@@ -77,26 +68,29 @@ final class MachinjiriException extends \Exception {
     </style>
 </head>
 <body>
-    <div class="container">
-      <div class="error-container">
-          <div class="error-header">Machinjiri - Application Error</div>
-          <div class="error-body">
-              <div class="error-detail">
-                  <span class="error-label">Message:</span>
-                  <span class="error-value">{$this->getMessage()}</span>
-              </div>
-              <div class="error-detail">
-                  <span class="error-label">Code:</span>
-                  <span class="error-value">{$this->getCode()}</span>
-              </div>
-          </div>
-      </div>
+    <div class="error-container">
+        <div class="error-header">Machinjiri - Application Error</div>
+        <div class="error-body">
+            <div class="error-detail">
+                <span class="error-label">Message:</span>
+                <span class="error-value">{$this->getMessage()}</span>
+            </div>
+            <div class="error-detail">
+                <span class="error-label">Code:</span>
+                <span class="error-value">{$this->getCode()}</span>
+            </div>
+            <div class="error-detail">
+                <span class="error-label">Location:</span>
+                <span class="error-value">{$this->getFile()} on line {$this->getLine()}</span>
+            </div>
+            <div class="error-detail">
+                <span class="error-label">Stack Trace:</span>
+                <div class="error-trace">{$this->getTraceAsString()}</div>
+            </div>
+        </div>
     </div>
 </body>
 </html>
 HTML;
-  $response = new HttpResponse();
-  $response->setStatusCode(400)->send();
-  print $body;
   }
 }

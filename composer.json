@@ -5,7 +5,7 @@
   "language": "PHP",
   "keywords": ["php", "framework", "mlangeni", "machinjiri"],
   "homepage": "https://github.com/preciouslyson/machinjiri",
-  "version" : "1.2.0",
+  "version" : "1.2.1",
   "license": "MIT",
   "authors": [
     {

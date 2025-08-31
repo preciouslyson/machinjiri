@@ -9,15 +9,15 @@ use Exception;
 
 class Router
 {
-    protected $routes = [];
-    protected $namedRoutes = [];
-    protected $basePath;
-    protected $groupStack = [];
-    protected $middleware = [];
-    protected $rateLimiters = [];
-    protected $cacheFile = null;
-    private $httpRequest;
-    private $httpResponse;
+    protected array $routes = [];
+    protected array $namedRoutes = [];
+    protected string $basePath;
+    protected array $groupStack = [];
+    protected array $middleware = [];
+    protected array $rateLimiters = [];
+    protected ?string $cacheFile = null;
+    private HttpRequest $httpRequest;
+    private HttpResponse $httpResponse;
 
     public function __construct()
     {
@@ -28,14 +28,14 @@ class Router
     }
 
     // Set base path for all routes
-    public function setBasePath($basePath): self
+    public function setBasePath(string $basePath): self
     {
         $this->basePath = rtrim($basePath, '/');
         return $this;
     }
 
     // Add route with multiple HTTP methods
-    public function map($methods, $pattern, $handler, $name = null, $options = []): self
+    public function map(array|string $methods, string $pattern, mixed $handler, ?string $name = null, array $options = []): self
     {
         $pattern = $this->applyGroupPrefix($pattern);
         $pattern = $this->basePath . '/' . ltrim($pattern, '/');
@@ -67,27 +67,27 @@ class Router
     }
 
     // HTTP method shortcuts
-    public function get($pattern, $handler, $name = null, $options = []): self
+    public function get(string $pattern, mixed $handler, ?string $name = null, array $options = []): self
     {
         return $this->map(['GET'], $pattern, $handler, $name, $options);
     }
 
-    public function post($pattern, $handler, $name = null, $options = []): self
+    public function post(string $pattern, mixed $handler, ?string $name = null, array $options = []): self
     {
         return $this->map(['POST'], $pattern, $handler, $name, $options);
     }
 
-    public function put($pattern, $handler, $name = null, $options = []): self
+    public function put(string $pattern, mixed $handler, ?string $name = null, array $options = []): self
     {
         return $this->map(['PUT'], $pattern, $handler, $name, $options);
     }
 
-    public function delete($pattern, $handler, $name = null, $options = []): self
+    public function delete(string $pattern, mixed $handler, ?string $name = null, array $options = []): self
     {
         return $this->map(['DELETE'], $pattern, $handler, $name, $options);
     }
 
-    public function any($pattern, $handler, $name = null, $options = []): self
+    public function any(string $pattern, mixed $handler, ?string $name = null, array $options = []): self
     {
         return $this->map(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], $pattern, $handler, $name, $options);
     }
@@ -102,7 +102,7 @@ class Router
     }
 
     // Add middleware
-    public function middleware($middleware, callable $callback = null): self
+    public function middleware(mixed $middleware, ?callable $callback = null): self
     {
         if ($callback) {
             return $this->group(['middleware' => $middleware], $callback);
@@ -133,7 +133,12 @@ class Router
             'max_age' => 86400
         ];
 
-        $this->group(['cors' => array_merge($defaults, $config)], func_get_args()[1] ?? null);
+        if (func_num_args() > 1) {
+            $callback = func_get_arg(1);
+            return $this->group(['cors' => array_merge($defaults, $config)], $callback);
+        }
+
+        $this->group(['cors' => array_merge($defaults, $config)], function() {});
         return $this;
     }
 
@@ -147,7 +152,7 @@ class Router
         $route = $this->namedRoutes[$name]['pattern'];
 
         foreach ($params as $key => $value) {
-            $route = str_replace('{' . $key . '}', urlencode($value), $route);
+            $route = str_replace('{' . $key . '}', urlencode((string)$value), $route);
         }
 
         return $route;
@@ -337,7 +342,7 @@ class Router
         $runner($params);
     }
 
-    protected function executeHandler($handler, array $params): void
+    protected function executeHandler(mixed $handler, array $params): void
     {
         if (is_callable($handler)) {
             $result = call_user_func_array($handler, array_merge([$this->httpRequest, $this->httpResponse], $params));
@@ -351,7 +356,7 @@ class Router
                 }
                 $this->httpResponse->send();
             }
-        } elseif (is_string($handler) && strpos($handler, '@') !== false) {
+        } elseif (is_string($handler) && str_contains($handler, '@')) {
             [$controller, $method] = explode('@', $handler, 2);
             $controllerClass = "Mlangeni\\Machinjiri\\App\\Controllers\\$controller";
             

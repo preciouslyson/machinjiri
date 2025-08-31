@@ -286,7 +286,7 @@ HTML;
 </head>
 <body>
     <div class="error-container">
-        <div class="error-icon">⚠️</div>
+        <div class="error-icon">Machinjiri</div>
         <h1 class="error-title">Something Went Wrong</h1>
         <p class="error-message">We apologize for the inconvenience. Our team has been notified and is working to fix the issue.</p>
         <div class="error-action">

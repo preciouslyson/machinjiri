@@ -44,7 +44,7 @@ class PostgresGrammar extends Grammar
 
     protected function compileTinyIntType(array $parameters): string
     {
-        return 'SMALLINT'; // PostgreSQL doesn't have TINYINT, use SMALLINT instead
+        return 'SMALLINT';
     }
 
     protected function compileStringType(array $parameters): string
@@ -55,9 +55,6 @@ class PostgresGrammar extends Grammar
 
     protected function compileFloatType(array $parameters): string
     {
-        if (!empty($parameters)) {
-            return 'REAL';
-        }
         return 'REAL';
     }
 
@@ -77,7 +74,7 @@ class PostgresGrammar extends Grammar
             $optionStrings = [];
             foreach ($options as $key => $value) {
                 if ($key === 'engine') {
-                    continue; // PostgreSQL doesn't support storage engines
+                    continue;
                 }
                 $optionStrings[] = strtoupper($key) . '=' . $value;
             }

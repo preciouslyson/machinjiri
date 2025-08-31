@@ -1,0 +1,9 @@
+#!/usr/bin/env php
+<?php
+
+require_once __DIR__ . '/vendor/autoload.php';
+
+use Mlangeni\Machinjiri\Core\Artisans\Terminal\Terminal;
+
+$application = new Terminal();
+$application->run();

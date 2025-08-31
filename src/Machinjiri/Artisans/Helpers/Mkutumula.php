@@ -8,7 +8,13 @@ class Mkutumula
     
     public function __construct() {
       // Base path for all generated files
-      $this->basePath = Container::$appBasePath . '/../app/';
+      $path = Container::$appBasePath . '/../app/';
+      
+      if (!is_dir($path)) {
+        // try terminal path
+        $path = './app/';
+      }
+      $this->basePath = $path;
     }
     
     public function create (string $className, string $type = "controller") : bool {
@@ -69,13 +75,9 @@ class $className
     // Middleware implementation
     public function index (array \$params, callable \$next) 
     {
-      if (!authenticated) {
-        return (new HttpResponse())
-              ->setStatusCode(403)
-              ->setContentType("application/html")
-              ->setBody("Not Logged in")
-              ->send();
-      }
+      // add logic here
+      
+      // return next route
       return \$next;
     }
 }

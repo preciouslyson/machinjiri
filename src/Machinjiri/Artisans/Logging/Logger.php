@@ -17,10 +17,10 @@ class Logger
     protected $minLevel;
     protected $path;
 
-    public function __construct(string $logFile = null, string $minLevel = self::DEBUG)
+    public function __construct(?string $logFile = null, string $minLevel = self::DEBUG)
     {
-      $this->path = Container::$appBasePath . "/../storage/logs/";
-        $this->logFile = $this->path . $logFile . '.log' ?? sys_get_temp_dir() . '/app.log';
+        $this->path = Container::$appBasePath . "/../storage/logs/";
+        $this->logFile = $logFile ? $this->path . $logFile . '.log' : sys_get_temp_dir() . '/app.log';
         $this->minLevel = $minLevel;
     }
 

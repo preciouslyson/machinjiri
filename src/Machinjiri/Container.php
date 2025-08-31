@@ -29,6 +29,7 @@ class Container
         $this->bootstrapEnvironment();
         $this->setupPaths();
         $this->createDirectories();
+        $this->createAppDirectories();
     }
     
     protected function validateBasePath(): void
@@ -248,6 +249,7 @@ EOT;
         $this->createStorageDirectories();
         $this->createWelcomeView();
         $this->createHtaccess();
+        $this->createArtisan();
     }
     
     protected function createHomeController(): void
@@ -638,6 +640,30 @@ ServerSignature Off
 # Remove ETag header
 FileETag None
 Header unset ETag
+EOT;
+    }
+    
+    protected function createArtisan () : void {
+      $artisan = $this->getRootPath() . "/artisan";
+      
+      if (!is_file($artisan)) {
+        $template = $this->getArtisanTemplate();
+        file_put_contents($artisan, $template);
+      }
+      
+    }
+    
+    protected function getArtisanTemplate (): string {
+      return <<<'EOT'
+#!/usr/bin/env php
+<?php
+
+require_once __DIR__ . '/vendor/autoload.php';
+
+use Mlangeni\Machinjiri\Core\Artisans\Terminal\Terminal;
+
+$application = new Terminal();
+$application->run();
 EOT;
     }
 }

@@ -1,9 +1,10 @@
 <?php
 
 namespace Mlangeni\Machinjiri\Core\Authentication;
-
+use Mlangeni\Machinjiri\Core\Container;
+use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 class Session {
-    private $timeout = 1800; // 30 minutes
+    private int $timeout = 1800;
 
     public function __construct() {
         if (session_status() == PHP_SESSION_NONE) {
@@ -13,11 +14,11 @@ class Session {
         }
     }
 
-    private function configureSession() {
+    private function configureSession(): void {
         session_set_cookie_params([
             'lifetime' => 0,
-            'path' => '/',
-            'domain' => $_SERVER['HTTP_HOST'],
+            'path' => Container::$appBasePath . "/../storage/session/";,
+            'domain' => $_SERVER['HTTP_HOST'] ?? 'localhost',
             'secure' => true,
             'httponly' => true,
             'samesite' => 'Strict'
@@ -25,7 +26,7 @@ class Session {
         ini_set('session.use_strict_mode', '1');
     }
 
-    private function initializeSession() {
+    private function initializeSession(): void {
         if (!isset($_SESSION['_created'])) {
             $_SESSION['_created'] = time();
             $_SESSION['_fingerprint'] = $this->generateFingerprint();
@@ -33,46 +34,54 @@ class Session {
         $this->validateSession();
     }
 
-    private function validateSession() {
+    private function validateSession(): void {
         $this->checkTimeout();
         $this->validateFingerprint();
     }
 
-    public function set($key, $value) {
-      if (preg_match('/^[a-zA-Z0-9_]+$/', $key)) {
-          $_SESSION[$key] = $value;
-      }
+    public function set(string $key, mixed $value): void {
+        if (preg_match('/^[a-zA-Z0-9_]+$/', $key)) {
+            $_SESSION[$key] = $value;
+        }
     }
     
-    public function get($key, $default = null) {
-        if (isset($_SESSION[$key])) {
-            return $this->sanitize($_SESSION[$key]);
-        }
-        return $default;
+    public function get(string $key, mixed $default = null): mixed {
+        return isset($_SESSION[$key]) ? $this->sanitize($_SESSION[$key]) : $default;
     }
 
-    private function sanitize($data) {
+    private function sanitize(mixed $data): mixed {
         return is_array($data) 
             ? array_map([$this, 'sanitize'], $data) 
-            : htmlspecialchars($data, ENT_QUOTES, 'UTF-8');
+            : htmlspecialchars((string)$data, ENT_QUOTES, 'UTF-8');
     }
-    
 
-    // Helper methods
-    private function generateFingerprint() {
-        return hash('sha256', $_SERVER['HTTP_USER_AGENT'] . ip2long($_SERVER['REMOTE_ADDR']));
+    private function generateFingerprint(): string {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        $agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        return hash('sha256', $agent . $ip);
     }
     
-    private function validateFingerprint() {
+    private function validateFingerprint(): void {
         if ($_SESSION['_fingerprint'] !== $this->generateFingerprint()) {
             $this->destroy();
-            throw new \Exception('Session validation failed');
+            throw new MachinjiriException('Session validation failed');
         }
     }
     
-    public function regenerateId() {
+    public function regenerateId(): void {
         session_regenerate_id(true);
-        $_SESSION['_created'] = time(); // Track regeneration time
+        $_SESSION['_created'] = time();
     }
   
+    private function checkTimeout(): void {
+        if (isset($_SESSION['_created']) && time() - $_SESSION['_created'] > $this->timeout) {
+            $this->destroy();
+            throw new MachinjiriException('Session timeout');
+        }
+    }
+
+    public function destroy(): void {
+        session_destroy();
+        $_SESSION = [];
+    }
 }

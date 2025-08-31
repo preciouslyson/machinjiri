@@ -17,6 +17,7 @@ class MigrationHandler
       
       if (!is_dir($path)) {
         @mkdir($path, 0777);
+        $path = "./database/migrations/";
       }
       
         $this->migrationsPath = rtrim($path, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;

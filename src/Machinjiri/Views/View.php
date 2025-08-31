@@ -124,7 +124,7 @@ class View
      * @return void
      * @throws MachinjiriException
      */
-    public static function section(string $name, string $content = null): void
+    public static function section(string $name, ?string $content = null): void
     {
         $instance = self::$currentInstance;
         

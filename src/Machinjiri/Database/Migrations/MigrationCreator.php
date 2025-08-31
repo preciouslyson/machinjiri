@@ -6,15 +6,17 @@ use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 
 class MigrationCreator
 {
-    protected string $migrationsPath;
+    public string $migrationsPath;
 
     public function __construct()
     {
-        $this->migrationsPath = rtrim(Container::$appBasePath."/../database/migrations/", DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        $path = rtrim(Container::$appBasePath."/../database/migrations/", DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
         
-        if (!is_dir($this->migrationsPath)) {
-            throw new MachinjiriException("Migrations directory does not exist: {$this->migrationsPath}");
+        if (!is_dir($path)) {
+            $path = "./database/migrations/";
         }
+        
+        $this->migrationsPath = $path;
     }
 
     /**
@@ -111,4 +113,18 @@ class $className
 }
 STUB;
     }
+    
+    public function getMigrationFiles () : array {
+      return scandir($this->migrationsPath);
+    }
+    
+    public function removeMigration (string $name) : bool {
+      $path = $this->migrationsPath . $name = preg_match('/(.php)/', $name) ? $name : $name .".php";
+      if (is_file($path)) {
+        @unlink($path);
+        return true;
+      }
+      return false;
+    }
+    
 }

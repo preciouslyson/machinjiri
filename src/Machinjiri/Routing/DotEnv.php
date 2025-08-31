@@ -16,11 +16,13 @@ class DotEnv
 
   public function load(): void
   {
-      $filePath = $this->path . DIRECTORY_SEPARATOR . '.env';
+      $pathToFile = $this->path . DIRECTORY_SEPARATOR . '.env';
       
-      if (!file_exists($filePath)) {
-          throw new MachinjiriException("Environment file not found: Common reasons being entry point not in public folder.");
+      if (!is_file($pathToFile)) {
+          $pathToFile = "./.env";
       }
+      
+      $filePath = $pathToFile;
       
       if (!is_readable($filePath)) {
           throw new MachinjiriException("Environment file is not readable");

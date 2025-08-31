@@ -1,6 +1,7 @@
 <?php
 
 namespace Mlangeni\Machinjiri\Core\Artisans\Helpers;
+
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Process\TaskInterface;
 use Mlangeni\Machinjiri\Core\Database\MigrationHandler;
@@ -9,8 +10,8 @@ use RuntimeException;
 
 class Kabula
 {
-    protected static $migrationHandler;
-    protected static $migrationCreator;
+    protected static ?MigrationHandler $migrationHandler = null;
+    protected static ?MigrationCreator $migrationCreator = null;
 
     /**
      * Get the migration handler instance.

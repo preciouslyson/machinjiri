@@ -48,7 +48,7 @@ class Auth
         $email = $credentials['email'] ?? '';
         $password = $credentials['password'] ?? '';
         
-        if (empty($password) {
+        if (empty($password)) {
             $this->logger->warning('Authentication attempt with empty password');
             return false;
         }

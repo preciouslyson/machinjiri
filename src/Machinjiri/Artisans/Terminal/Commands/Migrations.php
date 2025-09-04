@@ -7,7 +7,10 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Helper\Table;
 use Mlangeni\Machinjiri\Core\Database\Migrations\MigrationCreator;
+use Mlangeni\Machinjiri\Core\Database\Migrations\MigrationHandler;
+use Mlangeni\Machinjiri\Core\Machinjiri;
 
 class Migrations
 {
@@ -95,7 +98,42 @@ class Migrations
                       return Command::FAILURE;
                     }
                 }
-            }
+            },
+            new class extends Command {
+                protected static $defaultName = 'migration:get-run';
+                protected static $defaultDescription = 'Retrieve Migrations that have been run';
+
+                protected function execute(InputInterface $input, OutputInterface $output): int
+                {
+                    Machinjiri::App(__DIR__, true);
+                    $output->writeln("Machinjiri Terminal - Ran Migrations");
+                    
+                    try {
+                      $mh = new MigrationHandler();
+                      $runMigrations = $mh->getRanMigrations(true);
+                    
+                      if (count($runMigrations) > 0) {
+                        $counter = 0;
+                        $table = new Table($output);
+                        $table->setHeaders(['#', 'Migration', 'Created At']);
+                        $rows = [];
+                        foreach ($runMigrations as $runMigration) {
+                          $counter++;
+                          $rows[] = [$counter, $runMigration['migration'], $runMigration['created_at']];
+                        }
+                        $table->setRows($rows);
+                        $table->render();
+                      } else {
+                        $output->writeln("No run migrations found.");
+                      }
+                      
+                      return Command::SUCCESS;
+                    } catch (MachinjiriException $e) {
+                      $output->writeln("Error: " , $e->getMessage());
+                      return Command::FAILURE;
+                    }
+                }
+            },
         ];
     }
 }

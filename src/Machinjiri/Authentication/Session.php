@@ -17,7 +17,7 @@ class Session {
     private function configureSession(): void {
         session_set_cookie_params([
             'lifetime' => 0,
-            'path' => Container::$appBasePath . "/../storage/session/";,
+            'path' => Container::$appBasePath . "/../storage/session/",
             'domain' => $_SERVER['HTTP_HOST'] ?? 'localhost',
             'secure' => true,
             'httponly' => true,

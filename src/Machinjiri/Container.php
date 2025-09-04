@@ -17,6 +17,8 @@ class Container
     protected $resources;
     protected $app;
     protected $config;
+    protected $unitTesting;
+    public static $terminalBase = "./";
     
     protected function __construct(string $appBasePath)
     {
@@ -56,6 +58,7 @@ class Container
         $this->routing = $root . "public/";
         $this->app = $root . "app/";
         $this->config = $root . "config/";
+        $this->unitTesting = $root . "tests/Unit";
     }
     
     protected function createDirectories(): void
@@ -66,7 +69,8 @@ class Container
             $this->database,
             $this->storage,
             $this->app,
-            $this->config
+            $this->config,
+            $this->unitTesting
         ];
         
         array_walk($directories, function ($directory) {
@@ -229,7 +233,8 @@ EOT;
         $appDirs = [
             $this->app . "Controllers/",
             $this->app . "Middleware/",
-            $this->app . "Model/"
+            $this->app . "Model/",
+            $this->app . "Jobs/"
         ];
         
         array_walk($appDirs, function ($dir) {
@@ -250,6 +255,7 @@ EOT;
         $this->createWelcomeView();
         $this->createHtaccess();
         $this->createArtisan();
+        $this->createPhpUnitConfiguration();
     }
     
     protected function createHomeController(): void
@@ -650,7 +656,15 @@ EOT;
         $template = $this->getArtisanTemplate();
         file_put_contents($artisan, $template);
       }
+    }
+    
+    protected function createPhpUnitConfiguration () : void {
+      $phpunit = $this->getRootPath() . "/phpunit.xml";
       
+      if (!is_file($phpunit)) {
+        $template = $this->phpUnitConfigurationTemplate();
+        file_put_contents($phpunit, $template);
+      }
     }
     
     protected function getArtisanTemplate (): string {
@@ -664,6 +678,19 @@ use Mlangeni\Machinjiri\Core\Artisans\Terminal\Terminal;
 
 $application = new Terminal();
 $application->run();
+EOT;
+    }
+    
+    protected function phpUnitConfigurationTemplate () : string {
+      return <<<EOT
+<?xml version="1.0" encoding="UTF-8" ?>
+<phpunit colors="true" bootstrap="vendor/autoload.php">
+  <testsuites>
+    <testsuite name="Unit Tests">
+      <directory>tests/Unit</directory>
+    </testsuite>
+  </testsuites>
+</phpunit>
 EOT;
     }
 }

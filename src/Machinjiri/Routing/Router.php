@@ -1,11 +1,11 @@
 <?php
 
 namespace Mlangeni\Machinjiri\Core\Routing;
+
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Http\HttpRequest;
 use Mlangeni\Machinjiri\Core\Http\HttpResponse;
-use Exception;
 
 class Router
 {
@@ -146,7 +146,7 @@ class Router
     public function url(string $name, array $params = []): string
     {
         if (!isset($this->namedRoutes[$name])) {
-            throw new Exception("Route '{$name}' not found");
+            throw new MachinjiriException("Route '{$name}' not found");
         }
 
         $route = $this->namedRoutes[$name]['pattern'];
@@ -239,7 +239,7 @@ class Router
     public function cacheRoutes(): void
     {
         if (!$this->cacheFile) {
-            throw new Exception('Cache file not specified');
+            throw new MachinjiriException('Cache file not specified');
         }
 
         $cacheData = [];
@@ -332,6 +332,16 @@ class Router
             }
 
             $current = array_shift($middlewares);
+            
+            // Resolve middleware string to class instance
+            if (is_string($current)) {
+                $middlewareClass = "Mlangeni\\Machinjiri\\App\\Middleware\\$current";
+                if (!class_exists($middlewareClass)) {
+                    throw new MachinjiriException("Middleware class '$middlewareClass' not found");
+                }
+                $current = [new $middlewareClass(), 'handle'];
+            }
+
             $next = function ($params) use ($runner, $middlewares) {
                 return $runner($params);
             };
@@ -361,13 +371,13 @@ class Router
             $controllerClass = "Mlangeni\\Machinjiri\\App\\Controllers\\$controller";
             
             if (!class_exists($controllerClass)) {
-                throw new Exception("Controller class '$controllerClass' not found");
+                throw new MachinjiriException("Controller class '$controllerClass' not found");
             }
             
             $controllerInstance = new $controllerClass();
             
             if (!method_exists($controllerInstance, $method)) {
-                throw new Exception("Method '$method' not found in controller '$controllerClass'");
+                throw new MachinjiriException("Method '$method' not found in controller '$controllerClass'");
             }
             
             $result = call_user_func_array(
@@ -385,7 +395,7 @@ class Router
                 $this->httpResponse->send();
             }
         } else {
-            throw new Exception("Invalid route handler");
+            throw new MachinjiriException("Invalid route handler");
         }
     }
 
@@ -431,7 +441,7 @@ class Router
     {
         $this->httpResponse
             ->setStatusCode(404)
-            ->setBody('404 Not Found')
+            ->setBody(self::notFoundTemplate())
             ->send();
     }
 
@@ -442,5 +452,113 @@ class Router
             ->setHeader('Retry-After', '60')
             ->setBody('Rate limit exceeded. Please try again later.')
             ->send();
+    }
+    
+    protected static function notFoundTemplate () : string {
+      return <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Not Found - Machinjiri</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+            padding: 40px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .logo {
+            color: #dc3545;
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+        }
+        
+        .error-code {
+            font-size: 160px;
+            font-weight: 800;
+            color: #dc3545;
+            line-height: 1;
+            margin: 20px 0;
+            text-shadow: 4px 4px 0px rgba(220, 53, 69, 0.15);
+            animation: blink 2s infinite;
+        }
+        
+        .error-title {
+            font-size: 32px;
+            margin-bottom: 20px;
+            color: #212529;
+        }
+        
+        .error-message {
+            font-size: 18px;
+            color: #6c757d;
+            margin-bottom: 30px;
+            line-height: 1.6;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        @keyframes blink {
+            0%, 50%, 100% { opacity: 1; }
+            25%, 75% { opacity: 0.3; }
+        }
+        
+        @media (max-width: 768px) {
+            .error-code {
+                font-size: 120px;
+            }
+            
+            .container {
+                padding: 30px 20px;
+            }
+            
+            .actions {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="error-code">404</div>
+        <h1 class="error-title">Page Not Found</h1>
+        <p class="error-message">The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.</p>
+    </div>
+</body>
+</html>
+HTML;
     }
 }

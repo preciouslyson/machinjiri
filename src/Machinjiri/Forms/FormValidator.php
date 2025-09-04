@@ -77,10 +77,10 @@ class FormValidator
         }
       }
 
-      // If valid and not empty, add to validated data
-      if (!isset($this->errors[$field]) {
-        $this->validatedData[$field] = $value;
-      }
+        // If valid and not empty, add to validated data
+        if (!isset($this->errors[$field])) {
+          $this->validatedData[$field] = $value;
+        }
       }
 
       return empty($this->errors);

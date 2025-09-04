@@ -32,6 +32,16 @@ final class Machinjiri extends Container
         }
     }
     
+    public function init () : self {
+      try {
+        $this->boot();
+        $this->loadRoutes();
+        return $this;
+      } catch (MachinjiriException $e) {
+        $e->show();
+      }
+    }
+    
     private function dbConnect(): void
     {
         try {
@@ -40,16 +50,6 @@ final class Machinjiri extends Container
         } catch (MachinjiriException $e) {
             // Log the error or handle it appropriately
             $e->show();
-        }
-    }
-    
-    public function init(): void
-    {
-        try {
-            $this->boot();
-            $this->loadRoutes();
-        } catch (MachinjiriException $me) {
-            $me->show();
         }
     }
     

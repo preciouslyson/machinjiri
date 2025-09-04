@@ -112,7 +112,7 @@ class ErrorHandler
             ob_clean();
         }
 
-        http_response_code(500);
+        // http_response_code(500);
 
         if (self::$displayErrors) {
             // Development mode - show detailed error

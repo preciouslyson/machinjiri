@@ -103,9 +103,29 @@ class App
                       $output->writeln($e->getMessage());
                       return Command::FAILURE;
                     }
-                    
-                    
-                    
+                }
+            },
+            new class extends Command {
+                protected static $defaultName = 'make:job';
+                protected static $defaultDescription = 'Creates a Job Class template inside the app/Job/ directory';
+
+                protected function configure(): void
+                {
+                    $this
+                        ->addArgument('name', InputArgument::REQUIRED, 'The class name of the Job.');
+                }
+
+                protected function execute(InputInterface $input, OutputInterface $output): int
+                {
+                    $name = $input->getArgument('name');
+                    $mkutumula = new Mkutumula();
+                    if ($mkutumula->create($name, 'job')) {
+                      $output->writeln("Job '" . $name . "' created successfully");
+                      return Command::SUCCESS;
+                    } else {
+                      $output->writeln("Unable to create Job Class '" . $name . "' due to: class already exists or unreadable directory");
+                      return Command::FAILURE;
+                    }
                 }
             },
         ];

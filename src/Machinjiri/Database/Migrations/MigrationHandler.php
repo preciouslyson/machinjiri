@@ -16,8 +16,7 @@ class MigrationHandler
       $path = Container::$appBasePath . "/../database/migrations/";
       
       if (!is_dir($path)) {
-        @mkdir($path, 0777);
-        $path = "./database/migrations/";
+        $path = Container::$terminalBase . "database/migrations/";
       }
       
         $this->migrationsPath = rtrim($path, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
@@ -30,20 +29,34 @@ class MigrationHandler
      */
     protected function createMigrationsTable(): void
     {
-        $sql = "CREATE TABLE IF NOT EXISTS {$this->migrationsTable} (
+        /*
+        $sql = "CREATE TABLE IF NOT EXISTS {} (
             migration VARCHAR(255) PRIMARY KEY NOT NULL,
             batch INTEGER NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )";
+        */
         
-        $this->queryBuilder->execute($sql);
+        $queryBuilder = $this->queryBuilder;
+        $queryBuilder->createTable($this->migrationsTable, [
+          $queryBuilder->string('migration')->primaryKey()->notNull(),
+          $queryBuilder->integer('batch')->notNull(),
+          $queryBuilder->timestamp('created_at')->default('CURRENT_TIMESTAMP')
+          ])->execute();
     }
 
     /**
      * Get all migrations that have been run
      */
-    public function getRanMigrations(): array
+    public function getRanMigrations(bool $all = false): array
     {
+        if ($all) {
+          return $this->queryBuilder
+            ->select()
+            ->orderBy('batch', 'asc')
+            ->orderBy('migration', 'asc')
+            ->get();
+        }
         return $this->queryBuilder
             ->select(['migration'])
             ->orderBy('batch', 'asc')

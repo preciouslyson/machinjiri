@@ -13,7 +13,7 @@ class MigrationCreator
         $path = rtrim(Container::$appBasePath."/../database/migrations/", DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
         
         if (!is_dir($path)) {
-            $path = "./database/migrations/";
+            $path = Container::$terminalBase . "database/migrations/";
         }
         
         $this->migrationsPath = $path;
@@ -94,11 +94,11 @@ class $className
     public function up(QueryBuilder \$query): void
     {
         // Implement your migration here
-        // Example: 
-        // \$query->createTable('table', [
-        // \$query->id()->autoIncrement()->primaryKey(),
-        // \$query->string('column', 255)->notNull()
-        // ]);
+        // Example:
+        // \$query->createTable('table_name', [
+          // \$query->id()->autoIncrement()->primaryKey(),
+          // \$query->string('column', 255)->notNull()
+        // ])->execute();
     }
 
     /**
@@ -108,7 +108,7 @@ class $className
     {
         // Implement rollback here
         // Example: 
-        // \$query-->dropTable('temp_data');
+        // \$query-->dropTable('table_name')->execute();
     }
 }
 STUB;

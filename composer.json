@@ -39,6 +39,9 @@
       "Mlangeni\\Machinjiri\\Tests\\" : "tests/"
     }
   },
+  "extra" : {
+    "installer-name": "machinjiri"
+  },
   "scripts": {
     "test": "phpunit"
   },
@@ -50,15 +53,5 @@
     }
   },
   "minimum-stability": "stable",
-  "prefer-stable": true,
-  "archive": {
-    "exclude": [
-      "/tests",
-      "/docs",
-      "/.gitignore",
-      "/.env",
-      "/node_modules",
-      "/.idea"
-    ]
-  }
+  "prefer-stable": true
 }

@@ -18,7 +18,7 @@ class CSRFToken
     public function __construct(
         Session $session,
         Cookie $cookie,
-        string $tokenName = null
+        ?string $tokenName = null
     ) {
         $this->session = $session;
         $this->cookie = $cookie;

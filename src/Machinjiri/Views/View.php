@@ -73,12 +73,9 @@ class View
     {
         self::$currentInstance = $this;
         
-        // Extract data for the view
-        extract($this->data);
-        
         // Capture view content
         ob_start();
-        $this->includeView($this->view, 'view');
+        $this->includeView($this->view, 'view', $this->data);
         $content = ob_get_clean();
 
         // Process layout if specified
@@ -88,7 +85,7 @@ class View
             }
             
             ob_start();
-            $this->includeView($this->layout, 'layout');
+            $this->includeView($this->layout, 'layout', $this->data);
             $content = ob_get_clean();
         }
 
@@ -101,10 +98,11 @@ class View
      *
      * @param string $view
      * @param string $type
+     * @param array $data
      * @return void
      * @throws MachinjiriException
      */
-    protected function includeView(string $view, string $type = 'view'): void
+    protected function includeView(string $view, string $type = 'view', array $data = []): void
     {
         $extension = $this->extensionMap[$type] ?? $this->extensionMap['view'];
         $path = self::$basePath . $view . $extension;
@@ -122,6 +120,9 @@ class View
         // Write processed content to temporary file and include it
         $tempFile = tempnam(sys_get_temp_dir(), 'view_');
         file_put_contents($tempFile, $content);
+        
+        // Extract data to make variables available in the view
+        extract($data);
         
         include $tempFile;
         
@@ -264,7 +265,6 @@ class View
         
         // Merge parent data with new data
         $mergedData = array_merge($instance->data, $data);
-        extract($mergedData);
         
         // Try to find the file with appropriate extension
         $path = null;
@@ -291,6 +291,9 @@ class View
         
         $tempFile = tempnam(sys_get_temp_dir(), 'view_');
         file_put_contents($tempFile, $content);
+        
+        // Extract data to make variables available in the included view
+        extract($mergedData);
         
         include $tempFile;
         

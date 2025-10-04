@@ -12,6 +12,7 @@ class Router
     protected array $routes = [];
     protected array $namedRoutes = [];
     protected string $basePath;
+    protected string $documentRoot;
     protected array $groupStack = [];
     protected array $middleware = [];
     protected array $rateLimiters = [];
@@ -23,34 +24,87 @@ class Router
     {
         $this->httpRequest = HttpRequest::createFromGlobals();
         $this->httpResponse = new HttpResponse();
-        $this->cacheFile = Container::$appBasePath . "/../storage/cache/routes";
-        $this->basePath = Container::getRoutingBase();
+        $this->cacheFile = Container::$appBasePath . "/../storage/cache/routes.cache";
+        
+        // Set document root
+        $this->documentRoot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/');
+        
+        // Auto-detect base path based on document root and current script
+        $this->basePath = $this->autoDetectBasePath();
     }
 
-    // Check if current request is AJAX
-    public function isAjaxRequest(): bool
+    /**
+     * Auto-detect the base path by comparing document root with current script path
+     */
+    protected function autoDetectBasePath(): string
     {
-        return $this->httpRequest->isAjax();
+        // If base path is already set in container, use it
+        $containerBase = Container::getRoutingBase();
+        if ($containerBase) {
+            return rtrim($containerBase, '/');
+        }
+
+        // Get the current script directory
+        $scriptFilename = $_SERVER['SCRIPT_FILENAME'] ?? '';
+        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+        
+        if (!$scriptFilename || !$scriptName) {
+            return '';
+        }
+
+        // Get the directory of the current script
+        $scriptDir = dirname($scriptFilename);
+        
+        // Calculate the base path by finding the difference between script directory and document root
+        if (strpos($scriptDir, $this->documentRoot) === 0) {
+            // Script is inside document root
+            $relativePath = substr($scriptDir, strlen($this->documentRoot));
+            $basePath = rtrim($relativePath, '/');
+            
+            // Also consider the script name for index.php scenarios
+            if (basename($scriptName) !== 'index.php') {
+                $basePath = dirname($scriptName);
+                $basePath = $basePath === '/' ? '' : rtrim($basePath, '/');
+            }
+            
+            return $basePath;
+        }
+        
+        // Fallback: use the directory of SCRIPT_NAME
+        $basePath = dirname($scriptName);
+        return $basePath === '/' ? '' : rtrim($basePath, '/');
     }
 
-    // Check if current request expects JSON response
-    public function expectsJson(): bool
+    /**
+     * Get the full base URL including protocol and host
+     */
+    public function getBaseUrl(): string
     {
-        return $this->httpRequest->expectsJson();
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $basePath = $this->basePath;
+        
+        return $protocol . '://' . $host . $basePath;
     }
 
-    // Set base path for all routes
-    public function setBasePath(string $basePath): self
+    /**
+     * Get the document root directory
+     */
+    public function getDocumentRoot(): string
     {
-        $this->basePath = rtrim($basePath, '/');
-        return $this;
+        return $this->documentRoot;
     }
 
-    // Add route with multiple HTTP methods
+    // Update the map method to handle document root routing
     public function map(array|string $methods, string $pattern, mixed $handler, ?string $name = null, array $options = []): self
     {
         $pattern = $this->applyGroupPrefix($pattern);
-        $pattern = $this->basePath . '/' . ltrim($pattern, '/');
+        
+        // Ensure pattern starts from the correct base
+        if ($this->basePath && strpos($pattern, $this->basePath) !== 0) {
+            $pattern = $this->basePath . '/' . ltrim($pattern, '/');
+        }
+        
         $pattern = rtrim($pattern, '/') ?: '/';
 
         $route = [
@@ -77,6 +131,133 @@ class Router
             $this->addCorsRoute($route);
         }
 
+        return $this;
+    }
+
+    // Update the match method to properly handle request URI with document root
+    public function match(): ?array
+    {
+        $requestMethod = $this->httpRequest->getMethod();
+        $requestUri = parse_url($this->httpRequest->getUri(), PHP_URL_PATH);
+
+        // Normalize the request URI
+        $requestUri = $this->normalizeRequestUri($requestUri);
+
+        // Remove base path from request URI if present
+        if ($this->basePath && strpos($requestUri, $this->basePath) === 0) {
+            $requestUri = substr($requestUri, strlen($this->basePath));
+        }
+
+        $requestUri = rtrim($requestUri, '/') ?: '/';
+
+        // Try to load from cache
+        if ($this->cacheFile) {
+          if (file_exists($this->cacheFile))
+          {
+              $cachedRoutes = require $this->cacheFile;
+              if (isset($cachedRoutes[$requestMethod][$requestUri])) {
+                  return $cachedRoutes[$requestMethod][$requestUri];
+              } 
+          }
+        }
+
+        foreach ($this->routes as $route) {
+            // Check HTTP method
+            if (!in_array($requestMethod, $route['methods']) && !in_array('ANY', $route['methods'])) {
+                continue;
+            }
+
+            // Check AJAX restrictions
+            if ($route['ajax_only'] && !$this->isAjaxRequest()) {
+                continue;
+            }
+
+            if ($route['no_ajax'] && $this->isAjaxRequest()) {
+                continue;
+            }
+
+            // Check pattern match
+            if (preg_match($route['regex'], $requestUri, $matches)) {
+                $params = array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
+
+                return [
+                    'handler' => $route['handler'],
+                    'params' => $params,
+                    'middleware' => $route['middleware'],
+                    'cors' => $route['cors'],
+                    'rate_limit' => $route['rate_limit'],
+                    'ajax_only' => $route['ajax_only'] ?? false
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Normalize the request URI by handling various server configurations
+     */
+    protected function normalizeRequestUri(string $requestUri): string
+    {
+        // Handle cases where request URI includes the full path or relative path
+        $scriptDir = dirname($_SERVER['SCRIPT_NAME'] ?? '');
+        
+        // If request URI starts with script directory and we're in a subdirectory
+        if ($scriptDir !== '/' && strpos($requestUri, $scriptDir) === 0) {
+            $requestUri = substr($requestUri, strlen($scriptDir));
+        }
+        
+        // Ensure request URI is properly formatted
+        $requestUri = '/' . ltrim($requestUri, '/');
+        
+        return $requestUri;
+    }
+
+    // Update URL generation to include base path properly
+    public function url(string $name, array $params = []): string
+    {
+        if (!isset($this->namedRoutes[$name])) {
+            throw new MachinjiriException("Route '{$name}' not found");
+        }
+
+        $route = $this->namedRoutes[$name]['pattern'];
+
+        foreach ($params as $key => $value) {
+            $route = str_replace('{' . $key . '}', urlencode((string)$value), $route);
+        }
+
+        // Ensure the URL includes the base path if we're in a subdirectory
+        if ($this->basePath && strpos($route, $this->basePath) !== 0) {
+            $route = $this->basePath . $route;
+        }
+
+        return $route;
+    }
+
+    /**
+     * Get absolute URL for a named route (includes protocol and host)
+     */
+    public function absoluteUrl(string $name, array $params = []): string
+    {
+        return $this->getBaseUrl() . $this->url($name, $params);
+    }
+
+    // Check if current request is AJAX
+    public function isAjaxRequest(): bool
+    {
+        return $this->httpRequest->isAjax();
+    }
+
+    // Check if current request expects JSON response
+    public function expectsJson(): bool
+    {
+        return $this->httpRequest->expectsJson();
+    }
+
+    // Set base path for all routes
+    public function setBasePath(string $basePath): self
+    {
+        $this->basePath = rtrim($basePath, '/');
         return $this;
     }
 
@@ -180,76 +361,6 @@ class Router
 
         $this->group(['cors' => array_merge($defaults, $config)], function() {});
         return $this;
-    }
-
-    // Generate URL from named route
-    public function url(string $name, array $params = []): string
-    {
-        if (!isset($this->namedRoutes[$name])) {
-            throw new MachinjiriException("Route '{$name}' not found");
-        }
-
-        $route = $this->namedRoutes[$name]['pattern'];
-
-        foreach ($params as $key => $value) {
-            $route = str_replace('{' . $key . '}', urlencode((string)$value), $route);
-        }
-
-        return $route;
-    }
-
-    // Match current request to a route
-    public function match(): ?array
-    {
-        $requestMethod = $this->httpRequest->getMethod();
-        $requestUri = parse_url($this->httpRequest->getUri(), PHP_URL_PATH);
-
-        // Remove base path from request URI
-        if ($this->basePath && strpos($requestUri, $this->basePath) === 0) {
-            $requestUri = substr($requestUri, strlen($this->basePath));
-        }
-
-        $requestUri = rtrim($requestUri, '/') ?: '/';
-
-        // Try to load from cache
-        if ($this->cacheFile && file_exists($this->cacheFile)) {
-            $cachedRoutes = require $this->cacheFile;
-            if (isset($cachedRoutes[$requestMethod][$requestUri])) {
-                return $cachedRoutes[$requestMethod][$requestUri];
-            }
-        }
-
-        foreach ($this->routes as $route) {
-            // Check HTTP method
-            if (!in_array($requestMethod, $route['methods']) && !in_array('ANY', $route['methods'])) {
-                continue;
-            }
-
-            // Check AJAX restrictions
-            if ($route['ajax_only'] && !$this->isAjaxRequest()) {
-                continue;
-            }
-
-            if ($route['no_ajax'] && $this->isAjaxRequest()) {
-                continue;
-            }
-
-            // Check pattern match
-            if (preg_match($route['regex'], $requestUri, $matches)) {
-                $params = array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
-
-                return [
-                    'handler' => $route['handler'],
-                    'params' => $params,
-                    'middleware' => $route['middleware'],
-                    'cors' => $route['cors'],
-                    'rate_limit' => $route['rate_limit'],
-                    'ajax_only' => $route['ajax_only'] ?? false
-                ];
-            }
-        }
-
-        return null;
     }
 
     // Dispatch matched route

@@ -214,11 +214,67 @@ EOT;
         file_put_contents($path, $template);
     }
     
+    /**
+     * Get routing base path for the application
+     * This method now properly detects the base path based on document root and script location
+     */
     public static function getRoutingBase(): string
     {
-        $pathParts = explode(DIRECTORY_SEPARATOR, rtrim(self::$appBasePath, DIRECTORY_SEPARATOR));
-        $appName = ucfirst($pathParts[count($pathParts) - 2] ?? 'public/');
-        return DIRECTORY_SEPARATOR . $appName . "/public";
+        // Check if we have a custom base path in environment
+        $envVars = (new self(self::$appBasePath))->dotEnv();
+        if ($envVars && isset($envVars['APP_BASE_PATH'])) {
+            return rtrim($envVars['APP_BASE_PATH'], '/');
+        }
+        
+        $documentRoot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/');
+        $scriptFilename = $_SERVER['SCRIPT_FILENAME'] ?? '';
+        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+        
+        if (!$scriptFilename || !$scriptName) {
+            return '';
+        }
+
+        // Get the directory of the current script
+        $scriptDir = dirname($scriptFilename);
+        
+        // Calculate the base path by finding the difference between script directory and document root
+        if (strpos($scriptDir, $documentRoot) === 0) {
+            // Script is inside document root
+            $relativePath = substr($scriptDir, strlen($documentRoot));
+            $basePath = rtrim($relativePath, '/');
+            
+            // Also consider the script name for index.php scenarios
+            if (basename($scriptName) !== 'index.php') {
+                $basePath = dirname($scriptName);
+                $basePath = $basePath === '/' ? '' : rtrim($basePath, '/');
+            }
+            
+            return $basePath;
+        }
+        
+        // Fallback: use the directory of SCRIPT_NAME
+        $basePath = dirname($scriptName);
+        return $basePath === '/' ? '' : rtrim($basePath, '/');
+    }
+    
+    /**
+     * Get the full base URL including protocol and host
+     */
+    public static function getBaseUrl(): string
+    {
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $basePath = self::getRoutingBase();
+        
+        return $protocol . '://' . $host . $basePath;
+    }
+    
+    /**
+     * Get document root directory
+     */
+    public static function getDocumentRoot(): string
+    {
+        return rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/');
     }
     
     public function getLoggingBase(): string
@@ -280,7 +336,8 @@ EOT;
             $this->storage . 'session/',
             $this->storage . 'cache/',
             $this->storage . 'logs/',
-            $this->storage . 'cookies/'
+            $this->storage . 'cookies/',
+            $this->storage . 'cache/routes/' // Add routes cache directory
         ];
         
         array_walk($storageDirs, function ($dir) {
@@ -300,7 +357,9 @@ EOT;
     
     protected function getWelcomeTemplate(): string
     {
-        return <<<'EOT'
+        $baseUrl = self::getBaseUrl();
+        
+        return <<<EOT
 <?php use Mlangeni\Machinjiri\Core\Views\View; ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -341,6 +400,25 @@ EOT;
     .btn:hover {
       background-color: #c82333;
     }
+    .info-box {
+      background: white;
+      padding: 1.5rem;
+      margin: 2rem auto;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      max-width: 600px;
+      text-align: left;
+    }
+    .info-box h3 {
+      color: #dc3545;
+      margin-top: 0;
+    }
+    .info-item {
+      margin: 0.5rem 0;
+      padding: 0.5rem;
+      background: #f8f9fa;
+      border-radius: 4px;
+    }
     .social-buttons {
       margin-top: 2rem;
     }
@@ -370,7 +448,22 @@ EOT;
   </header>
   <main>
     <p>Your development environment is ready to go.</p>
+    
+    <div class="info-box">
+      <h3>Routing Information</h3>
+      <div class="info-item">
+        <strong>Base URL:</strong> {$baseUrl}
+      </div>
+      <div class="info-item">
+        <strong>Document Root:</strong> {self::getDocumentRoot()}
+      </div>
+      <div class="info-item">
+        <strong>Routing Base:</strong> {self::getRoutingBase()}
+      </div>
+    </div>
+    
     <a href="/docs" class="btn">📖 Read Docs</a>
+    <a href="{$baseUrl}/test-route" class="btn">🧪 Test Routing</a>
   </main>
   <footer>
     &copy; 2024 - <?php print date('Y') ;?> Your Framework. All rights reserved.
@@ -387,6 +480,13 @@ EOT;
         if (!is_file($htaccessPath)) {
             $rules = $this->getHtaccessRules();
             file_put_contents($htaccessPath, $rules);
+        }
+        
+        // Also create a public/.htaccess for better routing
+        $publicHtaccess = $this->routing . ".htaccess";
+        if (!is_file($publicHtaccess)) {
+            $publicRules = $this->getPublicHtaccessRules();
+            file_put_contents($publicHtaccess, $publicRules);
         }
     }
     
@@ -443,6 +543,49 @@ Header unset ETag
 EOT;
     }
     
+    /**
+     * Get enhanced .htaccess rules for public directory
+     */
+    protected function getPublicHtaccessRules(): string
+    {
+        $basePath = self::getRoutingBase();
+        
+        return <<<EOT
+RewriteEngine On
+
+# Handle base path for subdirectory installations
+RewriteBase {$basePath}
+
+# Redirect to remove trailing slash (optional)
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} (.+)/$
+RewriteRule ^ %1 [L,R=301]
+
+# Handle front controller
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [L]
+
+# Security headers
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options nosniff
+    Header always set X-Frame-Options DENY
+    Header always set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# Cache control for static assets
+<FilesMatch "\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$">
+    <IfModule mod_expires.c>
+        ExpiresActive on
+        ExpiresDefault "access plus 1 month"
+    </IfModule>
+    <IfModule mod_headers.c>
+        Header set Cache-Control "public, immutable"
+    </IfModule>
+</FilesMatch>
+EOT;
+    }
+    
     protected function createArtisan () : void {
       $artisan = $this->getRootPath() . "/artisan";
       
@@ -486,5 +629,29 @@ EOT;
   </testsuites>
 </phpunit>
 EOT;
+    }
+    
+    /**
+     * Get the application storage path
+     */
+    public function getStoragePath(): string
+    {
+        return $this->storage;
+    }
+    
+    /**
+     * Get the application cache path
+     */
+    public function getCachePath(): string
+    {
+        return $this->storage . 'cache/';
+    }
+    
+    /**
+     * Get the routes cache path
+     */
+    public function getRoutesCachePath(): string
+    {
+        return $this->storage . 'cache/routes/';
     }
 }

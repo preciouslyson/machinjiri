@@ -33,6 +33,9 @@ class BaseWorker implements WorkerInterface
         'last_job_at' => null,
     ];
     
+    protected array $processedJobs = [];
+    protected int $maxProcessedJobs = 100;
+    
     /**
      * Create a new worker instance
      */
@@ -173,37 +176,38 @@ class BaseWorker implements WorkerInterface
     public function run(string $queue = 'default', int $maxJobs = null): int
     {
         $processed = 0;
+        $emptyCycles = 0;
         
         while (!$this->shouldStop) {
-            // Check memory limit
-            if (memory_get_usage() > $this->options['memory'] * 1024 * 1024) {
-                $this->events->trigger('worker.memory_exceeded', [
-                    'memory' => memory_get_usage(),
-                    'limit' => $this->options['memory'] * 1024 * 1024,
-                ]);
-                break;
+            // Memory optimization
+            if ($processed % 10 === 0) {
+                $this->cleanupProcessedJobs();
+                gc_collect_cycles(); // Force garbage collection
             }
             
-            if ($this->paused) {
-                sleep(1);
-                continue;
+            // Adaptive sleep logic
+            if ($emptyCycles > 0) {
+                $sleepTime = $this->calculateAdaptiveSleep($emptyCycles);
+                if ($sleepTime > 0) {
+                    sleep($sleepTime);
+                }
             }
             
             $processedJob = $this->processNextJob($queue);
             
             if ($processedJob) {
                 $processed++;
+                $emptyCycles = 0; // Reset empty cycles
                 
                 if ($maxJobs && $processed >= $maxJobs) {
                     break;
                 }
             } else {
+                $emptyCycles++;
+                
                 if ($this->options['stopOnEmpty']) {
                     break;
                 }
-                
-                // Sleep when no jobs available
-                sleep($this->options['sleep']);
             }
         }
         
@@ -217,4 +221,61 @@ class BaseWorker implements WorkerInterface
     {
         return memory_get_usage() > $this->options['memory'] * 1024 * 1024;
     }
+    
+    protected function cleanupProcessedJobs(): void
+    {
+        if (count($this->processedJobs) > $this->maxProcessedJobs) {
+            array_shift($this->processedJobs);
+        }
+    }
+    
+    protected function calculateAdaptiveSleep(int $emptyCycles): int
+    {
+        if ($emptyCycles < 3) return 0; // No sleep for recent jobs
+        if ($emptyCycles < 10) return 1; // 1 second sleep
+        if ($emptyCycles < 30) return 3; // 3 seconds sleep
+        return 5; // Maximum 5 seconds for idle queues
+    }
+    
+    // Add batch processing capability
+    public function processBatch(string $queue = 'default', int $batchSize = 10): int
+    {
+        $jobs = $this->queue->popBatch($queue, $batchSize);
+        $processed = 0;
+        
+        if (empty($jobs)) {
+            return 0;
+        }
+        
+        // Sort by priority if available
+        usort($jobs, function($a, $b) {
+            $priorityA = $a->getMetadata()['priority'] ?? 0;
+            $priorityB = $b->getMetadata()['priority'] ?? 0;
+            return $priorityB <=> $priorityA; // Higher priority first
+        });
+        
+        foreach ($jobs as $job) {
+            if ($this->processJob($job, $queue)) {
+                $processed++;
+            }
+        }
+        
+        return $processed;
+    }
+    
+    protected function processJob(JobInterface $job, string $queue): bool
+    {
+        // Simplified job processing logic
+        try {
+            $result = $this->processor->process($job);
+            $this->processor->handleSuccess($job, $result);
+            $this->status['processed']++;
+            return true;
+        } catch (MachinjiriException $e) {
+            $this->processor->handleFailure($job, $e);
+            $this->status['failed']++;
+            return false;
+        }
+    }
+    
 }

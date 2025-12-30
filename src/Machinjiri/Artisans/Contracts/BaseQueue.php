@@ -121,4 +121,32 @@ abstract class BaseQueue implements QueueInterface
         // Default implementation - override if driver supports failed jobs storage
         return 0;
     }
+    
+    // Add batch processing with chunking
+    public function popBatch(string $queue = 'default', int $batchSize = 10): array
+    {
+        $jobs = [];
+        for ($i = 0; $i < $batchSize; $i++) {
+            $job = $this->pop($queue);
+            if ($job) {
+                $jobs[] = $job;
+            } else {
+                break;
+            }
+        }
+        
+        $this->events->trigger('queue.batch_popped', [
+            'queue' => $queue,
+            'batch_size' => count($jobs),
+        ]);
+        
+        return $jobs;
+    }
+    
+    // Add job prioritization
+    public function pushWithPriority(JobInterface $job, string $queue = 'default', int $priority = 0, int $delay = 0): string
+    {
+        $job->addMetadata('priority', $priority);
+        return $this->push($job, $queue, $delay);
+    }
 }

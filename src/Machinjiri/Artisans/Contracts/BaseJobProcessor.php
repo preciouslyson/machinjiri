@@ -14,6 +14,9 @@ abstract class BaseJobProcessor implements JobProcessorInterface
     protected Container $app;
     protected EventListener $events;
     
+    protected array $eventBuffer = [];
+    protected int $maxEventBufferSize = 100;
+    
     /**
      * Create a new job processor
      */
@@ -121,6 +124,30 @@ abstract class BaseJobProcessor implements JobProcessorInterface
             'next_attempt' => $job->getAttempts() + 1,
         ]);
         
-        return false; // Should be overridden by concrete implementation
+        return false; 
     }
+    
+    protected function triggerBuffered(string $event, array $data): void
+    {
+        $this->eventBuffer[] = ['event' => $event, 'data' => $data];
+        
+        if (count($this->eventBuffer) >= $this->maxEventBufferSize) {
+            $this->flushEvents();
+        }
+    }
+    
+    protected function flushEvents(): void
+    {
+        if (empty($this->eventBuffer)) {
+            return;
+        }
+        
+        // Batch trigger events
+        foreach ($this->eventBuffer as $eventData) {
+            $this->events->trigger($eventData['event'], $eventData['data']);
+        }
+        
+        $this->eventBuffer = [];
+    }
+    
 }

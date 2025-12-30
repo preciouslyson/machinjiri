@@ -21,6 +21,8 @@ abstract class BaseJob implements JobInterface
     protected int $retryDelay = 60;
     protected array $metadata = [];
     
+    protected bool $compressPayload = false;
+    
     /**
      * Create a new job instance
      */
@@ -53,6 +55,14 @@ abstract class BaseJob implements JobInterface
         if (isset($options['metadata'])) {
             $this->metadata = $options['metadata'];
         }
+        
+        if (isset($options['compressPayload'])) {
+          $this->compressPayload = $options['compressPayload'];
+          if ($this->compressPayload) {
+              $this->payload = $this->compressPayload($payload);
+          }
+      }
+      
     }
     
     /**
@@ -215,4 +225,17 @@ abstract class BaseJob implements JobInterface
         
         return $job;
     }
+    
+    protected function compressPayload(array $payload): string
+    {
+        return gzcompress(serialize($payload), 1); // Level 1 compression
+    }
+    
+    protected function decompressPayload(string $compressed): array
+    {
+        return unserialize(gzuncompress($compressed));
+    }
+    
+    
+
 }

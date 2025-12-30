@@ -17,7 +17,7 @@
     }
   ],
   "require": {
-    "php": ">=8.2.6",
+    "php": "^8.2",
     "phpmailer/phpmailer": "^7.0.1",
     "symfony/console": "^5.3",
     "symfony/filesystem": "^5.3",
@@ -48,5 +48,15 @@
     "sort-packages": true
   },
   "minimum-stability": "stable",
-  "prefer-stable": true
+  "prefer-stable": true,
+  "keywords": [
+    "mlangeni",
+    "machinjiri",
+    "preciouslyson",
+    "framework",
+    "php",
+    "lightweight",
+    "web",
+    "development"
+  ]
 }

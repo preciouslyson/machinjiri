@@ -63,23 +63,26 @@ HTTP Layer
 
 
 *Installation*
-
-Run either of the following scripts in Terminal.
-- *--dest* - the name of your application 
-- *--machinjiri-version* - the version of Machinjiri you wish to install. example ^1.0, ^2.0 etc.. leave * from latest version.
-- *--force* - add this line if you want to overwrite and existing installation.
-- *--verbose* - add verbose to show the installation progress.
+Use Machinjiri Installer by running the following command
 
 ```bash
-composer run machinjiri:install -- --dest=myapp --machinjiri-version="*" --force
+
+composer global require preciouslyson/installer
+
 ```
-Or
+After a successful installation create your project by running 
 
 ```bash
-MACHINJIRI_VERSION="^1.2" composer run machinjiri:install -- --dest=myapp
+
+machinjiri new my-project
+
+cd my-project
+
+php artisan server:start
+
 ```
 
-*📖 Usage Examples*
+*Usage Examples*
 
 Basic Routing
 
@@ -364,7 +367,7 @@ try {
 }
 ```
 
-*🧪 Testing*
+*Testing*
 
 Run unit tests:
 
@@ -373,7 +376,7 @@ cd tests/Unit
 phpunit
 ```
 
-*🔄 Migrations*
+*Migrations*
 
 Run migrations:
 
@@ -382,13 +385,13 @@ Run migrations:
 // Manual migration handling is also available
 ```
 
-*📦 Dependencies*
+*Dependencies*
 
 · PHP 7.4 or higher
 · PDO extension (for database support)
 · Composer for dependency management
 
-*🤝 Contributing*
+*Contributing*
 
 1. Fork the repository
 2. Create a feature branch (git checkout -b feature/amazing-feature)
@@ -396,11 +399,11 @@ Run migrations:
 4. Push to the branch (git push origin feature/amazing-feature)
 5. Open a Pull Request
 
-*📄 License*
+*License*
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-*🆘 Support*
+*Support*
 
 · Documentation: [Coming Soon]
 · Issues: GitHub Issues

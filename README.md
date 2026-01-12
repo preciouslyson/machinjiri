@@ -67,7 +67,7 @@ Use Machinjiri Installer by running the following command
 
 ```bash
 
-composer global require preciouslyson/installer
+composer global require machinjiri/installer
 
 ```
 After a successful installation create your project by running 

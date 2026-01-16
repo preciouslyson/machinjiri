@@ -2,6 +2,12 @@
 
 namespace Mlangeni\Machinjiri\Core\Http;
 
+use Mlangeni\Machinjiri\Core\Network\CurlHandler;
+use Mlangeni\Machinjiri\Core\Authentication\Session;
+use Mlangeni\Machinjiri\Core\Authentication\Cookie;
+use Mlangeni\Machinjiri\Core\Authentication\OAuth;
+use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
+
 class HttpRequest {
     private $method;
     private $uri;
@@ -12,6 +18,10 @@ class HttpRequest {
     private $headers;
     private $body;
     private $attributes = [];
+    private $client;
+    private $session;
+    private $cookie;
+    private $oauth;
 
     public function __construct(
         string $method,
@@ -21,7 +31,10 @@ class HttpRequest {
         array $cookies = [],
         array $server = [],
         array $headers = [],
-        string $body = ''
+        string $body = '',
+        Session $session = null,
+        Cookie $cookie = null,
+        OAuth $oauth = null
     ) {
         $this->method = strtoupper($method);
         $this->uri = $uri;
@@ -31,6 +44,10 @@ class HttpRequest {
         $this->server = $server;
         $this->headers = $headers;
         $this->body = $body;
+        $this->session = $session;
+        $this->cookie = $cookie;
+        $this->oauth = $oauth;
+        $this->initializeClient();
     }
 
     public static function createFromGlobals(): self {
@@ -45,6 +62,19 @@ class HttpRequest {
         
         $body = file_get_contents('php://input');
 
+        // Initialize Session and Cookie if needed
+        $session = class_exists('\Mlangeni\Machinjiri\Core\Authentication\Session') ? 
+                   new Session() : null;
+        $cookie = class_exists('\Mlangeni\Machinjiri\Core\Authentication\Cookie') ? 
+                  new Cookie() : null;
+        
+        // Initialize OAuth if needed (optional)
+        $oauth = null;
+        if (class_exists('\Mlangeni\Machinjiri\Core\Authentication\OAuth')) {
+            // OAuth requires configuration, so we'll initialize it only if needed
+            // This can be set later using withOAuth() method
+        }
+
         return new self(
             $method,
             $uri,
@@ -53,8 +83,292 @@ class HttpRequest {
             $cookies,
             $server,
             $headers,
-            $body
+            $body,
+            $session,
+            $cookie,
+            $oauth
         );
+    }
+
+    private function initializeClient(): void {
+        $this->client = new CurlHandler('', $this->session, $this->cookie);
+    }
+
+    public function getClient(): CurlHandler {
+        return $this->client;
+    }
+
+    public function setClient(CurlHandler $client): self {
+        $this->client = $client;
+        return $this;
+    }
+
+    public function withOAuth(OAuth $oauth): self {
+        $this->oauth = $oauth;
+        return $this;
+    }
+
+    public function getOAuth(): ?OAuth {
+        return $this->oauth;
+    }
+
+    // HTTP Client Methods
+    public function get(string $url, array $queryParams = [], array $headers = []): HttpResponse {
+        $this->applyOAuthHeaders($headers);
+        $this->client->setHeaders($headers);
+        $response = $this->client->get($url, $queryParams);
+        return $this->client->toHttpResponse($response);
+    }
+
+    public function post(string $url, $data = [], array $headers = [], bool $isJson = true): HttpResponse {
+        $this->applyOAuthHeaders($headers);
+        $this->client->setHeaders($headers);
+        $response = $this->client->post($url, $data, $isJson);
+        return $this->client->toHttpResponse($response);
+    }
+
+    public function put(string $url, $data = [], array $headers = [], bool $isJson = true): HttpResponse {
+        $this->applyOAuthHeaders($headers);
+        $this->client->setHeaders($headers);
+        $response = $this->client->put($url, $data, $isJson);
+        return $this->client->toHttpResponse($response);
+    }
+
+    public function patch(string $url, $data = [], array $headers = [], bool $isJson = true): HttpResponse {
+        $this->applyOAuthHeaders($headers);
+        $this->client->setHeaders($headers);
+        $response = $this->client->patch($url, $data, $isJson);
+        return $this->client->toHttpResponse($response);
+    }
+
+    public function delete(string $url, $data = [], array $headers = []): HttpResponse {
+        $this->applyOAuthHeaders($headers);
+        $this->client->setHeaders($headers);
+        $response = $this->client->delete($url, $data);
+        return $this->client->toHttpResponse($response);
+    }
+
+    public function head(string $url, array $headers = []): HttpResponse {
+        $this->applyOAuthHeaders($headers);
+        $this->client->setHeaders($headers);
+        $response = $this->client->head($url);
+        return $this->client->toHttpResponse($response);
+    }
+
+    public function options(string $url, array $headers = []): HttpResponse {
+        $this->applyOAuthHeaders($headers);
+        $this->client->setHeaders($headers);
+        $response = $this->client->options($url);
+        return $this->client->toHttpResponse($response);
+    }
+
+    private function applyOAuthHeaders(array &$headers): void {
+        if ($this->oauth && $this->oauth->isAuthenticated()) {
+            $token = $this->oauth->getStoredToken();
+            if ($token && isset($token['access_token'])) {
+                $headers['Authorization'] = 'Bearer ' . $token['access_token'];
+            }
+        }
+    }
+
+    public function forward(string $url, string $method = null, array $additionalData = []): HttpResponse {
+        $method = $method ?? $this->method;
+        $headers = $this->headers;
+        
+        // Remove hop-by-hop headers
+        $hopHeaders = [
+            'Connection', 'Keep-Alive', 'Proxy-Authenticate',
+            'Proxy-Authorization', 'TE', 'Trailers', 'Transfer-Encoding', 'Upgrade'
+        ];
+        
+        foreach ($hopHeaders as $header) {
+            unset($headers[$header]);
+        }
+
+        // Forward cookies
+        $this->client->useApplicationCookies();
+        
+        // Apply OAuth headers
+        $this->applyOAuthHeaders($headers);
+        
+        switch (strtoupper($method)) {
+            case 'GET':
+                $data = array_merge($this->queryParams, $additionalData);
+                return $this->get($url, $data, $headers);
+                
+            case 'POST':
+                $data = array_merge($this->postData, $additionalData);
+                $isJson = strpos($this->getContentType(), 'application/json') !== false;
+                return $this->post($url, $data, $headers, $isJson);
+                
+            case 'PUT':
+                $data = array_merge($this->postData, $additionalData);
+                $isJson = strpos($this->getContentType(), 'application/json') !== false;
+                return $this->put($url, $data, $headers, $isJson);
+                
+            case 'PATCH':
+                $data = array_merge($this->postData, $additionalData);
+                $isJson = strpos($this->getContentType(), 'application/json') !== false;
+                return $this->patch($url, $data, $headers, $isJson);
+                
+            case 'DELETE':
+                return $this->delete($url, $additionalData, $headers);
+                
+            default:
+                throw new MachinjiriException("Unsupported HTTP method: {$method}");
+        }
+    }
+
+    // Enhanced API method with OAuth
+    public function api(string $url, string $method = null, $data = null, array $headers = []): HttpResponse {
+        $method = $method ?? $this->method;
+        $defaultHeaders = [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json'
+        ];
+        
+        $mergedHeaders = array_merge($defaultHeaders, $headers);
+        
+        // Apply OAuth headers
+        $this->applyOAuthHeaders($mergedHeaders);
+        
+        // Convert headers to CurlHandler format
+        $curlHeaders = [];
+        foreach ($mergedHeaders as $key => $value) {
+            $curlHeaders[] = "{$key}: {$value}";
+        }
+        
+        $this->client->setHeaders($curlHeaders);
+        
+        switch (strtoupper($method)) {
+            case 'GET':
+                return $this->get($url, is_array($data) ? $data : [], $curlHeaders);
+            case 'POST':
+                return $this->post($url, $data, $curlHeaders, true);
+            case 'PUT':
+                return $this->put($url, $data, $curlHeaders, true);
+            case 'PATCH':
+                return $this->patch($url, $data, $curlHeaders, true);
+            case 'DELETE':
+                return $this->delete($url, $data, $curlHeaders);
+            default:
+                throw new MachinjiriException("Unsupported API method: {$method}");
+        }
+    }
+
+    public function oauthApi(string $url, string $method = 'GET', $data = null, array $headers = []): HttpResponse {
+        if (!$this->oauth || !$this->oauth->isAuthenticated()) {
+            throw new MachinjiriException('OAuth authentication required');
+        }
+        
+        return $this->api($url, $method, $data, $headers);
+    }
+
+    // Upload file with OAuth support
+    public function upload(string $url, string $fieldName, string $filePath, array $additionalData = [], array $headers = []): HttpResponse {
+        $this->applyOAuthHeaders($headers);
+        $this->client->setHeaders($headers);
+        $response = $this->client->uploadFile($url, $fieldName, $filePath, $additionalData);
+        return $this->client->toHttpResponse($response);
+    }
+
+    // Download file with OAuth support
+    public function download(string $url, string $savePath, array $headers = []): HttpResponse {
+        $this->applyOAuthHeaders($headers);
+        $this->client->setHeaders($headers);
+        $response = $this->client->downloadFile($url, $savePath);
+        return $this->client->toHttpResponse($response);
+    }
+
+    // Make multiple requests concurrently with OAuth
+    public function batch(array $requests): array {
+        $results = [];
+        foreach ($requests as $key => $request) {
+            $method = $request['method'] ?? 'GET';
+            $url = $request['url'] ?? '';
+            $data = $request['data'] ?? [];
+            $headers = $request['headers'] ?? [];
+            
+            $this->applyOAuthHeaders($headers);
+            
+            switch (strtoupper($method)) {
+                case 'GET':
+                    $results[$key] = $this->get($url, $data, $headers);
+                    break;
+                case 'POST':
+                    $results[$key] = $this->post($url, $data, $headers, true);
+                    break;
+                case 'PUT':
+                    $results[$key] = $this->put($url, $data, $headers, true);
+                    break;
+                case 'PATCH':
+                    $results[$key] = $this->patch($url, $data, $headers, true);
+                    break;
+                case 'DELETE':
+                    $results[$key] = $this->delete($url, $data, $headers);
+                    break;
+            }
+        }
+        
+        return $results;
+    }
+
+    // Configure client options
+    public function withOptions(array $options): self {
+        foreach ($options as $key => $value) {
+            $this->client->setOption($key, $value);
+        }
+        return $this;
+    }
+
+    public function withTimeout(int $timeout): self {
+        $this->client->setTimeout($timeout);
+        return $this;
+    }
+
+    public function withAuth(string $type, ...$credentials): self {
+        switch (strtolower($type)) {
+            case 'basic':
+                $this->client->setBasicAuth($credentials[0] ?? '', $credentials[1] ?? '');
+                break;
+            case 'bearer':
+                $this->client->setBearerToken($credentials[0] ?? '');
+                break;
+            case 'oauth':
+                if ($credentials[0] instanceof OAuth) {
+                    $this->withOAuth($credentials[0]);
+                }
+                break;
+        }
+        return $this;
+    }
+
+    public function withRetry(int $maxRetries = 3, int $retryDelay = 1000): self {
+        $this->client->setRetryOptions($maxRetries, $retryDelay);
+        return $this;
+    }
+
+    public function withProxy(string $proxy, int $port = null, string $username = null, string $password = null): self {
+        $this->client->setProxy($proxy, $port, $username, $password);
+        return $this;
+    }
+
+    public function withCookies(bool $useSessionCookies = false, bool $useApplicationCookies = true): self {
+        if ($useSessionCookies) {
+            $this->client->useSessionCookies();
+        }
+        if ($useApplicationCookies) {
+            $this->client->useApplicationCookies();
+        }
+        return $this;
+    }
+
+    public function getSession(): ?Session {
+        return $this->session;
+    }
+
+    public function getCookieHandler(): ?Cookie {
+        return $this->cookie;
     }
 
     private static function getAllHeaders(): array {
@@ -149,7 +463,7 @@ class HttpRequest {
         $data = json_decode($this->body, $assoc);
         
         if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new \RuntimeException('JSON decoding failed: ' . json_last_error_msg());
+            throw new MachinjiriException('JSON decoding failed: ' . json_last_error_msg());
         }
         
         return $data;
@@ -311,4 +625,5 @@ class HttpRequest {
         $value = $this->input($key);
         return !empty($value);
     }
+
 }

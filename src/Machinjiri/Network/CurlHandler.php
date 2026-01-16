@@ -5,6 +5,8 @@ namespace Mlangeni\Machinjiri\Core\Network;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Authentication\Session;
 use Mlangeni\Machinjiri\Core\Authentication\Cookie;
+use Mlangeni\Machinjiri\Core\Http\HttpRequest;
+use Mlangeni\Machinjiri\Core\Http\HttpResponse;
 
 class CurlHandler
 {
@@ -18,6 +20,7 @@ class CurlHandler
     private $retryCount = 0;
     private $maxRetries = 3;
     private $retryDelay = 1000;
+    private $responseHeaders = [];
 
     public function __construct($baseUrl = '', Session $session = null, Cookie $cookie = null)
     {
@@ -169,6 +172,9 @@ class CurlHandler
 
     private function execute()
     {
+        // Reset response headers before each request
+        $this->responseHeaders = [];
+        
         curl_setopt_array($this->ch, $this->options);
         
         $response = curl_exec($this->ch);
@@ -194,8 +200,46 @@ class CurlHandler
             'content_type' => $contentType,
             'total_time' => $totalTime,
             'error' => $error ?: null,
-            'retry_count' => $this->retryCount
+            'retry_count' => $this->retryCount,
+            'headers' => $this->responseHeaders // Include captured headers
         ];
+    }
+
+    public function withHeaderCapture(): self {
+        // Store the existing HEADER setting
+        $wasHeaderEnabled = $this->options[CURLOPT_HEADER] ?? false;
+        
+        // Enable header capture
+        $this->options[CURLOPT_HEADER] = false; // We'll handle headers separately
+        $this->options[CURLOPT_HEADERFUNCTION] = function($ch, $header) {
+            $length = strlen($header);
+            $header = trim($header);
+            
+            if (!empty($header)) {
+                if (strpos($header, ':') !== false) {
+                    list($name, $value) = explode(':', $header, 2);
+                    $name = trim($name);
+                    $value = trim($value);
+                    
+                    // Handle multiple headers with same name
+                    if (isset($this->responseHeaders[$name])) {
+                        if (is_array($this->responseHeaders[$name])) {
+                            $this->responseHeaders[$name][] = $value;
+                        } else {
+                            $this->responseHeaders[$name] = [$this->responseHeaders[$name], $value];
+                        }
+                    } else {
+                        $this->responseHeaders[$name] = $value;
+                    }
+                } else if (preg_match('/HTTP\/\d(\.\d)?\s+(\d+)/', $header, $matches)) {
+                    // Store HTTP status line
+                    $this->responseHeaders['Status-Line'] = $header;
+                }
+            }
+            return $length;
+        };
+        
+        return $this;
     }
 
     public function get($endpoint = '', $queryParams = [])
@@ -390,10 +434,21 @@ class CurlHandler
         return curl_errno($this->ch);
     }
 
+    public function getResponseHeaders(): array
+    {
+        return $this->responseHeaders;
+    }
+
+    public function getResponseHeader(string $name): ?string
+    {
+        return $this->responseHeaders[$name] ?? null;
+    }
+
     public function reset()
     {
         curl_close($this->ch);
         $this->options = [];
+        $this->responseHeaders = [];
         $this->retryCount = 0;
         $this->initializeCurl();
         return $this;
@@ -444,18 +499,38 @@ class CurlHandler
         
         return $this;
     }
-
-    // Convenience method to return HttpResponse
+    
     public function toHttpResponse($response)
     {
         $httpResponse = new HttpResponse();
         $httpResponse->setStatusCode($response['http_code']);
         
-        if (strpos($response['content_type'] ?? '', 'application/json') !== false) {
-            $httpResponse->setJsonBody(json_decode($response['data'], true));
-        } else {
-          $httpResponse->setBody($response['data']);
+        // Handle headers if available
+        if (isset($response['headers'])) {
+            foreach ($response['headers'] as $name => $value) {
+                if ($name !== 'Status-Line') { // Skip status line
+                    $httpResponse->setHeader($name, $value);
+                }
+            }
         }
+        
+        // Set content-type header
+        if (!empty($response['content_type'])) {
+            $httpResponse->setHeader('Content-Type', $response['content_type']);
+        }
+        
+        // Handle body based on content type
+        if (strpos($response['content_type'] ?? '', 'application/json') !== false) {
+            $decodedData = json_decode($response['data'], true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $httpResponse->setJsonBody($decodedData);
+            } else {
+                $httpResponse->setBody($response['data']);
+            }
+        } else {
+            $httpResponse->setBody($response['data']);
+        }
+        
         return $httpResponse;
     }
 }

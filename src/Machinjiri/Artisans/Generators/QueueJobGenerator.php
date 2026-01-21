@@ -3225,12 +3225,6 @@ class QueueServiceProvider extends ServiceProvider
         // Create jobs table if using database driver
         $this->createJobsTableIfNeeded();
         
-        // Register console commands
-        $this->commands([
-            \App\Console\Commands\QueueWorkCommand::class,
-            \App\Console\Commands\QueueFailedCommand::class,
-            \App\Console\Commands\MakeJobCommand::class,
-        ]);
     }
 
     /**

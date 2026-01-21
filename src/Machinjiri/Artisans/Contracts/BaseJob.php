@@ -22,12 +22,17 @@ abstract class BaseJob implements JobInterface
     protected array $metadata = [];
     
     protected bool $compressPayload = false;
+
+    protected Container $app;
     
     /**
      * Create a new job instance
      */
-    public function __construct(array $payload = [], array $options = [])
+    public function __construct(Container $app, array $payload = [], array $options = [])
     {
+
+        $this->app = $app;
+
         $this->id = $options['id'] ?? uniqid('job_', true);
         $this->name = $options['name'] ?? static::class;
         $this->payload = $payload;
@@ -64,6 +69,11 @@ abstract class BaseJob implements JobInterface
       }
       
     }
+
+    protected function getApp(): Container
+    {
+        return $this->app;
+    }
     
     /**
      * Get the job ID
@@ -86,6 +96,9 @@ abstract class BaseJob implements JobInterface
      */
     public function getPayload(): array
     {
+        if ($this->compressPayload && is_string($this->payload)) {
+            return $this->decompressPayload($this->payload);
+        }
         return $this->payload;
     }
     
@@ -188,10 +201,15 @@ abstract class BaseJob implements JobInterface
      */
     public function serialize(): array
     {
+        $payload = $this->compressPayload ? 
+        ['compressed' => $this->payload, 'compressed_flag' => true] : 
+        $this->payload;
+
         return [
             'id' => $this->id,
             'name' => $this->name,
             'payload' => $this->payload,
+            'compressPayload' => $this->compressPayload,
             'attempts' => $this->attempts,
             'maxAttempts' => $this->maxAttempts,
             'queue' => $this->queue,
@@ -208,6 +226,15 @@ abstract class BaseJob implements JobInterface
      */
     public static function unserialize(array $data): self
     {
+
+        $payload = $data['payload'] ?? [];
+        $compressPayload = $data['compressPayload'] ?? false;
+        
+        if ($compressPayload && isset($payload['compressed'])) {
+            $payload = $payload['compressed'];
+        }
+        
+
         $job = new static($data['payload'] ?? [], [
             'id' => $data['id'] ?? uniqid('job_', true),
             'name' => $data['name'] ?? static::class,
@@ -217,6 +244,7 @@ abstract class BaseJob implements JobInterface
             'timeout' => $data['timeout'] ?? 60,
             'retryDelay' => $data['retryDelay'] ?? 60,
             'metadata' => $data['metadata'] ?? [],
+            'compressPayload' => $compressPayload,
         ]);
         
         if (isset($data['attempts'])) {
@@ -235,7 +263,15 @@ abstract class BaseJob implements JobInterface
     {
         return unserialize(gzuncompress($compressed));
     }
-    
-    
 
+    protected function calculateBackoffDelay(int $attempt): int
+    {
+        return $this->retryDelay * pow(2, $attempt - 1);
+    }
+    
+    public function getNextRetryDelay(): int
+    {
+        return $this->calculateBackoffDelay($this->attempts + 1);
+    }
+    
 }

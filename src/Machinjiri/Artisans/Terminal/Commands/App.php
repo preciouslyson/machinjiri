@@ -11,9 +11,6 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Mlangeni\Machinjiri\Core\Artisans\Helpers\Mkutumula;
 use Mlangeni\Machinjiri\Core\Routing\DotEnv;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-use \RuntimeException;
-use Mlangeni\Machinjiri\Core\Artisans\Dev\DevServer;
-use Mlangeni\Machinjiri\Core\Providers\ServiceProviderGenerator;
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Database\Seeder\SeederManager;
 use Mlangeni\Machinjiri\Core\Database\Factory\FactoryManager;
@@ -137,80 +134,6 @@ class App
                       $ss->error($e->getMessage());
                       return Command::FAILURE;
                     }
-                }
-            },
-            new class extends Command {
-                public function __construct ()
-                {
-                  parent::__construct('make:provider');
-                  $this->setDescription("Generate an Application's Service Provider");
-                }
-                
-                protected function configure (): void {
-                  $this->addArgument('service', InputArgument::REQUIRED, 'The Service Provider name');
-                  $this->addOption('deffered', null, InputOption::VALUE_OPTIONAL, 'Set Service Provider as Deffered');
-                }
-
-                protected function execute(InputInterface $input, OutputInterface $output): int
-                {
-                  try {
-                    $ss = new SymfonyStyle($input, $output);
-                    $ss->title("Machinjiri - App Service Providers");
-                    $generator = new ServiceProviderGenerator(getcwd());
-                    $service = $input->getArgument('service');
-                    $options = [];
-                    if ($input->getOption('deffered') !== null) {
-                      $options['deffered'] = true;
-                    }
-                    $result = $generator->generate($service, $options);
-                    if (count($result) > 0) {
-                      $ss->success("Service Provider generated successfully \n");
-                      return Command::SUCCESS;
-                    } else {
-                      $ss->error("Could not generate Service Provider \n");
-                      return Command::FAILURE;
-                    }
-                  } catch (MachinjiriException $e) {
-                    $output->writeln("Could not Generate due to " . $e->getMessage());
-                    return Command::FAILURE;
-                  }
-                }
-            },
-            new class extends Command {
-                public function __construct ()
-                {
-                  parent::__construct('remove:provider');
-                  $this->setDescription("Remove a Service Provider");
-                }
-                
-                protected function configure (): void {
-                  $this->addArgument('service', InputArgument::REQUIRED, 'The Service Provider name');
-                  $this->addOption('config', null, InputOption::VALUE_OPTIONAL, 'Also remove its configuration file');
-                }
-
-                protected function execute(InputInterface $input, OutputInterface $output): int
-                {
-                  try {
-                    $ss = new SymfonyStyle($input, $output);
-                    $ss->title("Machinjiri - Service Providers");
-                    $generator = new ServiceProviderGenerator(getcwd());
-                    $service = $input->getArgument('service');
-                    $removeConfig = false;
-                    if ($input->getOption('config') !== null) {
-                      $removeConfig = true;
-                    }
-                    $result = $generator->remove($service, true, true);
-                    if ($result) {
-                      $ss->success("Service Provider removed successfully \n");
-                      return Command::SUCCESS;
-                    } else {
-                      $ss->error("Could not remove Service Provider \n");
-                      return Command::FAILURE;
-                    }
-                  } catch (MachinjiriException $e) {
-                    $ss->error("Could not remove provider due to " . $e->getMessage());
-                    return Command::FAILURE;
-                  }
                 }
             },
             new class extends Command {

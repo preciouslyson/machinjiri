@@ -56,4 +56,9 @@ interface QueueInterface
      * Check if queue connection is healthy
      */
     public function isHealthy(): bool;
+
+    /**
+     * Get queue health metrics
+     */
+    public function getHealthMetrics(string $queue = 'default'): array;
 }

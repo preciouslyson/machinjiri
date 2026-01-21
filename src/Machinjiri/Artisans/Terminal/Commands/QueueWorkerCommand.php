@@ -14,7 +14,6 @@ use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseWorker;
 use Mlangeni\Machinjiri\Core\Artisans\Generators\QueueJobGenerator;
 use Mlangeni\Machinjiri\Core\Container;
-use Mlangeni\Machinjiri\Components\Misc\Keywords;
 
 class QueueWorkerCommand
 {
@@ -374,7 +373,7 @@ class QueueWorkerCommand
             
             new class extends Command {
                 public function __construct() {
-                    parent::__construct('make:job');
+                    parent::__construct('queue:make-job');
                     $this->setDescription('Create a new job class');
                 }
                 

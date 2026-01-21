@@ -1,6 +1,6 @@
 <?php
 
-namespace Mlangeni\Machinjiri\Core\Providers;
+namespace Mlangeni\Machinjiri\Core\Artisans\Generators;
 
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 

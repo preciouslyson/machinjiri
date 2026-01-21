@@ -50,4 +50,6 @@ interface WorkerInterface
      * Process jobs until empty or stopped
      */
     public function run(string $queue = 'default', int $maxJobs = null): int;
+
+    
 }

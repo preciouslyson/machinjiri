@@ -4224,7 +4224,7 @@ Service Provider:
 Register in app/Providers/QueueServiceProvider.php:
 
 \$this->app->bind('queue.driver.{$driverKey}', function (\$app) {
-    return new \\Mlangeni\\Machinjiri\\App\\Queue\\Drivers\\{$name}(\$app, '{$driverKey}', \$app['config']['queue.drivers.{$driverKey}']);
+    return new \\Mlangeni\\Machinjiri\\App\\Queue\\Drivers\\{$name}Queue(\$app, '{$driverKey}', \$app['config']['queue.drivers.{$driverKey}']);
 });
 TEXT;
         

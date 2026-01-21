@@ -71,4 +71,17 @@ interface JobInterface
      * Called when the job fails
      */
     public function failed(MachinjiriException $exception): void;
+
+    /**
+     * Serialize the job for storage
+     */
+    public function serialize(): array;
+    
+    /**
+     * Create a job from serialized data
+     */
+    public static function unserialize(array $data): self;
+
+    public function getNextRetryDelay(): int;
+    
 }

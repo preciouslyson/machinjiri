@@ -149,4 +149,54 @@ abstract class BaseQueue implements QueueInterface
         $job->addMetadata('priority', $priority);
         return $this->push($job, $queue, $delay);
     }
+
+    
+
+    public function getHealthMetrics(string $queue = 'default'): array
+    {
+        return [
+            'size' => $this->size($queue),
+            'is_healthy' => $this->isHealthy(),
+            'avg_process_time' => $this->getAverageProcessTime($queue),
+            'failure_rate' => $this->getFailureRate($queue),
+            'last_processed' => $this->getLastProcessedTime($queue),
+        ];
+    }
+
+    /**
+     * Get average job processing time for a queue
+     */
+    public function getAverageProcessTime(string $queue = 'default'): float
+    {
+        // Default implementation - override in concrete classes
+        // This could be implemented by tracking job processing times in a persistent storage
+        // or by calculating from completed job metadata
+        
+        return 0.0;
+    }
+
+    /**
+     * Get failure rate for a queue (percentage)
+     */
+    public function getFailureRate(string $queue = 'default'): float
+    {
+        // Default implementation - override in concrete classes
+        // This could be calculated as: (failed_jobs / total_jobs) * 100
+        // Where failed_jobs and total_jobs are tracked over a specific time period
+        
+        return 0.0;
+    }
+
+    /**
+     * Get timestamp of last processed job
+     */
+    public function getLastProcessedTime(string $queue = 'default'): ?string
+    {
+        // Default implementation - override in concrete classes
+        // This could track the timestamp of when the last job was successfully processed
+        // Return null if no jobs have been processed yet
+        
+        return null;
+    }
+
 }

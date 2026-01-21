@@ -7,6 +7,7 @@ use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\Migrations;
 use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\App;
 use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\QueueWorkerCommand;
 use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\PHPServerCommands;
+use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\ServiceProviderCommand;
 
 class Terminal extends Application
 {
@@ -15,6 +16,7 @@ class Terminal extends Application
         App::class,
         QueueWorkerCommand::class,
         PHPServerCommands::class,
+        ServiceProviderCommand::class,
     ];
 
     public function __construct()

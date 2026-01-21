@@ -35,6 +35,8 @@ class BaseWorker implements WorkerInterface
     
     protected array $processedJobs = [];
     protected int $maxProcessedJobs = 100;
+
+    protected array $timeoutTracking = [];
     
     /**
      * Create a new worker instance
@@ -271,10 +273,62 @@ class BaseWorker implements WorkerInterface
             $this->processor->handleSuccess($job, $result);
             $this->status['processed']++;
             return true;
-        } catch (MachinjiriException $e) {
-            $this->processor->handleFailure($job, $e);
+        } catch (\Throwable $e) {
+
+            if ($e instanceof MachinjiriException) {
+                $this->processor->handleFailure($job, $e);
+            } else {
+                $this->processor->handleFailure($job, new MachinjiriException(
+                    $e->getMessage(),
+                    60002,
+                    $e
+                ));
+            }
             $this->status['failed']++;
             return false;
+        }
+
+    }
+
+    protected function processWithTimeout(JobInterface $job, callable $callback): mixed
+    {
+        $jobId = $job->getId();
+        $timeout = $job->getTimeout();
+        
+        if ($timeout > 0 && extension_loaded('pcntl')) {
+            // Fork process for timeout handling
+            return $this->processWithPcntl($job, $callback, $timeout);
+        }
+        
+        // Fallback: set_time_limit
+        set_time_limit($timeout > 0 ? $timeout : 0);
+        return $callback($job);
+    }
+    
+    private function processWithPcntl(JobInterface $job, callable $callback, int $timeout): mixed
+    {
+        $pid = pcntl_fork();
+        
+        if ($pid == -1) {
+            // Fork failed, use normal processing
+            return $callback($job);
+        } elseif ($pid) {
+            // Parent process
+            pcntl_waitpid($pid, $status, WNOHANG);
+            sleep($timeout);
+            
+            if (pcntl_wifexited($status)) {
+                // Child exited normally
+                return pcntl_wexitstatus($status);
+            } else {
+                // Timeout - kill child
+                posix_kill($pid, SIGKILL);
+                throw new MachinjiriException("Job timed out after {$timeout} seconds");
+            }
+        } else {
+            // Child process
+            $result = $callback($job);
+            exit($result);
         }
     }
     

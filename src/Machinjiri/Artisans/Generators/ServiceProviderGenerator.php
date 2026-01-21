@@ -254,7 +254,10 @@ class {$name} extends BaseServiceProvider
         \$this->registerEventListeners();
         
         // Register middleware
-        \$this->registerMiddleware();
+        \$this->registerMiddleware([
+            // Add your middleware classes here
+            'middleware.name' => 'MiddlewareClass::class',
+        ]);
         
         // Load routes if any
         \$this->loadRoutes();
@@ -307,12 +310,10 @@ class {$name} extends BaseServiceProvider
     /**
      * Register middleware
      */
-    public function registerMiddleware(): void
+    protected function registerMiddleware(\$middleware, ?string \$name = null): void
     {
         // Example: Register middleware
-        // \$this->registerMiddleware([
-        //     'middleware.name' => MiddlewareClass::class,
-        // ]);
+        // \$this->registerMiddleware(\$middleware);
     }
 
     /**

@@ -614,20 +614,19 @@ class ErrorHandler
         }
         
         .error-container {
-            display: grid;
-            grid-template-columns: 1fr 350px;
-            gap: 25px;
             margin-bottom: 25px;
         }
         
         .main-error {
-            background: white;
-            border-radius: var(--border-radius);
             overflow: hidden;
-            box-shadow: var(--box-shadow);
+            display: flex !important;
+            flex-direction: row;
+            gap: 25px;
         }
         
         .error-section {
+            border-radius: var(--border-radius);
+            background: white;
             padding: 25px;
             border-bottom: 1px solid var(--light-gray);
         }
@@ -894,6 +893,9 @@ class ErrorHandler
         }
         
         @media (max-width: 768px) {
+            .main-error {
+                flex-direction: column;
+            }
             .error-header {
                 flex-direction: column;
                 align-items: flex-start;

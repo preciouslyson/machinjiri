@@ -313,7 +313,7 @@ class {$name} extends BaseServiceProvider
     protected function registerMiddleware(\$middleware, ?string \$name = null): void
     {
         // Example: Register middleware
-        // \$this->registerMiddleware(\$middleware);
+        \$this->registerMiddleware(\$middleware);
     }
 
     /**

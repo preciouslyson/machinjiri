@@ -263,7 +263,7 @@ class {$name}Job extends BaseJob
     /**
      * Create a new job instance
      */
-    public function __construct(array \$payload = [], array \$options = [])
+    public function __construct(\Mlangeni\Machinjiri\Core\Container \$app, array \$payload = [], array \$options = [])
     {
         // Set default options
         \$defaultOptions = [
@@ -273,7 +273,7 @@ class {$name}Job extends BaseJob
             'delay' => {$delay},
         ];
         
-        parent::__construct(\$payload, array_merge(\$defaultOptions, \$options));
+        parent::__construct(\$app, \$payload, array_merge(\$defaultOptions, \$options));
     }
 
     /**
@@ -351,7 +351,7 @@ class {$name}Job extends BaseJob
     /**
      * Create a new job instance
      */
-    public function __construct(array \$payload = [], array \$options = [])
+    public function __construct(\Mlangeni\Machinjiri\Core\Container \$app, array \$payload = [], array \$options = [])
     {
         \$defaultOptions = [
             'maxAttempts' => {$maxAttempts},
@@ -360,7 +360,7 @@ class {$name}Job extends BaseJob
             'delay' => {$delay},
         ];
         
-        parent::__construct(\$payload, array_merge(\$defaultOptions, \$options));
+        parent::__construct(\$app, \$payload, array_merge(\$defaultOptions, \$options));
     }
 
     /**
@@ -461,7 +461,7 @@ class {$name}Job extends BaseJob
     /**
      * Create a new job instance
      */
-    public function __construct(array \$payload = [], array \$options = [])
+    public function __construct(\Mlangeni\Machinjiri\Core\Container \$app, array \$payload = [], array \$options = [])
     {
         \$defaultOptions = [
             'maxAttempts' => {$maxAttempts},
@@ -470,7 +470,7 @@ class {$name}Job extends BaseJob
             'delay' => {$delay},
         ];
         
-        parent::__construct(\$payload, array_merge(\$defaultOptions, \$options));
+        parent::__construct(\$app, \$payload, array_merge(\$defaultOptions, \$options));
         
         // Initialize query builder
         \$this->queryBuilder = new QueryBuilder(\$this->tableName);
@@ -930,7 +930,7 @@ class {$name}Queue extends BaseQueue
             return null;
         }
         
-        return \$jobClass::unserialize(\$jobData);
+        return \$jobClass::unserialize(\$jobData, \$this->app);
     }
 
     /**
@@ -1070,7 +1070,7 @@ class {$name}Queue extends BaseQueue
             return false;
         }
         
-        \$job = \$jobClass::unserialize(\$jobData);
+        \$job = \$jobClass::unserialize(\$jobData, \$this->app);
         \$job->addMetadata('retried_at', date('Y-m-d H:i:s'));
         
         // Push back to queue
@@ -1319,7 +1319,7 @@ class {$name}Queue extends BaseQueue
             \$this->redis->setEx(\$timeoutKey, \$this->config['retry_after'], '1');
         }
         
-        return \$jobClass::unserialize(\$jobData);
+        return \$jobClass::unserialize(\$jobData, \$this->app);
     }
 
     /**
@@ -1539,7 +1539,7 @@ class {$name}Queue extends BaseQueue
             // Push back to queue
             \$jobClass = \$jobData['name'] ?? '';
             if (class_exists(\$jobClass)) {
-                \$jobInstance = \$jobClass::unserialize(\$jobData);
+                \$jobInstance = \$jobClass::unserialize(\$jobData, \$this->app);
                 \$jobInstance->addMetadata('retried_at', date('Y-m-d H:i:s'));
                 \$this->push(\$jobInstance, \$queue, 0);
                 return true;
@@ -1951,7 +1951,7 @@ class {$name}Queue extends BaseQueue
                 return null;
             }
             
-            return \$jobClass::unserialize(\$data['job']);
+            return \$jobClass::unserialize(\$data['job'], \$this->app);
         }
         
         return null;
@@ -2184,7 +2184,7 @@ class {$name}Queue extends BaseQueue
             return false;
         }
         
-        \$job = \$jobClass::unserialize(\$data['job']);
+        \$job = \$jobClass::unserialize(\$data['job'], \$this->app);
         \$job->addMetadata('retried_at', date('Y-m-d H:i:s'));
         
         // Push back to queue
@@ -3620,7 +3620,7 @@ class {$name}Job extends BaseJob
     /**
      * Create a new job instance
      */
-    public function __construct(array \$payload = [], array \$options = [])
+    public function __construct(\Mlangeni\Machinjiri\Core\Container \$app, array \$payload = [], array \$options = [])
     {
         \$defaultOptions = [
             'maxAttempts' => {$maxAttempts},
@@ -3629,7 +3629,7 @@ class {$name}Job extends BaseJob
             'delay' => {$delay},
         ];
         
-        parent::__construct(\$payload, array_merge(\$defaultOptions, \$options));
+        parent::__construct(\$app, \$payload, array_merge(\$defaultOptions, \$options));
     }
 
     /**
@@ -3716,7 +3716,7 @@ class {$name}Job extends BaseJob
     /**
      * Create a new job instance
      */
-    public function __construct(array \$payload = [], array \$options = [])
+    public function __construct(\Mlangeni\Machinjiri\Core\Container \$app, array \$payload = [], array \$options = [])
     {
         \$defaultOptions = [
             'maxAttempts' => {$maxAttempts},
@@ -3725,7 +3725,7 @@ class {$name}Job extends BaseJob
             'delay' => \$delay,
         ];
         
-        parent::__construct(\$payload, array_merge(\$defaultOptions, \$options));
+        parent::__construct(\$app, \$payload, array_merge(\$defaultOptions, \$options));
         
         \$this->queryBuilder = new QueryBuilder('');
         \$config = \$this->app->resolve('config');
@@ -3892,7 +3892,7 @@ class {$name}Job extends BaseJob
     /**
      * Create a new job instance
      */
-    public function __construct(array \$payload = [], array \$options = [])
+    public function __construct(\Mlangeni\Machinjiri\Core\Container \$app, array \$payload = [], array \$options = [])
     {
         // Sync jobs run immediately with no queue
         \$defaultOptions = [
@@ -3902,7 +3902,7 @@ class {$name}Job extends BaseJob
             'delay' => 0,
         ];
         
-        parent::__construct(\$payload, array_merge(\$defaultOptions, \$options));
+        parent::__construct(\$app, \$payload, array_merge(\$defaultOptions, \$options));
     }
 
     /**

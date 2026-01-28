@@ -117,7 +117,6 @@ abstract class BaseJobProcessor implements JobProcessorInterface
      */
     public function retry(JobInterface $job, int $delay = 0): bool
     {
-
         $actualDelay = $delay > 0 ? $delay : $job->getNextRetryDelay();
 
         $this->events->trigger('job.retrying', [
@@ -127,8 +126,20 @@ abstract class BaseJobProcessor implements JobProcessorInterface
             'next_attempt' => $job->getAttempts() + 1,
         ]);
         
-        return false; 
+        try {
+            $queue = $this->app->getProviderLoader()->resolve('queue');
+            if ($queue) {
+                $queue->release($job, $job->getQueue(), $actualDelay);
+                return true;
+            }
+        } catch (\Throwable $e) {
+            $this->events->trigger('job.retry_failed', [
+                'job_id' => $job->getId(),
+                'exception' => $e->getMessage(),
+            ]);
+        }
         
+        return false;
     }
     
     protected function triggerBuffered(string $event, array $data): void

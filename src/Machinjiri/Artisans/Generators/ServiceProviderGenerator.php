@@ -821,4 +821,572 @@ PHP;
         
         return $providerFile;
     }
+
+    /**
+     * Generate ThirdPartyAuthServiceProvider
+     *
+     * @param array $options
+     * @return array Created files
+     * @throws MachinjiriException
+     */
+    public function generateThirdPartyAuth(array $options = []): array
+    {
+        $name = 'ThirdPartyAuthServiceProvider';
+        $configName = 'thirdparty_auth';
+        
+        // Validate name
+        $this->validateName($name);
+        
+        // Get options
+        $deferred = $options['deferred'] ?? true;
+        $withConfig = $options['config'] ?? true;
+        $withDatabase = $options['database'] ?? true;
+        $providers = $options['providers'] ?? ['google', 'github', 'facebook'];
+        
+        // Create provider file
+        $providerFile = $this->createThirdPartyAuthProviderFile($name, [
+            'deferred' => $deferred,
+            'with_database' => $withDatabase,
+        ]);
+        
+        $createdFiles = [$providerFile];
+        
+        // Create configuration file if requested
+        if ($withConfig) {
+            $configFile = $this->createThirdPartyAuthConfigFile($configName, [
+                'providers' => $providers,
+                'auto_create_users' => true,
+                'auto_sync_profile' => true,
+            ]);
+            $createdFiles[] = $configFile;
+        }
+        
+        // Create migration file for database tables
+        if ($withDatabase) {
+            $migrationFile = $this->createThirdPartyAuthMigration();
+            $createdFiles[] = $migrationFile;
+        }
+        
+        // Update providers.php configuration if requested
+        if ($options['register'] ?? true) {
+            $this->registerInProvidersConfig($name, [
+                'deferred' => $deferred,
+                'config_name' => $configName,
+            ]);
+        }
+        
+        return $createdFiles;
+    }
+
+    /**
+     * Create ThirdPartyAuthServiceProvider file
+     *
+     * @param string $name
+     * @param array $options
+     * @return string
+     * @throws MachinjiriException
+     */
+    private function createThirdPartyAuthProviderFile(string $name, array $options): string
+    {
+        // Ensure providers directory exists
+        $this->ensureDirectoryExists($this->providersPath);
+        
+        $providerFile = $this->providersPath . $name . '.php';
+        
+        // Generate template
+        $template = $this->generateThirdPartyAuthTemplate($name, $options);
+        
+        // Write file
+        if (file_put_contents($providerFile, $template) === false) {
+            throw new MachinjiriException(
+                "Failed to create ThirdPartyAuth service provider file: {$providerFile}",
+                90014
+            );
+        }
+        
+        return $providerFile;
+    }
+
+    /**
+     * Generate ThirdPartyAuthServiceProvider template
+     *
+     * @param string $name
+     * @param array $options
+     * @return string
+     */
+    private function generateThirdPartyAuthTemplate(string $name, array $options): string
+    {
+        $deferred = $options['deferred'] ? 'true' : 'false';
+        $withDatabase = $options['with_database'] ? 'true' : 'false';
+        
+        $databaseSetup = $withDatabase ? <<<'PHP'
+
+        // Initialize database connection if available
+        if ($this->app->has('database.connection')) {
+            $connection = $this->app->get('database.connection');
+            $queryBuilder = new QueryBuilder($connection);
+            $thirdPartyAuth->setQueryBuilder($queryBuilder);
+        }
+PHP : '';
+
+        return <<<PHP
+<?php
+namespace Mlangeni\Machinjiri\App\Providers;
+
+use Mlangeni\Machinjiri\Core\Providers\ServiceProvider as BaseServiceProvider;
+use Mlangeni\Machinjiri\Core\Authentication\ThirdPartyAuth;
+use Mlangeni\Machinjiri\Core\Authentication\Session;
+use Mlangeni\Machinjiri\Core\Authentication\Cookie;
+use Mlangeni\Machinjiri\Core\Network\CurlHandler;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
+
+/**
+ * Third-Party Authentication Service Provider
+ *
+ * This service provider handles registration and bootstrapping
+ * of third-party OAuth authentication services for multiple providers
+ * including Google, GitHub, Facebook, Twitter, LinkedIn, and more.
+ */
+class {$name} extends BaseServiceProvider
+{
+    /**
+     * Indicates if loading of the provider is deferred
+     */
+    protected bool \$defer = {$deferred};
+
+    /**
+     * Register services
+     */
+    public function register(): void
+    {
+        // Load and merge configuration
+        \$this->mergeConfigFrom(
+            \$this->app->config . 'thirdparty_auth.php',
+            'thirdparty_auth'
+        );
+
+        // Register ThirdPartyAuth as a singleton
+        \$this->app->singleton('auth.thirdparty', function (\$app) {
+            \$config = \$app->config['thirdparty_auth'] ?? [];
+            
+            \$session = new Session();
+            \$cookie = new Cookie();
+            \$httpClient = new CurlHandler();
+            \$logger = new Logger('auth', Logger::DEBUG);
+            
+            \$thirdPartyAuth = new ThirdPartyAuth(
+                \$config,
+                \$session,
+                \$cookie,
+                null, // QueryBuilder will be set in boot() if available
+                \$httpClient,
+                \$logger
+            );
+{$databaseSetup}
+
+            return \$thirdPartyAuth;
+        });
+
+        // Register alias for easier access
+        \$this->app->alias('auth.thirdparty', ThirdPartyAuth::class);
+    }
+
+    /**
+     * Bootstrap services
+     */
+    public function boot(): void
+    {
+        // Publish configuration
+        if (\$this->app->runningInConsole()) {
+            \$this->publishes([
+                __DIR__ . '/../../config/thirdparty_auth.php' => \$this->app->config . 'thirdparty_auth.php',
+            ], 'thirdparty-auth-config');
+        }
+
+        // Set database connection if available
+        if (\$this->app->has('auth.thirdparty')) {
+            \$thirdPartyAuth = \$this->app->get('auth.thirdparty');
+            
+            if (\$this->app->has('database.connection')) {
+                \$connection = \$this->app->get('database.connection');
+                \$queryBuilder = new QueryBuilder(\$connection);
+                \$thirdPartyAuth->setQueryBuilder(\$queryBuilder);
+            }
+        }
+
+        // Log that service has booted
+        \$this->triggerEvent('thirdparty_auth.booted');
+    }
+
+    /**
+     * Get the services provided by the provider
+     */
+    public function provides(): array
+    {
+        return [
+            'auth.thirdparty',
+            ThirdPartyAuth::class,
+        ];
+    }
+}
+PHP;
+    }
+
+    /**
+     * Create ThirdPartyAuth configuration file
+     *
+     * @param string $name
+     * @param array $data
+     * @return string
+     * @throws MachinjiriException
+     */
+    private function createThirdPartyAuthConfigFile(string $name, array $data = []): string
+    {
+        // Ensure config directory exists
+        $this->ensureDirectoryExists($this->configPath);
+        
+        $configFile = $this->configPath . $name . '.php';
+        
+        // Check if config file already exists
+        if (file_exists($configFile)) {
+            throw new MachinjiriException(
+                "Configuration file already exists: {$configFile}",
+                90015
+            );
+        }
+        
+        // Generate configuration template
+        $template = $this->generateThirdPartyAuthConfigTemplate($name, $data);
+        
+        // Write file
+        if (file_put_contents($configFile, $template) === false) {
+            throw new MachinjiriException(
+                "Failed to create ThirdPartyAuth configuration file: {$configFile}",
+                90016
+            );
+        }
+        
+        return $configFile;
+    }
+
+    /**
+     * Generate ThirdPartyAuth configuration template
+     *
+     * @param string $name
+     * @param array $data
+     * @return string
+     */
+    private function generateThirdPartyAuthConfigTemplate(string $name, array $data): string
+    {
+        $providers = var_export($data['providers'] ?? ['google', 'github', 'facebook'], true);
+        
+        return <<<PHP
+<?php
+
+return [
+    /*
+    |--------------------------------------------------------------------------
+    | Third-Party Authentication Configuration
+    |--------------------------------------------------------------------------
+    |
+    | This configuration manages OAuth authentication with third-party providers.
+    | Configure your OAuth credentials in the .env file:
+    |
+    | GOOGLE_CLIENT_ID=your-google-client-id
+    | GOOGLE_CLIENT_SECRET=your-google-client-secret
+    | GITHUB_CLIENT_ID=your-github-client-id
+    | GITHUB_CLIENT_SECRET=your-github-client-secret
+    | etc...
+    |
+    */
+
+    /*
+    |--------------------------------------------------------------------------
+    | Redirect URI
+    |--------------------------------------------------------------------------
+    |
+    | The redirect URI after OAuth authentication. Should point to your
+    | callback endpoint (typically /auth/callback)
+    |
+    */
+    'redirect_uri' => env('APP_URL', 'http://localhost:8000') . '/auth/callback',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Session Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Key prefix for storing OAuth data in session
+    |
+    */
+    'session_key_prefix' => 'thirdparty_auth_',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Database Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configure the tables used for storing OAuth data
+    |
+    */
+    'user_table' => 'users',
+    'provider_table' => 'user_providers',
+    'token_table' => 'user_tokens',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Auto User Creation
+    |--------------------------------------------------------------------------
+    |
+    | Automatically create a new user account when they authenticate
+    | with a third-party provider for the first time
+    |
+    */
+    'auto_create_users' => true,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Auto Sync Profile
+    |--------------------------------------------------------------------------
+    |
+    | Automatically sync user profile data (name, avatar) from the
+    | OAuth provider on each login
+    |
+    */
+    'auto_sync_profile' => true,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Default Role for New Users
+    |--------------------------------------------------------------------------
+    |
+    | The role assigned to automatically created users
+    |
+    */
+    'default_role' => 'user',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Available OAuth Providers
+    |--------------------------------------------------------------------------
+    |
+    | List of OAuth providers to enable. Only configured providers
+    | will be available for authentication.
+    |
+    */
+    'providers' => {$providers},
+
+    /*
+    |--------------------------------------------------------------------------
+    | OAuth Scopes
+    |--------------------------------------------------------------------------
+    |
+    | Define the scopes requested from each OAuth provider.
+    | These determine what user data and permissions you'll have access to.
+    |
+    */
+    'scopes' => [
+        'google' => ['email', 'profile', 'openid'],
+        'github' => ['user:email', 'read:user'],
+        'facebook' => ['email', 'public_profile'],
+        'twitter' => ['users.read', 'tweet.read'],
+        'yahoo' => ['profile', 'email'],
+        'linkedin' => ['r_liteprofile', 'r_emailaddress'],
+        'microsoft' => ['User.Read', 'email'],
+        'instagram' => ['user_profile', 'user_media'],
+        'gitlab' => ['read_user'],
+        'bitbucket' => ['account', 'email'],
+        'amazon' => ['profile'],
+        'slack' => ['users:read', 'users:read.email'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | OAuth Endpoints
+    |--------------------------------------------------------------------------
+    |
+    | Authorization, token, and revocation endpoints for each provider.
+    | These are pre-configured for official providers.
+    |
+    */
+    'endpoints' => [
+        'google' => [
+            'authorization' => 'https://accounts.google.com/o/oauth2/auth',
+            'token' => 'https://oauth2.googleapis.com/token',
+            'revoke' => 'https://oauth2.googleapis.com/revoke',
+        ],
+        'github' => [
+            'authorization' => 'https://github.com/login/oauth/authorize',
+            'token' => 'https://github.com/login/oauth/access_token',
+            'revoke' => null,
+        ],
+        'facebook' => [
+            'authorization' => 'https://www.facebook.com/v12.0/dialog/oauth',
+            'token' => 'https://graph.facebook.com/v12.0/oauth/access_token',
+            'revoke' => 'https://graph.facebook.com/v12.0/{user_id}/permissions',
+        ],
+        'twitter' => [
+            'authorization' => 'https://twitter.com/i/oauth2/authorize',
+            'token' => 'https://api.twitter.com/2/oauth2/token',
+            'revoke' => 'https://api.twitter.com/2/oauth2/revoke',
+        ],
+        'yahoo' => [
+            'authorization' => 'https://api.login.yahoo.com/oauth2/request_auth',
+            'token' => 'https://api.login.yahoo.com/oauth2/get_token',
+            'revoke' => 'https://api.login.yahoo.com/oauth2/revoke',
+        ],
+        'linkedin' => [
+            'authorization' => 'https://www.linkedin.com/oauth/v2/authorization',
+            'token' => 'https://www.linkedin.com/oauth/v2/accessToken',
+            'revoke' => null,
+        ],
+        'microsoft' => [
+            'authorization' => 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+            'token' => 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+            'revoke' => 'https://login.microsoftonline.com/common/oauth2/v2.0/logout',
+        ],
+        'instagram' => [
+            'authorization' => 'https://api.instagram.com/oauth/authorize',
+            'token' => 'https://api.instagram.com/oauth/access_token',
+            'revoke' => null,
+        ],
+        'gitlab' => [
+            'authorization' => 'https://gitlab.com/oauth/authorize',
+            'token' => 'https://gitlab.com/oauth/token',
+            'revoke' => 'https://gitlab.com/oauth/revoke',
+        ],
+        'bitbucket' => [
+            'authorization' => 'https://bitbucket.org/site/oauth2/authorize',
+            'token' => 'https://bitbucket.org/site/oauth2/access_token',
+            'revoke' => 'https://bitbucket.org/site/oauth2/revoke',
+        ],
+        'amazon' => [
+            'authorization' => 'https://www.amazon.com/ap/oa',
+            'token' => 'https://api.amazon.com/auth/o2/token',
+            'revoke' => null,
+        ],
+        'slack' => [
+            'authorization' => 'https://slack.com/oauth/v2/authorize',
+            'token' => 'https://slack.com/api/oauth.v2.access',
+            'revoke' => 'https://slack.com/api/auth.revoke',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | User Info Endpoints
+    |--------------------------------------------------------------------------
+    |
+    | Endpoints for fetching user information from each OAuth provider
+    |
+    */
+    'user_info_endpoints' => [
+        'google' => 'https://www.googleapis.com/oauth2/v3/userinfo',
+        'github' => 'https://api.github.com/user',
+        'facebook' => 'https://graph.facebook.com/v12.0/me?fields=id,name,email,picture',
+        'twitter' => 'https://api.twitter.com/2/users/me',
+        'yahoo' => 'https://api.login.yahoo.com/openid/v1/userinfo',
+        'linkedin' => 'https://api.linkedin.com/v2/me',
+        'microsoft' => 'https://graph.microsoft.com/v1.0/me',
+        'instagram' => 'https://graph.instagram.com/me?fields=id,username,account_type,media_count',
+        'gitlab' => 'https://gitlab.com/api/v4/user',
+        'bitbucket' => 'https://api.bitbucket.org/2.0/user',
+        'amazon' => 'https://api.amazon.com/user/profile',
+        'slack' => 'https://slack.com/api/users.profile.get',
+    ],
+];
+PHP;
+    }
+
+    /**
+     * Create ThirdPartyAuth database migration
+     *
+     * @return string
+     * @throws MachinjiriException
+     */
+    private function createThirdPartyAuthMigration(): string
+    {
+        $migrationsPath = $this->appBasePath . '/database/migrations/';
+        $this->ensureDirectoryExists($migrationsPath);
+        
+        $timestamp = date('Y_m_d_His');
+        $migrationFile = $migrationsPath . $timestamp . '_create_third_party_auth_tables.php';
+        
+        // Generate migration content
+        $template = $this->generateThirdPartyAuthMigrationTemplate();
+        
+        // Write file
+        if (file_put_contents($migrationFile, $template) === false) {
+            throw new MachinjiriException(
+                "Failed to create migration file: {$migrationFile}",
+                90017
+            );
+        }
+        
+        return $migrationFile;
+    }
+
+    /**
+     * Generate ThirdPartyAuth migration template
+     *
+     * @return string
+     */
+    private function generateThirdPartyAuthMigrationTemplate(): string
+    {
+        $timestamp = date('Y-m-d H:i:s');
+        
+        return <<<'PHP'
+<?php
+
+return [
+    /*
+    |--------------------------------------------------------------------------
+    | Create User Providers Table
+    |--------------------------------------------------------------------------
+    */
+    'create_user_providers_table' => "
+        CREATE TABLE IF NOT EXISTS user_providers (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            user_id INT NOT NULL,
+            provider VARCHAR(50) NOT NULL,
+            provider_id VARCHAR(255) NOT NULL,
+            access_token LONGTEXT NOT NULL,
+            refresh_token LONGTEXT,
+            token_expires DATETIME,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            UNIQUE KEY unique_provider_per_user (user_id, provider),
+            UNIQUE KEY unique_provider_id (provider, provider_id),
+            INDEX idx_user_id (user_id),
+            INDEX idx_provider (provider)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ",
+
+    /*
+    |--------------------------------------------------------------------------
+    | Create User Tokens Table
+    |--------------------------------------------------------------------------
+    */
+    'create_user_tokens_table' => "
+        CREATE TABLE IF NOT EXISTS user_tokens (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            user_id INT NOT NULL,
+            provider VARCHAR(50) NOT NULL,
+            access_token LONGTEXT NOT NULL,
+            refresh_token LONGTEXT,
+            token_type VARCHAR(50) DEFAULT 'bearer',
+            expires_in INT,
+            scope TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at DATETIME,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            INDEX idx_user_provider (user_id, provider),
+            INDEX idx_expires_at (expires_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ",
+];
+PHP;
+    }
 }

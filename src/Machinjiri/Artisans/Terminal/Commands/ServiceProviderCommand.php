@@ -544,6 +544,90 @@ class ServiceProviderCommand
                         return Command::FAILURE;
                     }
                 }
+            },
+            
+            new class extends Command {
+                public function __construct()
+                {
+                    parent::__construct('provider:thirdparty-auth');
+                    $this->setDescription("Generate ThirdPartyAuthServiceProvider with configuration");
+                }
+                
+                protected function configure(): void {
+                    $this->addOption('deferred', null, InputOption::VALUE_NONE, 'Make provider deferred (lazy-loaded)');
+                    $this->addOption('no-config', null, InputOption::VALUE_NONE, 'Skip configuration file creation');
+                    $this->addOption('no-migration', null, InputOption::VALUE_NONE, 'Skip database migration creation');
+                    $this->addOption('providers', null, InputOption::VALUE_OPTIONAL, 'Comma-separated list of providers to enable');
+                    $this->addOption('force', null, InputOption::VALUE_NONE, 'Force creation even if files exist');
+                }
+
+                protected function execute(InputInterface $input, OutputInterface $output): int
+                {
+                    try {
+                        $ss = new SymfonyStyle($input, $output);
+                        $ss->title("Machinjiri - Third-Party Authentication Setup");
+                        
+                        $generator = new ServiceProviderGenerator(getcwd());
+                        
+                        $options = [
+                            'deferred' => $input->getOption('deferred'),
+                            'config' => !$input->getOption('no-config'),
+                            'database' => !$input->getOption('no-migration'),
+                            'register' => true,
+                        ];
+                        
+                        // Parse providers list
+                        if ($input->getOption('providers')) {
+                            $providers = array_map('trim', explode(',', $input->getOption('providers')));
+                            $options['providers'] = $providers;
+                        }
+                        
+                        // Check if files already exist
+                        $providerFile = getcwd() . '/app/Providers/ThirdPartyAuthServiceProvider.php';
+                        if (file_exists($providerFile) && !$input->getOption('force')) {
+                            $ss->error("ThirdPartyAuthServiceProvider already exists. Use --force to overwrite.");
+                            return Command::FAILURE;
+                        }
+                        
+                        $result = $generator->generateThirdPartyAuth($options);
+                        
+                        if (count($result) > 0) {
+                            $ss->success("Third-Party Authentication setup completed successfully!\n");
+                            $ss->text("Created files:");
+                            $ss->listing($result);
+                            
+                            // Display next steps
+                            $ss->section("Next Steps");
+                            $ss->text([
+                                "1. Add OAuth credentials to your .env file:",
+                                "   GOOGLE_CLIENT_ID=your-client-id",
+                                "   GOOGLE_CLIENT_SECRET=your-client-secret",
+                                "   GITHUB_CLIENT_ID=your-client-id",
+                                "   GITHUB_CLIENT_SECRET=your-client-secret",
+                                "",
+                                "2. Run database migrations to create necessary tables",
+                                "",
+                                "3. Customize routes in your application to handle:",
+                                "   /auth/login?provider=google",
+                                "   /auth/callback",
+                                "   /auth/logout",
+                                "",
+                                "4. Review the configuration file at: config/thirdparty_auth.php",
+                            ]);
+                            
+                            return Command::SUCCESS;
+                        } else {
+                            $ss->error("Could not generate Third-Party Authentication setup");
+                            return Command::FAILURE;
+                        }
+                    } catch (MachinjiriException $e) {
+                        $ss->error("Setup failed: " . $e->getMessage());
+                        return Command::FAILURE;
+                    } catch (\Exception $e) {
+                        $ss->error("Error: " . $e->getMessage());
+                        return Command::FAILURE;
+                    }
+                }
             }
         ];
     }

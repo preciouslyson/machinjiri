@@ -1,0 +1,81 @@
+name: Pull Request Template
+description: Create a pull request
+title: "[PR] "
+labels: ["enhancement"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for contributing to Machinjiri! Please fill out this template to help us review your PR quickly.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe your changes and why you made them
+      placeholder: What does this PR do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: changes
+    attributes:
+      label: Changes Made
+      description: List the key changes in this PR
+      placeholder: |
+        - Change 1
+        - Change 2
+        - Change 3
+
+  - type: dropdown
+    id: pr-type
+    attributes:
+      label: Type of Change
+      options:
+        - Bug fix
+        - New feature
+        - Breaking change
+        - Documentation update
+        - Code refactor
+        - Performance improvement
+    validations:
+      required: true
+
+  - type: textarea
+    id: testing
+    attributes:
+      label: Testing
+      description: Describe how you tested your changes
+      placeholder: |
+        - [ ] Unit tests added/updated
+        - [ ] Manual testing completed
+        - [ ] Code review completed
+
+  - type: textarea
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Ensure all items are completed
+      value: |
+        - [ ] My code follows the style guidelines
+        - [ ] I have updated the documentation
+        - [ ] I have added tests for my changes
+        - [ ] All new tests pass
+        - [ ] I have not broken any existing functionality
+        - [ ] My branch is up-to-date with base branch
+      render: markdown
+
+  - type: textarea
+    id: related-issues
+    attributes:
+      label: Related Issues
+      description: Link any related issues (e.g., Fixes #123)
+      placeholder: Fixes #123, Related to #456
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots (if applicable)
+      description: Add screenshots or screen recordings if this is a UI/visual change

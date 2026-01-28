@@ -2,7 +2,9 @@
 
 namespace Mlangeni\Machinjiri\Core\Security\Encryption;
 
-class Cipher
+use Mlangeni\Machinjiri\Core\Kernel\Security\EncryptionInterface;
+
+class Cipher implements EncryptionInterface
 {
   /**
   * Fixed IV Size

@@ -1,0 +1,186 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ v* ]
+  pull_request:
+    branches: [ main, develop ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Test Matrix Job
+  test:
+    name: Tests on PHP ${{ matrix.php-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: [ '8.2', '8.3' ]
+        dependencies: [ 'lowest', 'stable' ]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP ${{ matrix.php-version }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: pdo, pdo_mysql, pdo_pgsql, pdo_sqlite, redis
+          coverage: xdebug
+          tools: composer
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-composer-${{ matrix.php-version }}-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-${{ matrix.php-version }}-
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ matrix.dependencies }}" == "lowest" ]; then
+            composer update --prefer-lowest --prefer-stable --no-interaction
+          else
+            composer install --no-interaction
+          fi
+
+      - name: Run PHPUnit tests
+        run: vendor/bin/phpunit --coverage-clover=coverage.xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  # Code Quality Job
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_mysql, pdo_pgsql, pdo_sqlite
+          tools: composer
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-composer-quality-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-quality-
+
+      - name: Install dependencies
+        run: composer install --no-interaction
+
+      - name: Run PHPCodeSniffer
+        run: vendor/bin/phpcs src tests || true
+
+      - name: Run PHPStan
+        run: vendor/bin/phpstan analyse src --level=5 || true
+
+      - name: Security audit
+        run: composer audit || true
+
+      - name: PHP Lint
+        run: find src tests -name '*.php' -print0 | xargs -0 -n 1 -P 4 php -l || true
+
+  # Build & Release Job
+  build:
+    name: Build & Release
+    runs-on: ubuntu-latest
+    needs: [ test, quality ]
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer
+
+      - name: Install production dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+
+      - name: Create build artifact
+        run: |
+          mkdir -p build
+          cp -r src vendor composer.json composer.lock build/
+          zip -r machinjiri-build.zip build/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: machinjiri-build
+          path: machinjiri-build.zip
+          retention-days: 30
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+  # Documentation Job
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate documentation
+        run: |
+          # Check if README exists
+          [ -f README.md ] || exit 1
+          
+          # Check if key sections exist
+          grep -q "^#.*Installation" README.md || exit 1
+          grep -q "^#.*Features" README.md || exit 1
+          grep -q "^#.*Contributing" README.md || exit 1
+
+      - name: Markdown Lint
+        uses: nosborn/github-action-markdown-cli@v3.3.0
+        with:
+          files: .
+          config_file: .markdownlint.json
+
+  # Notification Job
+  notify:
+    name: Notifications
+    runs-on: ubuntu-latest
+    needs: [ test, quality, build, docs ]
+    if: always()
+
+    steps:
+      - name: Success Summary
+        if: success()
+        run: echo "All CI/CD checks passed!"
+
+      - name: Failure Summary
+        if: failure()
+        run: echo "Some checks failed. Please review the logs."

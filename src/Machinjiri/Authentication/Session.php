@@ -3,8 +3,9 @@
 namespace Mlangeni\Machinjiri\Core\Authentication;
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
+use Mlangeni\Machinjiri\Core\Kernel\Authentication\AuthenticationInterface;
 
-class Session {
+class Session implements AuthenticationInterface {
     private int $timeout;
     private string $cookieName;
     private ?string $domain;

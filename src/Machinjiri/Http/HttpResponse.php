@@ -2,7 +2,9 @@
 
 namespace Mlangeni\Machinjiri\Core\Http;
 
-class HttpResponse {
+use Mlangeni\Machinjiri\Core\Kernel\Http\ResponseInterface;
+
+class HttpResponse implements ResponseInterface {
     private $statusCode = 200;
     private $headers = [];
     private $body = '';

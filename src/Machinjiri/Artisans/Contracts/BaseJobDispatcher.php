@@ -62,7 +62,14 @@ class BaseJobDispatcher implements JobDispatcherInterface
      */
     public function dispatchNow(JobInterface $job): mixed
     {
+        if (!$job instanceof JobInterface) {
+            throw new MachinjiriException('Invalid job instance', 60011);
+        }
+        
         $processor = $this->app->getProviderLoader()->resolve('job.processor');
+        if (!$processor) {
+            throw new MachinjiriException('Job processor not configured', 60012);
+        }
         
         $this->app->getProviderLoader()->resolve('events')->trigger('job.processing', [
             'job_id' => $job->getId(),
@@ -77,6 +84,10 @@ class BaseJobDispatcher implements JobDispatcherInterface
         } catch (MachinjiriException $e) {
             $processor->handleFailure($job, $e);
             throw $e;
+        } catch (\Throwable $e) {
+            $exception = new MachinjiriException('Sync job execution failed: ' . $e->getMessage(), 60013, $e);
+            $processor->handleFailure($job, $exception);
+            throw $exception;
         }
     }
     
@@ -85,12 +96,17 @@ class BaseJobDispatcher implements JobDispatcherInterface
      */
     public function dispatchBulk(array $jobs): array
     {
+        if (empty($jobs)) {
+            throw new MachinjiriException('Cannot dispatch empty jobs array', 60014);
+        }
+        
         $jobIds = [];
         
         foreach ($jobs as $job) {
-            if ($job instanceof JobInterface) {
-                $jobIds[] = $this->dispatch($job);
+            if (!($job instanceof JobInterface)) {
+                throw new MachinjiriException('All items must implement JobInterface', 60015);
             }
+            $jobIds[] = $this->dispatch($job);
         }
         
         $this->app->getProviderLoader()->resolve('events')->trigger('job.bulk_dispatched', [

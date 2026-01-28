@@ -79,8 +79,10 @@ interface JobInterface
     
     /**
      * Create a job from serialized data
+     * @param array $data The serialized job data
+     * @param Container $app The application container
      */
-    public static function unserialize(array $data): self;
+    public static function unserialize(array $data, Container $app = null): self;
 
     public function getNextRetryDelay(): int;
     

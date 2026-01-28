@@ -1,0 +1,76 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+        extensions: pdo, pdo_mysql, pdo_pgsql, pdo_sqlite, curl, json, openssl
+        tools: composer:v2
+    
+    - name: Get composer cache directory
+      id: composer-cache
+      run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+    
+    - name: Cache composer dependencies
+      uses: actions/cache@v3
+      with:
+        path: ${{ steps.composer-cache.outputs.dir }}
+        key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+        restore-keys: ${{ runner.os }}-composer-
+    
+    - name: Install dependencies
+      run: composer install --prefer-stable --no-dev --no-progress
+    
+    - name: Generate autoloader
+      run: composer dump-autoload -o
+    
+    - name: Build artifact
+      run: |
+        mkdir -p build
+        echo "Build artifact created: $(date)" > build/build.log
+    
+    - name: Run final tests
+      run: composer test || true
+    
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: build-artifact-${{ github.sha }}
+        path: build/
+        retention-days: 30
+    
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        body: |
+          Machinjiri PHP Framework Release
+          
+          ## Changes
+          See commit history for detailed changes.
+          
+          ## Installation
+          ```bash
+          composer require machinjiri/framework:${{ github.ref }}
+          ```
+        draft: false
+        prerelease: false

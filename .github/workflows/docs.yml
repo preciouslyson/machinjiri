@@ -1,0 +1,66 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'README.md'
+      - 'CONTRIBUTING.md'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  validate-docs:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Check markdown files
+      run: |
+        # Check for common markdown issues
+        echo "Checking markdown files..."
+        
+        # Check if README exists
+        if [ ! -f README.md ]; then
+          echo "ERROR: README.md not found"
+          exit 1
+        fi
+        
+        # Check if CONTRIBUTING exists
+        if [ ! -f CONTRIBUTING.md ]; then
+          echo "WARNING: CONTRIBUTING.md not found"
+        fi
+        
+        # Check for broken links (basic check)
+        echo "Files checked successfully"
+    
+    - name: Validate markdown syntax
+      uses: nosborn/github-action-markdown-cli@v3.3.0
+      with:
+        files: README.md CONTRIBUTING.md
+        config_file: '.markdownlint.json'
+      continue-on-error: true
+    
+    - name: Check documentation completeness
+      run: |
+        # Verify key sections exist in README
+        echo "Verifying README sections..."
+        
+        required_sections=(
+          "Introduction"
+          "Features"
+          "Installation"
+          "Quick Start"
+          "Contributing"
+          "License"
+        )
+        
+        for section in "${required_sections[@]}"; do
+          if grep -q "## $section" README.md; then
+            echo "✓ Found section: $section"
+          else
+            echo "✗ Missing section: $section"
+          fi
+        done

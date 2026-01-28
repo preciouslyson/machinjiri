@@ -1,0 +1,58 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php-version: ['8.2', '8.3']
+        prefer: ['stable', 'lowest']
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ matrix.php-version }}
+        extensions: pdo, pdo_mysql, pdo_pgsql, pdo_sqlite, curl, json, openssl
+        tools: composer:v2
+        coverage: xdebug
+    
+    - name: Get composer cache directory
+      id: composer-cache
+      run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+    
+    - name: Cache composer dependencies
+      uses: actions/cache@v3
+      with:
+        path: ${{ steps.composer-cache.outputs.dir }}
+        key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+        restore-keys: ${{ runner.os }}-composer-
+    
+    - name: Install dependencies (Stable)
+      if: ${{ matrix.prefer == 'stable' }}
+      run: composer install --prefer-stable --no-progress
+    
+    - name: Install dependencies (Lowest)
+      if: ${{ matrix.prefer == 'lowest' }}
+      run: composer update --prefer-lowest --prefer-stable --no-progress
+    
+    - name: Generate autoloader
+      run: composer dump-autoload -o
+    
+    - name: Run Tests
+      run: composer test
+    
+    - name: Upload coverage reports
+      if: ${{ matrix.php-version == '8.2' && matrix.prefer == 'stable' }}
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage/coverage.xml
+        fail_ci_if_error: false

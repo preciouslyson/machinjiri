@@ -1,0 +1,95 @@
+name: Pull Request Checks
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [ opened, synchronize, reopened ]
+
+jobs:
+  validate-pr:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    
+    - name: Check PR title format
+      run: |
+        PR_TITLE="${{ github.event.pull_request.title }}"
+        
+        # Check for conventional commit format
+        if [[ $PR_TITLE =~ ^(feat|fix|docs|style|refactor|test|chore|perf)(\(.+\))?!?: ]]; then
+          echo "✓ PR title follows conventional commit format"
+        else
+          echo "⚠ PR title: '$PR_TITLE'"
+          echo "Consider using conventional commit format: feat|fix|docs|style|refactor|test|chore|perf"
+        fi
+    
+    - name: Check for changelog update
+      run: |
+        CHANGED_FILES=$(git diff origin/${{ github.base_ref }}...HEAD --name-only)
+        
+        if echo "$CHANGED_FILES" | grep -qE "(CHANGELOG|CHANGES|changelog|changes)"; then
+          echo "✓ Changelog updated"
+        else
+          echo "⚠ Consider updating CHANGELOG if this includes user-facing changes"
+        fi
+    
+    - name: Check branch naming
+      run: |
+        BRANCH_NAME="${{ github.head_ref }}"
+        
+        if [[ $BRANCH_NAME =~ ^(feature|bugfix|docs|hotfix|refactor)/ ]]; then
+          echo "✓ Branch name follows naming convention: $BRANCH_NAME"
+        else
+          echo "⚠ Branch name: '$BRANCH_NAME'"
+          echo "Consider using: feature/*, bugfix/*, docs/*, hotfix/*, refactor/*"
+        fi
+    
+    - name: Check commit messages
+      run: |
+        COMMITS=$(git log origin/${{ github.base_ref }}...HEAD --pretty=format:"%B")
+        
+        if echo "$COMMITS" | grep -q "^feat:\|^fix:\|^docs:\|^style:\|^refactor:\|^test:\|^chore:\|^perf:"; then
+          echo "✓ Commit messages follow conventional format"
+        else
+          echo "⚠ Some commits may not follow conventional commit format"
+        fi
+    
+    - name: Check file changes
+      run: |
+        echo "Changed files in this PR:"
+        git diff origin/${{ github.base_ref }}...HEAD --name-only | head -20
+        
+        # Check for sensitive files
+        if git diff origin/${{ github.base_ref }}...HEAD --name-only | grep -E "\.env|secrets|private"; then
+          echo "⚠ WARNING: Sensitive files may be included"
+        fi
+
+  size-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    
+    - name: Check PR size
+      run: |
+        FILES_CHANGED=$(git diff origin/${{ github.base_ref }}...HEAD --name-only | wc -l)
+        LINES_ADDED=$(git diff origin/${{ github.base_ref }}...HEAD --numstat | awk '{sum += $1} END {print sum}')
+        LINES_REMOVED=$(git diff origin/${{ github.base_ref }}...HEAD --numstat | awk '{sum += $2} END {print sum}')
+        
+        echo "PR Statistics:"
+        echo "Files changed: $FILES_CHANGED"
+        echo "Lines added: $LINES_ADDED"
+        echo "Lines removed: $LINES_REMOVED"
+        
+        if [ "$FILES_CHANGED" -gt 50 ]; then
+          echo "⚠ Large PR: $FILES_CHANGED files changed. Consider splitting into smaller PRs."
+        fi
+        
+        if [ "$LINES_ADDED" -gt 1000 ]; then
+          echo "⚠ Large PR: $LINES_ADDED lines added. Consider splitting into smaller PRs."
+        fi

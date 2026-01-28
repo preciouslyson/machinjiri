@@ -1710,7 +1710,7 @@ HTML;
 </head>
 <body>
     <div class="error-container">
-        <div class="error-icon">⚠️</div>
+        <div class="error-icon">!</div>
         <h1 class="error-title">Something Went Wrong</h1>
         <p class="error-message">
             We apologize for the inconvenience. Our technical team has been notified 

@@ -1,0 +1,63 @@
+name: Security
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security checks daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-composer-security-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-security-
+
+      - name: Install dependencies
+        run: composer install --no-interaction
+
+      - name: Composer audit
+        run: composer audit --format=json || true
+
+      - name: Check for vulnerable packages
+        run: |
+          # You can use sensiolabs security checker
+          curl -s https://security.symfony.com/check_lock -F lock=@composer.lock || true
+
+  dependency-check:
+    name: Dependency Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer
+
+      - name: Check for outdated packages
+        run: composer outdated || true
+
+      - name: Validate composer.json
+        run: composer validate --strict

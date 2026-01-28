@@ -171,10 +171,8 @@ class ProviderLoader
             return $config['providers'] ?? [];
         }
         
-        // Default providers if config doesn't exist
-        return [
-          \Mlangeni\Machinjiri\App\Providers\AppServiceProvider::class,
-        ];
+                // Default: no providers. Providers should be declared in config/providers.php
+                return [];
     }
 
     /**

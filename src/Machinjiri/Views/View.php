@@ -4,9 +4,9 @@ namespace Mlangeni\Machinjiri\Core\Views;
 
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
+use Mlangeni\Machinjiri\Core\Kernel\Views\ViewInterface;
 
-class View
-{
+class View implements ViewInterface {
     protected static $shared = [];
     protected static $componentsPath;
     protected static $basePath;

@@ -208,7 +208,7 @@ abstract class BaseJob implements JobInterface
         return [
             'id' => $this->id,
             'name' => $this->name,
-            'payload' => $this->payload,
+            'payload' => $payload,
             'compressPayload' => $this->compressPayload,
             'attempts' => $this->attempts,
             'maxAttempts' => $this->maxAttempts,
@@ -224,8 +224,11 @@ abstract class BaseJob implements JobInterface
     /**
      * Create a job from serialized data
      */
-    public static function unserialize(array $data): self
+    public static function unserialize(array $data, Container $app = null): self
     {
+        if (!$app) {
+            throw new MachinjiriException('Container instance is required to unserialize a job', 60010);
+        }
 
         $payload = $data['payload'] ?? [];
         $compressPayload = $data['compressPayload'] ?? false;
@@ -235,7 +238,7 @@ abstract class BaseJob implements JobInterface
         }
         
 
-        $job = new static($data['payload'] ?? [], [
+        $job = new static($app, $payload, [
             'id' => $data['id'] ?? uniqid('job_', true),
             'name' => $data['name'] ?? static::class,
             'maxAttempts' => $data['maxAttempts'] ?? 3,

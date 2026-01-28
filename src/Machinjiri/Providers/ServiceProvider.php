@@ -22,6 +22,7 @@ use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Kernel\Providers\ServiceProviderInterface;
 
 /**
  * Base service provider class
@@ -30,7 +31,7 @@ use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
  * Service providers are used to bootstrap application components, register bindings,
  * and perform initialization tasks.
  */
-abstract class ServiceProvider
+abstract class ServiceProvider implements ServiceProviderInterface
 {
     /**
      * The application container instance

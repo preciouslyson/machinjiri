@@ -3,8 +3,9 @@
 namespace Mlangeni\Machinjiri\Core\Security\Hashing;
 
 use \RuntimeException;
+use Mlangeni\Machinjiri\Core\Kernel\Security\EncryptionInterface;
 
-class Hasher
+class Hasher implements EncryptionInterface
 {
     private int $cost = 12;
     private string $algorithm = PASSWORD_BCRYPT;

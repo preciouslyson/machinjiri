@@ -7,8 +7,9 @@ use Mlangeni\Machinjiri\Core\Authentication\Session;
 use Mlangeni\Machinjiri\Core\Authentication\Cookie;
 use Mlangeni\Machinjiri\Core\Authentication\OAuth;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
+use Mlangeni\Machinjiri\Core\Kernel\Http\RequestInterface;
 
-class HttpRequest {
+class HttpRequest implements RequestInterface {
     private $method;
     private $uri;
     private $queryParams;

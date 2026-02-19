@@ -5,9 +5,8 @@ namespace Mlangeni\Machinjiri\Core\Mail;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception as PHPMailerException;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-use Mlangeni\Machinjiri\Core\Kernel\Mail\MailerInterface;
 
-class Mailer implements MailerInterface {
+class Mailer {
     private PHPMailer $mailer;
     private array $config;
 

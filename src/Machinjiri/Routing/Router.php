@@ -6,9 +6,8 @@ use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Http\HttpRequest;
 use Mlangeni\Machinjiri\Core\Http\HttpResponse;
-use Mlangeni\Machinjiri\Core\Kernel\Routing\RouterInterface;
 
-class Router implements RouterInterface
+class Router
 {
     protected static ?self $instance = null;
     protected array $routes = [];

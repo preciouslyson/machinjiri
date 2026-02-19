@@ -2,9 +2,8 @@
 namespace Mlangeni\Machinjiri\Core\Authentication;
 
 use Mlangeni\Machinjiri\Core\Container;
-use Mlangeni\Machinjiri\Core\Kernel\Authentication\AuthenticationInterface;
 
-class Cookie implements AuthenticationInterface {
+class Cookie {
   
   private static $defaultPath;
   

@@ -9,11 +9,10 @@ use Mlangeni\Machinjiri\Core\Authentication\Cookie;
 use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
 use Mlangeni\Machinjiri\Core\Network\CurlHandler;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
-use Mlangeni\Machinjiri\Core\Kernel\Authentication\AuthenticationInterface;
 use \InvalidArgumentException;
 use \RuntimeException;
 
-class OAuth implements AuthenticationInterface
+class OAuth
 {
     // Constants for configuration
     private const OAUTH_STATE_KEY = 'oauth_state';

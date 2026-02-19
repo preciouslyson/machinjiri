@@ -8,10 +8,8 @@ use MongoDB\Client;
 use MongoDB\Driver\Exception\Exception as MongoDBException;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Database\MysqlGrammar;
-use Mlangeni\Machinjiri\Core\Kernel\Database\Connection;
-use Mlangeni\Machinjiri\Core\Kernel\Database\ConnectionInterface;
 
-class DatabaseConnection implements Connection, ConnectionInterface {
+class DatabaseConnection
 {
     private static $connection = null; // Can be PDO or MongoDB\Client
     private static ?array $config = null;

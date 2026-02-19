@@ -4,9 +4,8 @@ namespace Mlangeni\Machinjiri\Core\Database;
 
 use Mlangeni\Machinjiri\Core\Database\ColumnBuilder;
 use Mlangeni\Machinjiri\Core\Database\Schema\Blueprint;
-use Mlangeni\Machinjiri\Core\Kernel\Database\QueryBuilderInterface;
 
-class QueryBuilder implements QueryBuilderInterface {
+class QueryBuilder {
     protected string $table;
     protected array $columns = ['*'];
     protected array $where = [];

@@ -1,11 +1,11 @@
 <?php
 
 namespace Mlangeni\Machinjiri\Core\Authentication;
+
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-use Mlangeni\Machinjiri\Core\Kernel\Authentication\AuthenticationInterface;
 
-class Session implements AuthenticationInterface {
+class Session {
     private int $timeout;
     private string $cookieName;
     private ?string $domain;

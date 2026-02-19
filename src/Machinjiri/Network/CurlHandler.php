@@ -7,9 +7,8 @@ use Mlangeni\Machinjiri\Core\Authentication\Session;
 use Mlangeni\Machinjiri\Core\Authentication\Cookie;
 use Mlangeni\Machinjiri\Core\Http\HttpRequest;
 use Mlangeni\Machinjiri\Core\Http\HttpResponse;
-use Mlangeni\Machinjiri\Core\Kernel\Network\HttpClientInterface;
 
-class CurlHandler implements HttpClientInterface
+class CurlHandler
 {
     private $ch;
     private $baseUrl;

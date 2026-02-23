@@ -78,7 +78,7 @@ class QueueWorkerCommand
                 
                 protected function configure(): void {
                     $this->addOption('driver', 'd', InputOption::VALUE_OPTIONAL, 'Queue driver to use (database, redis, sync, file, memory, or custom)', 'database')
-                         ->addOption('queue', 'q', InputOption::VALUE_OPTIONAL, 'Queue name to process', 'default')
+                         ->addOption('queue', 'qu', InputOption::VALUE_OPTIONAL, 'Queue name to process', 'default')
                          ->addOption('sleep', 's', InputOption::VALUE_OPTIONAL, 'Seconds to sleep when no jobs are available', 3)
                          ->addOption('memory', 'm', InputOption::VALUE_OPTIONAL, 'Memory limit in MB', 128)
                          ->addOption('timeout', 't', InputOption::VALUE_OPTIONAL, 'Job timeout in seconds', 60)

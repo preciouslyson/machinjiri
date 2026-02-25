@@ -44,11 +44,45 @@ class CurlHandler
             CURLOPT_MAXREDIRS => $this->maxRedirects,
             CURLOPT_TIMEOUT => $this->timeout,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_USERAGENT => 'Machinjiri-CurlHandler/1.0',
             CURLOPT_HEADER => false,
             CURLOPT_FAILONERROR => false
         ];
+
+        // Special handling for localhost requests
+        $this->configureLocalhostOptions();
+    }
+
+    private function configureLocalhostOptions()
+    {
+        $host = parse_url($this->baseUrl, PHP_URL_HOST);
+        
+        // Check if the request is to localhost
+        if ($host === 'localhost' || $host === '127.0.0.1' || $host === '::1' || strpos($host ?? '', '.localhost') !== false) {
+            // Disable SSL verification for localhost
+            $this->options[CURLOPT_SSL_VERIFYPEER] = false;
+            $this->options[CURLOPT_SSL_VERIFYHOST] = false;
+            
+            // Force IPv4 or IPv6 resolution based on host
+            if ($host === 'localhost' || $host === '127.0.0.1') {
+                $this->options[CURLOPT_IPRESOLVE] = CURL_IPRESOLVE_V4;
+            } elseif ($host === '::1') {
+                $this->options[CURLOPT_IPRESOLVE] = CURL_IPRESOLVE_V6;
+            }
+            
+            // Disable DNS caching for localhost to avoid resolution issues
+            $this->options[CURLOPT_DNS_CACHE_TIMEOUT] = 0;
+            
+            // Set a connection timeout specifically for localhost
+            $this->options[CURLOPT_CONNECTTIMEOUT] = 5;
+            
+            // Disable Expect header which can cause issues with local servers
+            $this->options[CURLOPT_HTTPHEADER] = ['Expect:'];
+        } else {
+            // Default SSL settings for non-localhost requests
+            $this->options[CURLOPT_SSL_VERIFYPEER] = false; // Set to true in production
+            $this->options[CURLOPT_SSL_VERIFYHOST] = 2;    // Set to 2 in production
+        }
     }
 
     public function setOption($option, $value)
@@ -59,7 +93,12 @@ class CurlHandler
 
     public function setHeaders(array $headers)
     {
-        $this->options[CURLOPT_HTTPHEADER] = $headers;
+        // Merge with existing headers if they exist
+        if (isset($this->options[CURLOPT_HTTPHEADER])) {
+            $this->options[CURLOPT_HTTPHEADER] = array_merge($this->options[CURLOPT_HTTPHEADER], $headers);
+        } else {
+            $this->options[CURLOPT_HTTPHEADER] = $headers;
+        }
         return $this;
     }
 
@@ -179,9 +218,16 @@ class CurlHandler
         
         $response = curl_exec($this->ch);
         $error = curl_error($this->ch);
+        $errno = curl_errno($this->ch);
         $httpCode = curl_getinfo($this->ch, CURLINFO_HTTP_CODE);
         $contentType = curl_getinfo($this->ch, CURLINFO_CONTENT_TYPE);
         $totalTime = curl_getinfo($this->ch, CURLINFO_TOTAL_TIME);
+
+        // Check for connection refused errors (common with localhost)
+        if ($errno === CURLE_COULDNT_CONNECT || $errno === CURLE_OPERATION_TIMEOUTED) {
+            $host = curl_getinfo($this->ch, CURLINFO_PRIMARY_IP) ?: 'localhost';
+            throw new MachinjiriException("Failed to connect to {$host}. Make sure the server is running and accessible.");
+        }
 
         // Retry logic for server errors (5xx) or connection issues
         if (($httpCode >= 500 || $error) && $this->retryCount < $this->maxRetries) {
@@ -200,8 +246,9 @@ class CurlHandler
             'content_type' => $contentType,
             'total_time' => $totalTime,
             'error' => $error ?: null,
+            'errno' => $errno ?: null,
             'retry_count' => $this->retryCount,
-            'headers' => $this->responseHeaders // Include captured headers
+            'headers' => $this->responseHeaders
         ];
     }
 
@@ -210,7 +257,7 @@ class CurlHandler
         $wasHeaderEnabled = $this->options[CURLOPT_HEADER] ?? false;
         
         // Enable header capture
-        $this->options[CURLOPT_HEADER] = false; // We'll handle headers separately
+        $this->options[CURLOPT_HEADER] = false;
         $this->options[CURLOPT_HEADERFUNCTION] = function($ch, $header) {
             $length = strlen($header);
             $header = trim($header);
@@ -251,7 +298,7 @@ class CurlHandler
         $this->options[CURLOPT_POSTFIELDS] = null;
         $this->options[CURLOPT_HTTPGET] = true;
 
-        $this->retryCount = 0; // Reset retry counter for new request
+        $this->retryCount = 0;
         return $this->execute();
     }
 
@@ -266,6 +313,7 @@ class CurlHandler
             $this->setHeaders(['Content-Type: application/json']);
         } else {
             $this->options[CURLOPT_POSTFIELDS] = is_array($data) ? http_build_query($data) : $data;
+            $this->setHeaders(['Content-Type: application/x-www-form-urlencoded']);
         }
 
         $this->retryCount = 0;
@@ -282,6 +330,7 @@ class CurlHandler
             $this->setHeaders(['Content-Type: application/json']);
         } else {
             $this->options[CURLOPT_POSTFIELDS] = is_array($data) ? http_build_query($data) : $data;
+            $this->setHeaders(['Content-Type: application/x-www-form-urlencoded']);
         }
 
         $this->retryCount = 0;
@@ -298,6 +347,7 @@ class CurlHandler
             $this->setHeaders(['Content-Type: application/json']);
         } else {
             $this->options[CURLOPT_POSTFIELDS] = is_array($data) ? http_build_query($data) : $data;
+            $this->setHeaders(['Content-Type: application/x-www-form-urlencoded']);
         }
 
         $this->retryCount = 0;
@@ -508,7 +558,7 @@ class CurlHandler
         // Handle headers if available
         if (isset($response['headers'])) {
             foreach ($response['headers'] as $name => $value) {
-                if ($name !== 'Status-Line') { // Skip status line
+                if ($name !== 'Status-Line') {
                     $httpResponse->setHeader($name, $value);
                 }
             }

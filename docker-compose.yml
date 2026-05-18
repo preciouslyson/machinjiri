@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  php:
+    build:
+      context: .
+      target: development
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_DRIVER=sqlite
+      - APP_DEBUG=true
+    command: php -S 0.0.0.0:8000 -t public
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: machinjiri
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: machinjiri
+      POSTGRES_PASSWORD: root
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  mysql_data:
+  postgres_data:

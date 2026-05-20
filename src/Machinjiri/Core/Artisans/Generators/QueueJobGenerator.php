@@ -223,7 +223,7 @@ class QueueJobGenerator
         // Different templates for different job types
         switch ($type) {
             case 'email':
-                return $this->generateEmailJobTemplate($shortName, $queue, $maxAttempts, $timeout, $delay);
+              return $this->generateMailJobTemplate($shortName, $queue, $maxAttempts, $timeout, $delay);
             case 'notification':
                 return $this->generateNotificationJobTemplate($shortName, $queue, $maxAttempts, $timeout, $delay);
             case 'model':
@@ -250,6 +250,7 @@ class QueueJobGenerator
 namespace Mlangeni\Machinjiri\App\Jobs;
 
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseJob;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 
 /**
@@ -302,10 +303,11 @@ class {$name}Job extends BaseJob
     public function failed(MachinjiriException \$exception): void
     {
         // Log the failure
-        error_log(sprintf(
-            '{$name}Job failed after %d attempts: %s',
-            \$this->getAttempts(),
-            \$exception->getMessage()
+        (new Logger({$name}-job))
+        ->warning(sprintf(
+          '{$name}Job failed after %d attempts: %s',
+          \$this->getAttempts(),
+          \$exception->getMessage()
         ));
         
         // TODO: Implement failure handling
@@ -321,110 +323,6 @@ class {$name}Job extends BaseJob
     {
         // Process your data here
         return \$data;
-    }
-}
-PHP;
-    }
-
-    /**
-     * Generate email job template
-     */
-    private function generateEmailJobTemplate(string $name, string $queue, int $maxAttempts, int $timeout, int $delay): string
-    {
-        $lowerName = strtolower($name);
-        
-        return <<<PHP
-<?php
-
-namespace Mlangeni\Machinjiri\App\Jobs;
-
-use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseJob;
-use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-
-/**
- * {$name} Job
- *
- * This job handles {$lowerName} email sending tasks.
- */
-class {$name}Job extends BaseJob
-{
-    /**
-     * Create a new job instance
-     */
-    public function __construct(\Mlangeni\Machinjiri\Core\Container \$app, array \$payload = [], array \$options = [])
-    {
-        \$defaultOptions = [
-            'maxAttempts' => {$maxAttempts},
-            'queue' => '{$queue}',
-            'timeout' => {$timeout},
-            'delay' => {$delay},
-        ];
-        
-        parent::__construct(\$app, \$payload, array_merge(\$defaultOptions, \$options));
-    }
-
-    /**
-     * Execute the job
-     */
-    public function handle(): void
-    {
-        \$to = \$this->payload['to'] ?? '';
-        \$subject = \$this->payload['subject'] ?? '';
-        \$body = \$this->payload['body'] ?? '';
-        \$template = \$this->payload['template'] ?? null;
-        \$data = \$this->payload['data'] ?? [];
-        
-        if (empty(\$to)) {
-            throw new MachinjiriException('Email recipient is required');
-        }
-        
-        try {
-            // Get mailer from container
-            \$mailer = \$this->app->resolve('mailer');
-            
-            // Send email based on template or direct content
-            if (\$template) {
-                \$result = \$mailer->sendTemplate(\$to, \$template, \$data, \$subject);
-            } else {
-                \$result = \$mailer->send(\$to, \$subject, \$body);
-            }
-            
-            if (!\$result) {
-                throw new MachinjiriException('Failed to send email');
-            }
-            
-            \$this->addMetadata('sent_at', date('Y-m-d H:i:s'));
-            \$this->addMetadata('recipient', \$to);
-            
-        } catch (\Exception \$e) {
-            throw new MachinjiriException('Email sending failed: ' . \$e->getMessage());
-        }
-    }
-
-    /**
-     * Handle job failure
-     */
-    public function failed(MachinjiriException \$exception): void
-    {
-        // Log failure
-        error_log('Email job failed: ' . \$exception->getMessage());
-        
-        // Notify admin about email failure
-        \$adminEmail = \$this->app->resolve('config')['mail']['admin_email'] ?? 'admin@example.com';
-        
-        \$this->app->resolve('mailer')->send(
-            \$adminEmail,
-            'Email Job Failed: {$name}',
-            'Job ID: ' . \$this->getId() . '\\n' .
-            'Error: ' . \$exception->getMessage() . '\\n' .
-            'Payload: ' . json_encode(\$this->getPayload())
-        );
-        
-        // Optionally retry with exponential backoff
-        if (\$this->getAttempts() < \$this->getMaxAttempts()) {
-            \$retryDelay = \$this->getRetryDelay() * pow(2, \$this->getAttempts() - 1);
-            \$this->app->resolve('queue')->release(\$this, \$this->getQueue(), \$retryDelay);
-        }
     }
 }
 PHP;
@@ -447,6 +345,7 @@ namespace Mlangeni\Machinjiri\App\Jobs;
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseJob;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 
 /**
  * {$name} Job
@@ -641,10 +540,11 @@ class {$name}Job extends BaseJob
     public function failed(MachinjiriException \$exception): void
     {
         // Log failure with model context
-        error_log(sprintf(
-            'Model job failed for %s: %s',
-            \$this->tableName,
-            \$exception->getMessage()
+        (new Logger({$name}-job))
+        ->warning(sprintf(
+          '{$name}Job failed after %d attempts: %s',
+          \$this->getAttempts(),
+          \$exception->getMessage()
         ));
         
         // Update record status if applicable
@@ -4245,4 +4145,99 @@ TEXT;
       // Otherwise, delegate to the normal (potentially throwing) method
       return $this->generateQueueDriver($name, $options);
   }
+  /**
+   * Generate mail job template
+   */
+  private function generateMailJobTemplate(string $name, string $queue, int $maxAttempts, int $timeout, int $delay): string
+  {
+      $lowerName = strtolower($name);
+      
+      return <<<PHP
+<?php
+
+namespace Mlangeni\Machinjiri\App\Jobs;
+
+use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseJob;
+use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
+use Mlangeni\Machinjiri\Core\Transport\Mail\MailMessage;
+use Mlangeni\Machinjiri\Core\Transport\Mail\MailManager;
+
+/**
+ * {$name} Job
+ *
+ * This job handles sending an email asynchronously.
+ */
+class {$name}Job extends BaseJob
+{
+    /**
+     * Create a new job instance
+     *
+     * @param \Mlangeni\Machinjiri\Core\Container \$app
+     * @param MailMessage \$message The email message to send
+     * @param string|null \$transportName Optional specific transport
+     * @param array \$options Job options (queue, delay, maxAttempts, etc.)
+     */
+    public function __construct(
+        \Mlangeni\Machinjiri\Core\Container \$app,
+        MailMessage \$message,
+        ?string \$transportName = null,
+        array \$options = []
+    ) {
+        \$payload = [
+            'message' => \$message->jsonSerialize(),
+            'transport' => \$transportName,
+        ];
+        
+        \$defaultOptions = [
+            'maxAttempts' => {$maxAttempts},
+            'queue' => '{$queue}',
+            'timeout' => {$timeout},
+            'delay' => {$delay},
+        ];
+        
+        parent::__construct(\$app, \$payload, array_merge(\$defaultOptions, \$options));
+    }
+
+    /**
+     * Execute the job – send the email
+     */
+    public function handle(): void
+    {
+        \$data = \$this->getPayload();
+        \$messageData = \$data['message'] ?? [];
+        \$transport = \$data['transport'] ?? null;
+        
+        if (empty(\$messageData)) {
+            throw new MachinjiriException('No email message data provided');
+        }
+        
+        // Reconstruct MailMessage from serialized data
+        \$message = MailMessage::fromArray(\$messageData);
+        
+        /** @var MailManager \$mailManager */
+        \$mailManager = \$this->app->make(MailManager::class);
+        
+        \$response = \$mailManager->send(\$message, \$transport);
+        
+        \$this->addMetadata('message_id', \$response->getMessageId());
+        \$this->addMetadata('sent_at', date('Y-m-d H:i:s'));
+    }
+
+    /**
+     * Handle job failure
+     */
+    public function failed(MachinjiriException \$exception): void
+    {
+        parent::failed(\$exception);
+        
+        // Additional failure handling – e.g., log to a dead‑letter queue
+        \$this->app->getProviderLoader()->resolve('events')->trigger('mail.job.failed', [
+            'job_id' => \$this->getId(),
+            'exception' => \$exception->getMessage(),
+            'payload' => \$this->getPayload(),
+        ]);
+    }
+}
+PHP;
+    }  
 }

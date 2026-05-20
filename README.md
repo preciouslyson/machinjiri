@@ -237,12 +237,16 @@ Visit `http://localhost:3000` in your browser.
 your-project/
 ├── app/
 │   ├── Controllers/          # Application controllers
+│   ├── Jobs/                 # Application Jobs
 │   ├── Middleware/           # Custom middleware classes
+│   ├── Queue/                # Queue Drivers
+│   │     └── Drivers/        # Driver Files (Database, etc)
 │   ├── Models/               # Data models
 │   ├── Providers/            # Service providers
 │   └── Exceptions/           # Custom exceptions
 ├── bootstrap/
-│   └── app.php               # Application bootstrap file
+│   ├── app.php/              # Application bootstrap file
+│   └── helpers.php           # Helper functions (API)
 ├── config/
 │   ├── app.php               # Application configuration
 │   ├── database.php          # Database configuration
@@ -270,10 +274,10 @@ your-project/
 │   │   ├── css/              # Stylesheets
 │   │   ├── js/               # JavaScript files
 │   │   └── images/           # Image assets
+│   ├── .htaccess             # .htaccess config file
 │   └── index.php             # Application entry point
 ├── vendor/                   # Composer dependencies
 ├── .env                      # Environment configuration
-├── .env.example              # Environment template
 ├── artisan                   # Console application
 ├── composer.json             # Project dependencies
 └── phpunit.xml               # PHPUnit configuration

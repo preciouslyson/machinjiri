@@ -169,10 +169,6 @@ abstract class BaseQueue implements QueueInterface
      */
     public function getAverageProcessTime(string $queue = 'default'): float
     {
-        // Default implementation - override in concrete classes
-        // This could be implemented by tracking job processing times in a persistent storage
-        // or by calculating from completed job metadata
-        
         return 0.0;
     }
 
@@ -181,10 +177,6 @@ abstract class BaseQueue implements QueueInterface
      */
     public function getFailureRate(string $queue = 'default'): float
     {
-        // Default implementation - override in concrete classes
-        // This could be calculated as: (failed_jobs / total_jobs) * 100
-        // Where failed_jobs and total_jobs are tracked over a specific time period
-        
         return 0.0;
     }
 
@@ -193,10 +185,6 @@ abstract class BaseQueue implements QueueInterface
      */
     public function getLastProcessedTime(string $queue = 'default'): ?string
     {
-        // Default implementation - override in concrete classes
-        // This could track the timestamp of when the last job was successfully processed
-        // Return null if no jobs have been processed yet
-        
         return null;
     }
 

@@ -4,7 +4,7 @@ namespace Mlangeni\Machinjiri\Core\Artisans\Contracts;
 
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-use SensitiveParameter;  
+use \SensitiveParameter;  
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 
 /**
@@ -26,8 +26,6 @@ abstract class BaseJob implements JobInterface
 
     // Cache for decompressed payload
     private ?array $decompressedPayload = null;
-
-    protected Container $app;
     
     /**
      * Create a new job instance

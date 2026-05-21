@@ -10,6 +10,7 @@ use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\ServiceProviderCommand;
 use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\QueueWorkerCommand;
 use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\Angular;
 use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\Vite;
+use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\ViewCommands;
 
 class Terminal extends Application
 {
@@ -21,6 +22,7 @@ class Terminal extends Application
         QueueWorkerCommand::class,
         Angular::class,
         Vite::class,
+        ViewCommands::class,
     ];
 
     public function __construct()

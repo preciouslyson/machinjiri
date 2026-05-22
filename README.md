@@ -1,6 +1,6 @@
 # Machinjiri PHP Framework
 
-Machinjiri is a **lightweight, flexible, and powerful PHP framework** designed for rapid web development. Built with modern PHP 8.2+ principles, it provides a modular architecture, elegant routing system, comprehensive database abstraction, authentication & authorization, and robust security features. Designed for speed, scalability, and developer experience, Machinjiri empowers developers to build secure, maintainable applications efficiently.
+Machinjiri is a **flexible, and powerful PHP framework** designed for rapid web development. Built with modern PHP 8.2+ principles, it provides a modular architecture, elegant routing system, comprehensive database abstraction, authentication & authorization, and robust security features. Designed for speed, scalability, and developer experience, Machinjiri empowers developers to build secure, maintainable applications efficiently.
 
 ## Table of Contents
 
@@ -16,6 +16,8 @@ Machinjiri is a **lightweight, flexible, and powerful PHP framework** designed f
   - [Database](#database--orm)
   - [Authentication & Security](#authentication--security)
   - [Forms & Validation](#forms--validation)
+  - [Service Providers](#service-providers)
+  - [Mail System](#mail-system)
   - [Queues & Jobs](#queues--jobs)
 - [Usage Examples](#usage-examples)
 - [Configuration](#-configuration)
@@ -164,11 +166,9 @@ The easiest way to create a new Machinjiri project is using the global installer
 
 ```bash
 composer global require machinjiri/installer
-machinjiri new my-project
-cd my-project
-php artisan server:start
+machinjiri create
 ```
-
+We have now introduced an interactive installation process in the installer. Rather than using One line command
 
 ## Quick Start
 
@@ -178,11 +178,11 @@ php artisan server:start
 // routes/web.php
 use Mlangeni\Machinjiri\Core\Routing\Router;
 
-Router::get('/', function($req, $res) {
+Router::get('/', function() {
     return 'Welcome to Machinjiri!';
 });
 
-Router::get('/hello/{name}', function($req, $res, $name) {
+Router::get('/hello/{name}', function($name) {
     return "Hello, {$name}!";
 }, 'greeting');
 ```
@@ -195,7 +195,7 @@ namespace Mlangeni\Machinjiri\App\Controllers;
 
 class HomeController
 {
-    public function index($req, $res)
+    public function index()
     {
         return view('home', ['title' => 'Home Page']);
     }
@@ -359,42 +359,16 @@ Machinjiri provides a powerful templating engine with a clean, readable syntax.
 
 **Template Syntax:**
 
-```html
-<!-- Output variables -->
-<%= $variable %>
+```php
+<% if $user->isAdmin() %>
+    <a href="/admin">Admin Panel</a>
+<% else %>
+    <a href="/profile">My Profile</a>
+<% endif %>
 
-<!-- Echo with default -->
-<%= $variable ?? 'Default Value' %>
-
-<!-- Control structures -->
-<% if($condition): %>
-    <p>Condition is true</p>
-<% else: %>
-    <p>Condition is false</p>
-<% endif; %>
-
-<!-- Loops -->
-<% foreach($items as $item): %>
-    <li><%= $item['name'] %></li>
-<% endforeach; %>
-
-<% for($i = 0; $i < 10; $i++): %>
-    <span><%= $i %></span>
-<% endfor; %>
-
-<!-- Include partials -->
-<% include 'partials.header' %>
-
-<!-- Sections for layout inheritance -->
-<% section('content') %>
-    Layout content here
-<% endsection %>
-
-<!-- Extend layouts -->
-<% extend('layouts.app') %>
-
-<!-- Yield section from layout -->
-<% yield('content') %>
+<% foreach $products as $product %>
+    <div>{{ $product->name }} - {{ $product->price }}</div>
+<% endforeach %>
 ```
 
 **Layout Example:**
@@ -620,9 +594,9 @@ if (Password::verify('secret123', $hashed)) {
 **Encryption:**
 
 ```php
-use Mlangeni\Machinjiri\Core\Security\Encryption\Encrypter;
+use Mlangeni\Machinjiri\Core\Security\Encryption\Cipher;
 
-$encrypter = new Encrypter($key);
+$encrypter = new Cipher($key);
 $encrypted = $encrypter->encrypt($data);
 $decrypted = $encrypter->decrypt($encrypted);
 ```
@@ -1212,6 +1186,8 @@ This project is licensed under the **proprietor License** - see the [LICENSE](LI
 - Community contributions and feedback
 
 ---
+
+Full Documentation: 
 
 **Built with ❤️ by the Machinjiri Team**
 

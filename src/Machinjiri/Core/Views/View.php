@@ -98,7 +98,7 @@ class View
     protected static function getAssetsUrl(): string
     {
         if (!isset(self::$assetsUrl)) {
-            $appUrl = env('APP_URL');
+            $appUrl = env('ASSET_URL') ?? env('APP_URL');
             if ($appUrl) {
                 self::$assetsUrl = rtrim($appUrl, '/') . '/src/';
             } else {

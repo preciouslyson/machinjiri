@@ -39,6 +39,8 @@ class QueueDriverResolver
     public function ensureAllDriversInitialized(): void
     {
         $types = ['database', 'redis', 'file', 'memory', 'sync'];
+        $this->generator->createDefaultQueueConfig();
+        $this->generator->generateQueueServiceProvider();
         foreach ($types as $type) {
             try {
                 $this->generator->generateQueueDriverIfNotExists($type, [
@@ -283,7 +285,7 @@ trait QueueCommandHelper
                 $config['charset'] = getenv('DB_CHARSET') ?: 'utf8mb4';
                 break;
             case 'sqlite':
-                $config['path'] = getenv('DB_DATABASE') ?: $basePath . '/database/database.sqlite';
+                $config['path'] = $basePath . '/database/database.sqlite';
                 break;
             case 'mongodb':
                 $config['host'] = getenv('DB_HOST') ?: 'localhost';

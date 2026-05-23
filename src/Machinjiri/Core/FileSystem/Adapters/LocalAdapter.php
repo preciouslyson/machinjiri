@@ -33,6 +33,32 @@ class LocalAdapter implements FileSystem
         }
     }
 
+    /**
+     * Override read-only permissions to make a file writable (owner write).
+     * Does nothing if the file does not exist or is already writable.
+     *
+     * @throws MachinjiriException
+     */
+    protected function ensureWritable(string $absolutePath): void
+    {
+        if (!is_file($absolutePath)) {
+            return;
+        }
+
+        if (!is_writable($absolutePath)) {
+            $perms = fileperms($absolutePath);
+            if ($perms === false) {
+                throw new MachinjiriException("Cannot get permissions for file: {$absolutePath}", 500);
+            }
+
+            // Add owner write permission (0x0080)
+            $newPerms = $perms | 0x0080;
+            if (!chmod($absolutePath, $newPerms)) {
+                throw new MachinjiriException("Cannot make file writable: {$absolutePath}", 500);
+            }
+        }
+    }
+
     public function read(string $path): string
     {
         $abs = $this->absolute($path);
@@ -63,9 +89,16 @@ class LocalAdapter implements FileSystem
     {
         $abs = $this->absolute($path);
         $this->ensureDirectory(dirname($abs));
+
+        // If file already exists and is read-only, make it writable
+        if (is_file($abs)) {
+            $this->ensureWritable($abs);
+        }
+
         if (file_put_contents($abs, $contents, LOCK_EX) === false) {
             throw new MachinjiriException("Failed to write file: {$path}", 500);
         }
+
         if (isset($config['visibility'])) {
             $this->setVisibility($path, $config['visibility']);
         }
@@ -76,6 +109,12 @@ class LocalAdapter implements FileSystem
     {
         $abs = $this->absolute($path);
         $this->ensureDirectory(dirname($abs));
+
+        // If file already exists and is read-only, make it writable
+        if (is_file($abs)) {
+            $this->ensureWritable($abs);
+        }
+
         $dest = fopen($abs, 'wb');
         if ($dest === false) {
             throw new MachinjiriException("Failed to open destination stream: {$path}", 500);
@@ -85,6 +124,7 @@ class LocalAdapter implements FileSystem
         if ($result === false) {
             throw new MachinjiriException("Failed to write stream to file: {$path}", 500);
         }
+
         if (isset($config['visibility'])) {
             $this->setVisibility($path, $config['visibility']);
         }
@@ -102,6 +142,10 @@ class LocalAdapter implements FileSystem
         if (!is_file($abs)) {
             throw new MachinjiriException("File does not exist: {$path}", 404);
         }
+
+        // Override read-only permissions to allow deletion
+        $this->ensureWritable($abs);
+
         if (!unlink($abs)) {
             throw new MachinjiriException("Failed to delete file: {$path}", 500);
         }
@@ -112,7 +156,18 @@ class LocalAdapter implements FileSystem
     {
         $sourceAbs = $this->absolute($source);
         $destAbs = $this->absolute($destination);
+
+        if (!is_file($sourceAbs)) {
+            throw new MachinjiriException("Source file does not exist: {$source}", 404);
+        }
+
         $this->ensureDirectory(dirname($destAbs));
+
+        // If destination already exists and is read-only, make it writable
+        if (is_file($destAbs)) {
+            $this->ensureWritable($destAbs);
+        }
+
         if (!rename($sourceAbs, $destAbs)) {
             throw new MachinjiriException("Failed to move from {$source} to {$destination}", 500);
         }
@@ -123,7 +178,18 @@ class LocalAdapter implements FileSystem
     {
         $sourceAbs = $this->absolute($source);
         $destAbs = $this->absolute($destination);
+
+        if (!is_file($sourceAbs)) {
+            throw new MachinjiriException("Source file does not exist: {$source}", 404);
+        }
+
         $this->ensureDirectory(dirname($destAbs));
+
+        // If destination already exists and is read-only, make it writable
+        if (is_file($destAbs)) {
+            $this->ensureWritable($destAbs);
+        }
+
         if (!copy($sourceAbs, $destAbs)) {
             throw new MachinjiriException("Failed to copy from {$source} to {$destination}", 500);
         }

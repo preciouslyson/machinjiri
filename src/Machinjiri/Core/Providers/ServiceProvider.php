@@ -278,16 +278,6 @@ abstract class ServiceProvider
      */
     protected function mergeConfigFrom(string $path, string $key): void
     {
-        /*
-        if (!file_exists($path)) {
-            throw new MachinjiriException("Configuration file not found: {$path}", 30101);
-        }
-        
-
-        $config = require $path;
-        
-        */
-        
         if (!property_exists($this->app, 'configurations') || !isset($this->app->configurations)) {
             $this->app->configurations = [];
         }
@@ -296,10 +286,12 @@ abstract class ServiceProvider
             $this->app->configurations[$key] = [];
         }
         
+        if (is_file($path)) {
+            $this->app->configurations[$key] = require $path;
+        }
+        
         $this->app->configurations[$key] = array_merge(
-            $this->app->configurations[$key],
-            //$config
-            $_ENV
+            $this->app->configurations[$key], $_ENV
         );
     }
 

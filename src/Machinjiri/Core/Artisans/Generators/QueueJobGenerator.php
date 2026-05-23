@@ -1088,15 +1088,15 @@ use Predis\Client;
 use Predis\Connection\ConnectionException;
 
 /**
- * Redis Queue Driver (Predis based)
+ * {$name} Queue Driver (Predis based)
  *
  * Redis-based queue driver for high-performance job processing.
  */
 class RedisQueue extends BaseQueue
 {
-    protected Client $redis;
-    protected array $config = [];
-    protected string $prefix = 'queue:';
+    protected Client \$redis;
+    protected array \$config = [];
+    protected string \$prefix = 'queue:';
 
     /**
      * Create a new queue instance
@@ -1116,7 +1116,7 @@ class RedisQueue extends BaseQueue
             'prefix' => 'queue:',
             'retry_after' => 90,
             'timeout' => 2.5,
-        ], $config);
+        ], \$config);
         
         $this->prefix = $this->config['prefix'];
         $this->connectRedis();
@@ -1127,24 +1127,24 @@ class RedisQueue extends BaseQueue
      */
     protected function connectRedis(): void
     {
-        $parameters = [
+        \$parameters = [
             'scheme' => 'tcp',
-            'host'   => $this->config['host'],
-            'port'   => $this->config['port'],
-            'database' => $this->config['database'],
-            'timeout' => $this->config['timeout'],
+            'host'   => \$this->config['host'],
+            'port'   => \$this->config['port'],
+            'database' => \$this->config['database'],
+            'timeout' => \$this->config['timeout'],
         ];
 
-        if ($this->config['password']) {
-            $parameters['password'] = $this->config['password'];
+        if (\$this->config['password']) {
+            \$parameters['password'] = \$this->config['password'];
         }
 
         try {
-            $this->redis = new Client($parameters);
+            \$this->redis = new Client(\$parameters);
             // Test connection
-            $this->redis->ping();
-        } catch (ConnectionException $e) {
-            throw new MachinjiriException('Redis connection failed: ' . $e->getMessage());
+            \$this->redis->ping();
+        } catch (ConnectionException \$e) {
+            throw new MachinjiriException('Redis connection failed: ' . \$e->getMessage());
         }
     }
 
@@ -1159,18 +1159,18 @@ class RedisQueue extends BaseQueue
         
         if ($delay > 0) {
             // Delayed queue
-            $delayedKey = $this->getDelayedQueueKey($queue);
-            $score = time() + $delay;
-            $this->redis->zadd($delayedKey, $score, $serialized);
+            \$delayedKey = \$this->getDelayedQueueKey(\$queue);
+            \$score = time() + \$delay;
+            \$this->redis->zadd(\$delayedKey, \$score, \$serialized);
         } else {
             // Immediate queue
-            $this->redis->rpush($key, $serialized);
+            \$this->redis->rpush($\key, \$serialized);
         }
         
         // Store job metadata
-        $metaKey = $this->getJobMetaKey($jobId);
-        $this->redis->hmset($metaKey, [
-            'queue' => $queue,
+        \$metaKey = \$this->getJobMetaKey(\$jobId);
+        \$this->redis->hmset(\$metaKey, [
+            'queue' => \$queue,
             'created_at' => time(),
             'delay' => $delay,
         ]);
@@ -1196,7 +1196,7 @@ class RedisQueue extends BaseQueue
         $reservedKey = $this->getReservedQueueKey($queue);
         
         // Move job from queue to reserved
-        $serialized = $this->redis->rpoplpush($key, $reservedKey);
+        \$serialized = \$this->redis->rpoplpush(\$key, \$reservedKey);
         
         if (!$serialized) {
             return null;
@@ -1204,25 +1204,25 @@ class RedisQueue extends BaseQueue
         
         $jobData = json_decode($serialized, true);
         
-        if (!$jobData) {
-            $this->redis->lrem($reservedKey, 1, $serialized);
+        if (!\$jobData) {
+            \$this->redis->lrem(\$reservedKey, 1, \$serialized);
             return null;
         }
         
         $jobClass = $jobData['name'] ?? '';
         
-        if (!class_exists($jobClass)) {
-            $this->redis->lrem($reservedKey, 1, $serialized);
-            $this->moveToFailed($queue, $serialized, 'Job class not found');
+        if (!class_exists(\$jobClass)) {
+            \$this->redis->lrem(\$reservedKey, 1, \$serialized);
+            \$this->moveToFailed(\$queue, \$serialized, 'Job class not found');
             return null;
         }
         
         // Set reservation timeout
-        $jobId = $jobData['id'] ?? '';
-        if ($jobId) {
-            $timeoutKey = $this->getTimeoutKey($jobId);
-            $timeout = time() + ($this->config['retry_after'] ?? 90);
-            $this->redis->setex($timeoutKey, $this->config['retry_after'], '1');
+        \$jobId = \$jobData['id'] ?? '';
+        if (\$jobId) {
+            \$timeoutKey = \$this->getTimeoutKey(\$jobId);
+            \$timeout = time() + (\$this->config['retry_after'] ?? 90);
+            \$this->redis->setex(\$timeoutKey, \$this->config['retry_after'], '1');
         }
         
         return $jobClass::unserialize($jobData, $this->app);
@@ -1238,12 +1238,12 @@ class RedisQueue extends BaseQueue
         $now = time();
         
         // Get jobs whose delay has expired
-        $jobs = $this->redis->zrangebyscore($delayedKey, 0, $now);
+        \$jobs = \$this->redis->zrangebyscore(\$delayedKey, 0, \$now);
         
-        if (!empty($jobs)) {
-            foreach ($jobs as $job) {
-                $this->redis->rpush($key, $job);
-                $this->redis->zrem($delayedKey, $job);
+        if (!empty(\$jobs)) {
+            foreach (\$jobs as \$job) {
+                \$this->redis->rpush(\$key, \$job);
+                \$this->redis->zrem(\$delayedKey, \$job);
             }
         }
     }
@@ -1257,7 +1257,7 @@ class RedisQueue extends BaseQueue
         $serialized = json_encode($job->serialize());
         
         // Remove from reserved
-        $this->redis->lrem($reservedKey, 1, $serialized);
+        \$this->redis->lrem(\$reservedKey, 1, \$serialized);
         
         // Clear timeout
         $timeoutKey = $this->getTimeoutKey($job->getId());
@@ -1276,7 +1276,7 @@ class RedisQueue extends BaseQueue
         $serialized = json_encode($job->serialize());
         
         // Remove from reserved
-        $removed = $this->redis->lrem($reservedKey, 1, $serialized);
+        \$removed = \$this->redis->lrem(\$reservedKey, 1, \$serialized);
         
         // Clear timeout and metadata
         $timeoutKey = $this->getTimeoutKey($job->getId());
@@ -1293,8 +1293,8 @@ class RedisQueue extends BaseQueue
      */
     public function size(string $queue = 'default'): int
     {
-        $key = $this->getQueueKey($queue);
-        return $this->redis->llen($key);
+        \$key = \$this->getQueueKey(\$queue);
+        return \$this->redis->llen(\$key);
     }
 
     /**
@@ -1344,8 +1344,8 @@ class RedisQueue extends BaseQueue
     public function isHealthy(): bool
     {
         try {
-            return $this->redis->ping() === 'PONG';
-        } catch (\Exception $e) {
+            return \$this->redis->ping() === 'PONG';
+        } catch (\Exception \$e) {
             return false;
         }
     }
@@ -1396,7 +1396,7 @@ class RedisQueue extends BaseQueue
             'queue' => $queue,
         ];
         
-        $this->redis->rpush($failedKey, json_encode($failedData));
+        \$this->redis->rpush(\$failedKey, json_encode(\$failedData));
     }
 
     /**
@@ -1404,8 +1404,8 @@ class RedisQueue extends BaseQueue
      */
     public function getFailed(string $queue = 'default', int $limit = 50, int $offset = 0): array
     {
-        $failedKey = $this->getFailedKey($queue);
-        $jobs = $this->redis->lrange($failedKey, $offset, $offset + $limit - 1);
+        \$failedKey = \$this->getFailedKey(\$queue);
+        \$jobs = \$this->redis->lrange(\$failedKey, \$offset, \$offset + \$limit - 1);
         
         $result = [];
         foreach ($jobs as $job) {
@@ -1423,8 +1423,8 @@ class RedisQueue extends BaseQueue
      */
     public function retryFailed(string $jobId, string $queue = 'default'): bool
     {
-        $failedKey = $this->getFailedKey($queue);
-        $jobs = $this->redis->lrange($failedKey, 0, -1);
+        \$failedKey = \$this->getFailedKey(\$queue);
+        \$jobs = \$this->redis->lrange(\$failedKey, 0, -1);
         
         foreach ($jobs as $index => $job) {
             $data = json_decode($job, true);
@@ -1440,7 +1440,7 @@ class RedisQueue extends BaseQueue
             }
             
             // Remove from failed
-            $this->redis->lrem($failedKey, 1, $job);
+            \$this->redis->lrem(\$failedKey, 1, \$job);
             
             // Push back to queue
             $jobClass = $jobData['name'] ?? '';
@@ -1466,16 +1466,16 @@ class RedisQueue extends BaseQueue
         $stats['active'] = $this->size($queue);
         
         // Delayed queue size
-        $delayedKey = $this->getDelayedQueueKey($queue);
-        $stats['delayed'] = $this->redis->zcard($delayedKey);
+        \$delayedKey = \$this->getDelayedQueueKey(\$queue);
+        \$stats['delayed'] = \$this->redis->zcard(\$delayedKey);
         
         // Reserved queue size
-        $reservedKey = $this->getReservedQueueKey($queue);
-        $stats['reserved'] = $this->redis->llen($reservedKey);
+        \$reservedKey = \$this->getReservedQueueKey(\$queue);
+        \$stats['reserved'] = \$this->redis->llen(\$reservedKey);
         
         // Failed queue size
-        $failedKey = $this->getFailedKey($queue);
-        $stats['failed'] = $this->redis->llen($failedKey);
+        \$failedKey = \$this->getFailedKey(\$queue);
+        \$stats['failed'] = \$this->redis->llen(\$failedKey);
         
         return $stats;
     }
@@ -1485,8 +1485,8 @@ class RedisQueue extends BaseQueue
      */
     public function __destruct()
     {
-        if (isset($this->redis)) {
-            $this->redis->disconnect();
+        if (isset(\$this->redis)) {
+            \$this->redis->disconnect();
         }
     }
 }
@@ -3048,15 +3048,39 @@ PHP;
         // Read current configuration
         $config = require $providersConfig;
         
-        // Add queue service provider if not exists
-        $queueProvider = "Mlangeni\\Machinjiri\\App\\Providers\\QueueServiceProvider";
+        try {
+          $this->ensureQueueServiceProviderExistsInConfig();
+          if (!in_array($type, ['providers', 'deffered'])) {
+            throw new MachinjiriException('Unknown Provider type');
+          }
+          if (!in_array($queueProvider, $config[$type] ?? [])) {
+            $config[$type][] = $name;
+            $content = "<?php\nreturn " . var_export($config, true) . ";\n";
+            if (file_put_contents($providersConfig, $content) === false) {
+              throw new MachinjiriException(
+                  "Failed to update providers configuration: {$providersConfig}",
+                  91014
+              );
+            }
+          }
+        } catch (MachinjiriException $e) {
+          $e->show();
+        }
         
-        if (!in_array($queueProvider, $config['providers'] ?? [])) {
+    }
+    
+    public function ensureQueueServiceProviderExistsInConfig() : void
+    {
+      $providersConfig = $this->configPath . 'providers.php';
+      if (!file_exists($providersConfig)) {
+          return;
+      }
+      $config = require $providersConfig;
+      $queueProvider = "Mlangeni\\Machinjiri\\App\\Providers\\QueueServiceProvider";
+      if (!in_array($queueProvider, $config['providers'] ?? [])) {
             $config['providers'][] = $queueProvider;
-            
             // Write updated configuration
             $content = "<?php\nreturn " . var_export($config, true) . ";\n";
-            
             if (file_put_contents($providersConfig, $content) === false) {
                 throw new MachinjiriException(
                     "Failed to update providers configuration: {$providersConfig}",
@@ -3064,11 +3088,9 @@ PHP;
                 );
             }
         }
-        
-        // Generate QueueServiceProvider if it doesn't exist
         $providerPath = $this->appBasePath . '/app/Providers/QueueServiceProvider.php';
-        
-        $this->generateQueueServiceProvider();
+        if (!is_file($providerPath)) $this->generateQueueServiceProvider();
+        return;
     }
 
     /**

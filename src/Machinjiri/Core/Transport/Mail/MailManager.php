@@ -8,9 +8,11 @@ use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\JobDispatcherInterface;
 use Mlangeni\Machinjiri\App\Jobs\SendMailJob;
+use Mlangeni\Machinjiri\Core\Artisans\Generators\QueueJobGenerator;
 
 class MailManager
 {
+    private Container $app;
     private array $transports = [];
     private ?MailerInterface $defaultTransport = null;
     private Logger $logger;
@@ -22,32 +24,34 @@ class MailManager
     /**
      * MailManager constructor.
      *
-     * @param array|null $config Optional configuration array. If null, loads from Container's config/mail.php.
-     * @param Logger|null $logger Optional Logger instance. If null, tries to resolve from Container or creates default.
-     * @param EventListener|null $eventListener Optional EventListener. If null, tries to resolve from Container.
-     * @param TemplateRendererInterface|null $renderer Optional template renderer.
-     * @param MailQueueInterface|null $queue Optional queue implementation.
+     * @param Container $app
+     * @param array|null $config
+     * @param Logger|null $logger
+     * @param EventListener|null $eventListener
+     * @param TemplateRendererInterface|null $renderer
+     * @param JobDispatcherInterface|null $dispatcher
      * @throws MachinjiriException
      */
     public function __construct(
+        Container $app,
         ?array $config = null,
         ?Logger $logger = null,
         ?EventListener $eventListener = null,
         ?TemplateRendererInterface $renderer = null,
         ?JobDispatcherInterface $dispatcher = null
     ) {
+        $this->app = $app;
+
         // Load configuration
         $this->config = $config ?? $this->loadConfigFromContainer();
         
         // Resolve dependencies from Container if possible
-        $container = Container::instancePresent() ? Container::getInstance() : null;
-        
-        $this->logger = $logger ?? ($container && $container->bound(Logger::class) 
-            ? $container->make(Logger::class) 
+        $this->logger = $logger ?? ($app->bound(Logger::class) 
+            ? $app->make(Logger::class) 
             : new Logger());
             
-        $this->eventListener = $eventListener ?? ($container && $container->bound(EventListener::class) 
-            ? $container->make(EventListener::class) 
+        $this->eventListener = $eventListener ?? ($app->bound(EventListener::class) 
+            ? $app->make(EventListener::class) 
             : null);
             
         $this->renderer = $renderer;
@@ -79,18 +83,7 @@ class MailManager
      */
     private function loadConfigFromContainer(): array
     {
-        if (!Container::instancePresent()) {
-            throw new MachinjiriException(
-                'Container not initialized and no config array provided to MailManager.',
-                500,
-                null,
-                [],
-                'mail_config'
-            );
-        }
-        
-        $container = Container::getInstance();
-        $configPath = $container->config . 'mail.php';
+        $configPath = $this->app->config . 'mail.php';
         
         if (!file_exists($configPath)) {
             throw new MachinjiriException(
@@ -240,7 +233,79 @@ class MailManager
     }
 
     /**
+     * Ensure the SendMailJob class exists; if not, generate it.
+     *
+     * @throws MachinjiriException
+     */
+    private function ensureSendMailJobExists(): void
+    {
+        if (class_exists(SendMailJob::class)) {
+            return;
+        }
+
+        $this->logger->warning('SendMailJob not found, attempting to generate it...');
+
+        // Determine application base path from container
+        // The container may have a basePath property or method; adjust as needed.
+        // In many frameworks, the container holds the base path. Here we assume a method getBasePath().
+        // If not available, we fall back to a reasonable default based on the current script location.
+        $basePath = null;
+        if (method_exists($this->app, 'getBasePath')) {
+            $basePath = $this->app->getBasePath();
+        } elseif (property_exists($this->app, 'basePath')) {
+            $basePath = $this->app->basePath;
+        } else {
+            // Fallback: assume the application root is two levels above the core directory.
+            $basePath = dirname(__DIR__, 4);
+        }
+
+        if (!is_dir($basePath)) {
+            throw new MachinjiriException(
+                'Unable to determine application base path for generating SendMailJob.',
+                500,
+                null,
+                ['basePath' => $basePath],
+                'mail_config'
+            );
+        }
+
+        try {
+            $generator = new QueueJobGenerator($basePath);
+            $generator->generateJob('SendMail', [
+                'type' => 'email',
+                'queue' => 'emails',
+                'max_attempts' => 3,
+                'timeout' => 60,
+                'delay' => 0,
+            ]);
+        } catch (\Exception $e) {
+            throw new MachinjiriException(
+                'Failed to generate SendMailJob: ' . $e->getMessage(),
+                500,
+                $e,
+                [],
+                'mail_config'
+            );
+        }
+
+        // Verify class now exists
+        if (!class_exists(SendMailJob::class)) {
+            throw new MachinjiriException(
+                'SendMailJob was generated but class still not found. Check autoloading.',
+                500,
+                null,
+                [],
+                'mail_config'
+            );
+        }
+
+        $this->logger->info('SendMailJob generated successfully.');
+    }
+
+    /**
      * Queue an email for asynchronous sending.
+     *
+     * @throws MachinjiriException if job dispatcher not configured or job generation fails.
      */
     public function queue(MailMessage $message, ?string $transportName = null, array $jobOptions = []): string
     {
@@ -253,28 +318,36 @@ class MailManager
                 'mail_config'
             );
         }
-
-        // Create the mail job
-        $job = new SendMailJob($this->app, $message, $transportName, $jobOptions);
-        
+    
+        // Ensure the job class exists (generate if missing)
+        $this->ensureSendMailJobExists();
+    
+        // Build the payload for the job
+        $payload = [
+            'message'   => $message->jsonSerialize(),
+            'transport' => $transportName,
+        ];
+    
+        $job = new SendMailJob($this->app, $payload, $jobOptions);
+    
         // Dispatch to the queue
         $jobId = $this->dispatcher->dispatch($job);
-        
+    
         $this->logger->info('Email queued', [
-            'job_id' => $jobId,
-            'subject' => $message->getSubject(),
+            'job_id'    => $jobId,
+            'subject'   => $message->getSubject(),
             'transport' => $transportName ?? 'default',
         ]);
-        
+    
         // Trigger event
         if ($this->eventListener) {
             $this->eventListener->trigger('mail.queued', [
-                'message' => $message,
-                'job_id' => $jobId,
+                'message'   => $message,
+                'job_id'    => $jobId,
                 'transport' => $transportName,
             ]);
         }
-        
+    
         return $jobId;
     }
 

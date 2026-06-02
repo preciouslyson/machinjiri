@@ -230,7 +230,7 @@ class QueryBuilder {
         };
     }
 
-    protected function compileSelect(): string
+    public function compileSelect(): string
     {
       
       $wrappedTable = $this->grammar->wrapTable($this->table);
@@ -704,6 +704,11 @@ class QueryBuilder {
     public function getGrammar(): Grammar
     {
         return $this->grammar;
+    }
+    
+    public function getBindings(): array
+    {
+        return $this->bindings;
     }
     
 }

@@ -8,7 +8,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
-final class MachinjiriException extends \Exception {
+class MachinjiriException extends \Exception {
   
     /**
      * @var array Additional context data

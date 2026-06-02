@@ -19,14 +19,14 @@ class DotEnv
       $pathToFile = $this->path . DIRECTORY_SEPARATOR . '.env';
       
       if (!is_file($pathToFile)) {
-          $pathToFile = "./.env";
+          $pathToFile = $this->path . DIRECTORY_SEPARATOR . ".env";
       }
       
       $filePath = $pathToFile;
       
-      if (!is_readable($filePath)) {
+      /*if (!is_readable($filePath)) {
           throw new MachinjiriException("Environment file is not readable");
-      }
+      }*/
 
       $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
       foreach ($lines as $line) {

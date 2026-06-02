@@ -2,7 +2,7 @@
 
 namespace Mlangeni\Machinjiri\Core\Transport\Mail;
 
-class MailMessage
+class MailMessage implements \JsonSerializable
 {
     private array $from = [];
     private array $to = [];
@@ -131,4 +131,95 @@ class MailMessage
     public function getEmbeddedImages(): array { return $this->embeddedImages; }
     public function getHeaders(): array { return $this->headers; }
     public function getPriority(): int { return $this->priority; }
+    
+    public function jsonSerialize(): array
+    {
+        return [
+            'from' => $this->from,
+            'to' => $this->to,
+            'cc' => $this->cc,
+            'bcc' => $this->bcc,
+            'replyTo' => $this->replyTo,
+            'subject' => $this->subject,
+            'htmlBody' => $this->htmlBody,
+            'textBody' => $this->textBody,
+            'attachments' => $this->attachments,
+            'embeddedImages' => $this->embeddedImages,
+            'headers' => $this->headers,
+            'priority' => $this->priority,
+        ];
+    }
+    
+    public static function fromArray(array $data): self
+    {
+        $message = new self();
+
+        if (isset($data['from']) && !empty($data['from'])) {
+            $message->from($data['from']['email'], $data['from']['name'] ?? null);
+        }
+
+        if (isset($data['to']) && is_array($data['to'])) {
+            foreach ($data['to'] as $recipient) {
+                $message->to($recipient['email'], $recipient['name'] ?? null);
+            }
+        }
+
+        if (isset($data['cc']) && is_array($data['cc'])) {
+            foreach ($data['cc'] as $recipient) {
+                $message->cc($recipient['email'], $recipient['name'] ?? null);
+            }
+        }
+
+        if (isset($data['bcc']) && is_array($data['bcc'])) {
+            foreach ($data['bcc'] as $recipient) {
+                $message->bcc($recipient['email'], $recipient['name'] ?? null);
+            }
+        }
+
+        if (isset($data['replyTo']) && !empty($data['replyTo'])) {
+            $message->replyTo($data['replyTo']['email'], $data['replyTo']['name'] ?? null);
+        }
+
+        if (isset($data['subject'])) {
+            $message->subject($data['subject']);
+        }
+
+        if (isset($data['htmlBody']) || isset($data['textBody'])) {
+            $html = $data['htmlBody'] ?? '';
+            $text = $data['textBody'] ?? null;
+            $message->html($html, $text);
+        } elseif (isset($data['textBody'])) {
+            $message->text($data['textBody']);
+        }
+
+        if (isset($data['attachments']) && is_array($data['attachments'])) {
+            foreach ($data['attachments'] as $attachment) {
+                if (!empty($attachment['path'])) {
+                    $message->attachFile($attachment['path'], $attachment['name'] ?? null, $attachment['type'] ?? null);
+                } elseif (!empty($attachment['content'])) {
+                    $message->attachContent($attachment['content'], $attachment['name'], $attachment['type'] ?? null);
+                }
+            }
+        }
+
+        if (isset($data['embeddedImages']) && is_array($data['embeddedImages'])) {
+            foreach ($data['embeddedImages'] as $image) {
+                if (!empty($image['path']) && !empty($image['cid'])) {
+                    $message->embedImage($image['path'], $image['cid']);
+                }
+            }
+        }
+
+        if (isset($data['headers']) && is_array($data['headers'])) {
+            foreach ($data['headers'] as $key => $value) {
+                $message->header($key, $value);
+            }
+        }
+
+        if (isset($data['priority'])) {
+            $message->priority((int) $data['priority']);
+        }
+
+        return $message;
+    }
 }

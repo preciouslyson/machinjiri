@@ -2,6 +2,7 @@
 
 namespace Mlangeni\Machinjiri\Core\Http;
 
+use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 
 class HttpResponse {
     private $statusCode = 200;
@@ -98,7 +99,7 @@ class HttpResponse {
         $this->body = json_encode($data, $options);
         
         if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new \RuntimeException('JSON encoding failed: ' . json_last_error_msg());
+            throw new MachinjiriException('JSON encoding failed: ' . json_last_error_msg());
         }
         
         return $this;
@@ -169,8 +170,9 @@ class HttpResponse {
     }
 
     public function send(): void {
+      
         if ($this->sent) {
-            throw new \RuntimeException('Response has already been sent');
+            return;
         }
 
         // Status header

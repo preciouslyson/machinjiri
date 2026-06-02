@@ -83,17 +83,17 @@ class ErrorHandler
     ): void {
         self::$displayErrors = $displayErrors;
         
-        self::$logFile = $logFile ?: self::resolvePath() . 'error.log';
+        self::$logFile = $logFile ?: self::resolvePath() . 'app-error-log.log';
         self::$detailLevel = max(0, min(2, $detailLevel)); // Clamp between 0-2
         self::$reportErrors = $config['report_errors'] ?? true;
         self::$ignoredErrors = $config['ignored_errors'] ?? [];
         self::$throttleConfig = array_merge(self::$throttleConfig, $config['throttle'] ?? []);
 
         // Initialize logger
-        self::$logger = new Logger('errors');
+        self::$logger = new Logger('exceptions');
         
         // Initialize event listener
-        self::$eventListener = new EventListener(new Logger('events'));
+        self::$eventListener = new EventListener(new Logger('exceptions', Logger::DEBUG, true));
 
         // Set error reporting based on environment
         error_reporting($displayErrors ? E_ALL : E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR);
@@ -530,7 +530,6 @@ class ErrorHandler
         $appVersion = getenv("APP_VERSION") ?? "1.0.0";
         $environment = getenv("APP_ENV") ?? "development";
 
-        // Cozy color palette (matching welcome page)
         $primaryColor = '#E68A5E';
         $primaryDark = '#C4633A';
         $bgColor = '#FCF7F0';
@@ -540,14 +539,13 @@ class ErrorHandler
         $errorHighlight = '#FDE8E8';
         $errorBorder = '#F5C6C6';
 
-        // Enhanced cozy HTML with Laravel-like design but warm
         echo <<<HTML
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{$appName} • Cozy Error</title>
+    <title>{$appName} • Error/Exception</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
@@ -703,6 +701,9 @@ class ErrorHandler
             font-size: 0.85rem;
             margin-bottom: 1.5rem;
             color: #5E4B3A;
+            word-break: break-word;
+            white-space: normal;
+            overflow-wrap: break-word;
         }
         
         .code-snippet {
@@ -944,7 +945,6 @@ class ErrorHandler
             }
         }
         
-        /* dark mode toggle (optional, keeping cozy but with dark variant) */
         body.dark-mode {
             --bg: #2A2622;
             --card-bg: #3A3530DD;
@@ -962,7 +962,7 @@ class ErrorHandler
     <div class="error-wrapper">
         <div class="error-header">
             <div class="app-info">
-                <h1><i class="fas fa-couch"></i> {$appName} <span style="font-size:0.8rem;">v{$appVersion}</span></h1>
+                <h1><i class="fas fa-desktop"></i> {$appName} <span style="font-size:0.8rem;">v{$appVersion}</span></h1>
                 <div>
                     <span class="environment">{$environment}</span>
                     <span class="environment" style="background: #FDE8E8; color: var(--danger);">Error #{$errorCode}</span>

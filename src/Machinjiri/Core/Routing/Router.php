@@ -20,16 +20,15 @@ class Router
     protected ?string $cacheFile = null;
     private HttpRequest $httpRequest;
     private HttpResponse $httpResponse;
+    protected ?int $lastRouteIndex = null;
 
     private function __construct()
     {
         $this->httpRequest = HttpRequest::createFromGlobals();
         $this->httpResponse = new HttpResponse();
         $this->cacheFile = Container::$appBasePath . "/../storage/cache/routes.cache";
-        
         // Set document root
         $this->documentRoot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/');
-        
         // Auto-detect base path based on document root and current script
         $this->basePath = $this->autoDetectBasePath();
     }
@@ -325,7 +324,6 @@ class Router
     {
         $pattern = $this->applyGroupPrefix($pattern);
         
-        // Ensure pattern starts from the correct base
         if ($this->basePath && strpos($pattern, $this->basePath) !== 0) {
             $pattern = $this->basePath . '/' . ltrim($pattern, '/');
         }
@@ -342,16 +340,17 @@ class Router
             'cors' => $options['cors'] ?? null,
             'rate_limit' => $options['rate_limit'] ?? null,
             'ajax_only' => $options['ajax_only'] ?? false,
-            'no_ajax' => $options['no_ajax'] ?? false
+            'no_ajax' => $options['no_ajax'] ?? false,
+            'constraints' => $options['where'] ?? []
         ];
 
         $this->routes[] = $route;
+        $this->lastRouteIndex = count($this->routes) - 1;
 
         if ($name) {
             $this->namedRoutes[$name] = $route;
         }
 
-        // Add automatic OPTIONS route for CORS
         if ($route['cors'] && !in_array('OPTIONS', $route['methods'])) {
             $this->addCorsRoute($route);
         }
@@ -474,9 +473,14 @@ class Router
     }
 
     // Check if current request expects JSON response
-    public function expectsJson(): bool
+    /*public function expectsJson(): bool
     {
         return $this->httpRequest->expectsJson();
+    }*/
+    public function expectsJson(): bool
+    {
+        $accept = $this->httpRequest->getHeader('Accept') ?? '';
+        return str_contains($accept, 'application/json');
     }
 
     // Set base path for all routes
@@ -621,7 +625,6 @@ class Router
                 return $current($this->httpRequest, $this->httpResponse, $handler, $params);
             };
         }
-        
         // Execute the middleware stack
         $handler($params);
     }
@@ -665,34 +668,36 @@ class Router
 
     protected function handleHandlerResult(mixed $result): void
     {
-        // For AJAX requests or JSON expectations, always return JSON
+        // AJAX or JSON expectation → always send JSON
         if ($this->isAjaxRequest() || $this->expectsJson()) {
-            if (is_array($result) || is_object($result)) {
-                $this->httpResponse->setJsonBody($result);
-            } else {
-                // Convert non-array/object results to JSON format
-                $this->httpResponse->setJsonBody([
-                    'success' => true,
-                    'data' => $result,
-                    'timestamp' => time()
-                ]);
+            $this->httpResponse->setJsonBody(
+                is_array($result) || is_object($result) ? $result : ['data' => $result]
+            );
+            $this->httpResponse->send();
+            return;
+        }
+    
+        if (is_string($result)) {
+            $this->httpResponse->setBody($result);
+        } elseif ($result === null) {
+            if (!$this->httpResponse->isSent()) {
+                $this->httpResponse->setStatusCode(204);
             }
         } else {
-            // Traditional response handling
-            if (is_array($result) || is_object($result)) {
-                $this->httpResponse->setJsonBody($result);
-            } else {
-                $this->httpResponse->setBody((string)$result);
-            }
+            throw new MachinjiriException(
+                'Returning an array or object in a traditional (non‑AJAX) route is not allowed. ' .
+                'Use $this->httpResponse->setJsonBody() or mark the route as AJAX.'
+            );
         }
-        
-        $this->httpResponse->send();
+    
+        if (!$this->httpResponse->isSent()) {
+            $this->httpResponse->send();
+        }
     }
 
     protected function compilePattern(string $pattern, array $constraints = []): string
     {
         $regex = preg_quote($pattern, '#');
-
         // Replace placeholders with custom regex or default
         $regex = preg_replace_callback(
             '/\\\{([a-zA-Z_][a-zA-Z0-9_]*)\\\}/',
@@ -742,6 +747,9 @@ class Router
 
     protected function sendNotFound(): void
     {
+        if ($this->httpResponse->isSent()) {
+          return;
+        }
         if ($this->isAjaxRequest() || $this->expectsJson()) {
             $this->httpResponse
                 ->setStatusCode(404)
@@ -755,7 +763,7 @@ class Router
         } else {
             $this->httpResponse
                 ->setStatusCode(404)
-                ->setBody(self::notFoundTemplate())
+                ->setBody($this->notFoundTemplate())
                 ->send();
         }
     }
@@ -783,112 +791,240 @@ class Router
         }
     }
     
-    protected static function notFoundTemplate(): string
+    protected function notFoundTemplate(): string
     {
-        return <<<HTML
+      $requestUri = htmlspecialchars($this->httpRequest->getServerParam('REQUEST_URI') ?? '/', ENT_QUOTES, 'UTF-8');
+      $appName = env('APP_NAME') ?? "Machinjiri";
+      
+      return <<<HTML
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Page Not Found - Machinjiri</title>
+    <title>404 Not Found - {$appName}</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        
+
         body {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            background: #FCF7F0;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
             min-height: 100vh;
             display: flex;
-            flex-direction: column;
-            justify-content: center;
             align-items: center;
+            justify-content: center;
             padding: 20px;
-            color: #333;
+            color: #2E2C2A;
         }
-        
-        .container {
-            max-width: 800px;
+
+        .error-container {
+            max-width: 650px;
             width: 100%;
-            text-align: center;
-            padding: 40px;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-            position: relative;
+            background: #FFFFFFDD;
+            backdrop-filter: blur(2px);
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+            border: 1px solid #F2E5D8;
             overflow: hidden;
         }
-        
-        .logo {
-            color: #dc3545;
-            font-size: 32px;
-            font-weight: 700;
-            margin-bottom: 10px;
-            letter-spacing: 1px;
+
+        .error-header {
+            padding: 30px 30px 0 30px;
+            border-bottom: 1px solid #F2E5D8;
         }
-        
+
         .error-code {
-            font-size: 160px;
-            font-weight: 800;
-            color: #dc3545;
+            font-size: 72px;
+            font-weight: 700;
+            color: #E68A5E;
+            letter-spacing: -1px;
             line-height: 1;
-            margin: 20px 0;
-            text-shadow: 4px 4px 0px rgba(220, 53, 69, 0.15);
-            animation: blink 2s infinite;
+            margin-bottom: 10px;
         }
-        
-        .error-title {
-            font-size: 32px;
+
+        .error-status {
+            font-size: 16px;
+            font-weight: 500;
+            color: #C4633A;
+            text-transform: uppercase;
+            letter-spacing: 1px;
             margin-bottom: 20px;
-            color: #212529;
         }
-        
+
+        .error-body {
+            padding: 30px;
+        }
+
+        .error-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #2E2C2A;
+        }
+
         .error-message {
-            font-size: 18px;
-            color: #6c757d;
-            margin-bottom: 30px;
-            line-height: 1.6;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
+            font-size: 16px;
+            line-height: 1.5;
+            color: #2E2C2A;
+            margin-bottom: 25px;
+            background: #FDE8E8;
+            padding: 15px 20px;
+            border-radius: 8px;
+            border-left: 3px solid #F5C6C6;
         }
-        
-        @keyframes blink {
-            0%, 50%, 100% { opacity: 1; }
-            25%, 75% { opacity: 0.3; }
+
+        .requested-path {
+            background: rgba(242, 229, 216, 0.5);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-family: 'SF Mono', 'Menlo', monospace;
+            font-size: 14px;
+            word-break: break-all;
+            margin-bottom: 25px;
+            border: 1px solid #F2E5D8;
         }
-        
-        @media (max-width: 768px) {
+
+        .requested-path strong {
+            color: #E68A5E;
+            font-weight: 600;
+        }
+
+        .error-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 25px;
+        }
+
+        .error-actions a, .error-actions button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 40px;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: #E68A5E;
+            color: white;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .btn-primary:hover {
+            background: #C4633A;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: #2E2C2A;
+            border: 1px solid #F2E5D8;
+        }
+
+        .btn-secondary:hover {
+            background: #F2E5D8;
+            border-color: #E68A5E;
+        }
+
+        .error-footer {
+            padding: 20px 30px;
+            background: rgba(242, 229, 216, 0.3);
+            border-top: 1px solid #F2E5D8;
+            font-size: 13px;
+            color: #2E2C2A;
+            text-align: center;
+        }
+
+        .error-footer span {
+            color: #E68A5E;
+        }
+
+        @media (max-width: 550px) {
+            .error-header, .error-body, .error-footer {
+                padding-left: 20px;
+                padding-right: 20px;
+            }
             .error-code {
-                font-size: 120px;
+                font-size: 54px;
             }
-            
-            .container {
-                padding: 30px 20px;
+            .error-title {
+                font-size: 20px;
             }
-            
-            .actions {
-                flex-direction: column;
-            }
-            
-            .btn {
-                width: 100%;
+            .error-actions a, .error-actions button {
+                padding: 8px 16px;
+                font-size: 13px;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="error-code">404</div>
-        <h1 class="error-title">Page Not Found</h1>
-        <p class="error-message">The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.</p>
+    <div class="error-container">
+        <div class="error-header">
+            <div class="error-code">404</div>
+        </div>
+        <div class="error-body">
+            <h1 class="error-title">The page you are looking for could not be found.</h1>
+            <div class="error-message">
+                The server returned a 404 error for the requested resource.
+            </div>
+            <div class="requested-path">
+                <strong>Requested URL:</strong> <code>{$requestUri}</code>
+            </div>
+            <div class="error-actions">
+                <a href="javascript:history.back()" class="btn-secondary">← Go Back</a>
+                <a href="javascript:location.reload()" class="btn-secondary">⟳ Reload Page</a>
+                <a href="/" class="btn-primary">🏠 Return Home</a>
+            </div>
+        </div>
     </div>
 </body>
 </html>
 HTML;
+}
+    /**
+     * Add regex constraint(s) to the most recently defined route.
+     *
+     * @param string|array $param  Parameter name or array of [param => regex]
+     * @param string|null $regex   Regex pattern (required if $param is a string)
+     * @return $this
+     * @throws MachinjiriException if no route has been defined yet
+     */
+    public function where(string|array $param, ?string $regex = null): self
+    {
+        if ($this->lastRouteIndex === null) {
+            throw new MachinjiriException('No route defined to apply constraints to.');
+        }
+
+        $route = &$this->routes[$this->lastRouteIndex];
+
+        if (is_array($param)) {
+            foreach ($param as $p => $r) {
+                $route['constraints'][$p] = $r;
+            }
+        } else {
+            $route['constraints'][$param] = $regex;
+        }
+
+        // Recompile pattern with updated constraints
+        $route['regex'] = $this->compilePattern($route['pattern'], $route['constraints']);
+
+        // If the route has a name, update the named route reference as well
+        if ($route['name'] && isset($this->namedRoutes[$route['name']])) {
+            $this->namedRoutes[$route['name']]['regex'] = $route['regex'];
+            $this->namedRoutes[$route['name']]['constraints'] = $route['constraints'];
+        }
+
+        return $this;
     }
 }

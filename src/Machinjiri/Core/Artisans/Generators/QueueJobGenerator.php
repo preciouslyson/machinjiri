@@ -77,7 +77,8 @@ class QueueJobGenerator
         $this->srcPath = $this->appBasePath . '/src/Machinjiri/';
         $this->jobsPath = $this->appBasePath . '/app/Jobs/';
         $this->queuesPath = $this->appBasePath . '/app/Queue/Drivers/';
-        $this->configPath = $this->appBasePath . '/config/';
+        $config = $this->appBasePath . '/config/';
+        $this->configPath = is_dir($config) ? $config : $this->appBasePath . '/../config/'; 
         $this->migrationsPath = $this->appBasePath . '/database/migrations/';
     }
 
@@ -303,7 +304,7 @@ class {$name}Job extends BaseJob
     public function failed(MachinjiriException \$exception): void
     {
         // Log the failure
-        (new Logger({$name}-job))
+        (new Logger("{$name}-job"))
         ->warning(sprintf(
           '{$name}Job failed after %d attempts: %s',
           \$this->getAttempts(),
@@ -930,6 +931,7 @@ class {$name}Queue extends BaseQueue
         \$query = new QueryBuilder(\$failedTable);
         
         \$result = \$query
+            ->select()
             ->where('queue', '=', \$queue)
             ->orderBy('failed_at', 'DESC')
             ->limit(\$limit)
@@ -949,6 +951,7 @@ class {$name}Queue extends BaseQueue
         
         // Get failed job
         \$failedJob = \$failedQuery
+            ->select()
             ->where('id', '=', \$jobId)
             ->first();
             
@@ -991,6 +994,7 @@ class {$name}Queue extends BaseQueue
     {
         // Get the job from jobs table
         \$job = \$this->queryBuilder
+            ->select()
             ->where('id', '=', \$jobId)
             ->first();
             
@@ -1074,7 +1078,7 @@ PHP;
     /**
      * Generate Redis queue template
      */
-    private function generateRedisQueueTemplate(string $name): string
+    private function generateRedisQueueTemplate(string $name)
     {
         return <<<PHP
 <?php
@@ -1088,7 +1092,7 @@ use Predis\Client;
 use Predis\Connection\ConnectionException;
 
 /**
- * {$name} Queue Driver (Predis based)
+ * Redis Queue Driver (Predis based)
  *
  * Redis-based queue driver for high-performance job processing.
  */
@@ -1109,10 +1113,10 @@ class {$name}Queue extends BaseQueue
         parent::__construct(\$app, \$name, \$config);
         
         \$this->config = array_merge([
-            'host' => '127.0.0.1',
-            'port' => 6379,
-            'password' => null,
-            'database' => 0,
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'port' => env('REDIS_PORT', 6379),
+            'password' => env('REDIS_PASSWORD', null),
+            'database' => env('REDIS_DATABASE', 0),
             'prefix' => 'queue:',
             'retry_after' => 90,
             'timeout' => 2.5,
@@ -1164,7 +1168,7 @@ class {$name}Queue extends BaseQueue
             \$this->redis->zadd(\$delayedKey, \$score, \$serialized);
         } else {
             // Immediate queue
-            \$this->redis->rpush($\key, \$serialized);
+            \$this->redis->rpush(\$key, \$serialized);
         }
         
         // Store job metadata
@@ -2747,7 +2751,7 @@ return [
     | Supported: "sync", "database", "redis", "file", "memory"
     |
     */
-    'default' => getenv('QUEUE_DRIVER', 'sync'),
+    'default' => env('QUEUE_DRIVER', 'sync'),
     
     /*
     |--------------------------------------------------------------------------
@@ -2801,7 +2805,7 @@ return [
     */
     'failed' => [
         'driver' => 'database',
-        'database' => getenv('DB_CONNECTION', 'mysql'),
+        'database' => env('DB_CONNECTION', 'mysql'),
         'table' => 'failed_jobs',
     ],
 ];
@@ -3048,39 +3052,15 @@ PHP;
         // Read current configuration
         $config = require $providersConfig;
         
-        try {
-          $this->ensureQueueServiceProviderExistsInConfig();
-          if (!in_array($type, ['providers', 'deffered'])) {
-            throw new MachinjiriException('Unknown Provider type');
-          }
-          if (!in_array($queueProvider, $config[$type] ?? [])) {
-            $config[$type][] = $name;
-            $content = "<?php\nreturn " . var_export($config, true) . ";\n";
-            if (file_put_contents($providersConfig, $content) === false) {
-              throw new MachinjiriException(
-                  "Failed to update providers configuration: {$providersConfig}",
-                  91014
-              );
-            }
-          }
-        } catch (MachinjiriException $e) {
-          $e->show();
-        }
+        // Add queue service provider if not exists
+        $queueProvider = "Mlangeni\\Machinjiri\\App\\Providers\\QueueServiceProvider";
         
-    }
-    
-    public function ensureQueueServiceProviderExistsInConfig() : void
-    {
-      $providersConfig = $this->configPath . 'providers.php';
-      if (!file_exists($providersConfig)) {
-          return;
-      }
-      $config = require $providersConfig;
-      $queueProvider = "Mlangeni\\Machinjiri\\App\\Providers\\QueueServiceProvider";
-      if (!in_array($queueProvider, $config['providers'] ?? [])) {
+        if (!in_array($queueProvider, $config['providers'] ?? [])) {
             $config['providers'][] = $queueProvider;
+            
             // Write updated configuration
             $content = "<?php\nreturn " . var_export($config, true) . ";\n";
+            
             if (file_put_contents($providersConfig, $content) === false) {
                 throw new MachinjiriException(
                     "Failed to update providers configuration: {$providersConfig}",
@@ -3088,9 +3068,11 @@ PHP;
                 );
             }
         }
+        
+        // Generate QueueServiceProvider if it doesn't exist
         $providerPath = $this->appBasePath . '/app/Providers/QueueServiceProvider.php';
-        if (!is_file($providerPath)) $this->generateQueueServiceProvider();
-        return;
+        
+        $this->generateQueueServiceProvider();
     }
 
     /**
@@ -4190,30 +4172,16 @@ use Mlangeni\Machinjiri\Core\Transport\Mail\MailManager;
  */
 class {$name}Job extends BaseJob
 {
-    /**
-     * Create a new job instance
-     *
-     * @param \Mlangeni\Machinjiri\Core\Container \$app
-     * @param MailMessage \$message The email message to send
-     * @param string|null \$transportName Optional specific transport
-     * @param array \$options Job options (queue, delay, maxAttempts, etc.)
-     */
     public function __construct(
         \Mlangeni\Machinjiri\Core\Container \$app,
-        MailMessage \$message,
-        ?string \$transportName = null,
+        array \$payload,
         array \$options = []
     ) {
-        \$payload = [
-            'message' => \$message->jsonSerialize(),
-            'transport' => \$transportName,
-        ];
-        
         \$defaultOptions = [
-            'maxAttempts' => {$maxAttempts},
-            'queue' => '{$queue}',
-            'timeout' => {$timeout},
-            'delay' => {$delay},
+            'maxAttempts' => 3,
+            'queue' => 'mails',
+            'timeout' => 60,
+            'delay' => 0,
         ];
         
         parent::__construct(\$app, \$payload, array_merge(\$defaultOptions, \$options));
@@ -4242,6 +4210,7 @@ class {$name}Job extends BaseJob
         
         \$this->addMetadata('message_id', \$response->getMessageId());
         \$this->addMetadata('sent_at', date('Y-m-d H:i:s'));
+        
     }
 
     /**
@@ -4252,7 +4221,7 @@ class {$name}Job extends BaseJob
         parent::failed(\$exception);
         
         // Additional failure handling – e.g., log to a dead‑letter queue
-        \$this->app->getProviderLoader()->resolve('events')->trigger('mail.job.failed', [
+        resolve('events')->trigger('mail.job.failed', [
             'job_id' => \$this->getId(),
             'exception' => \$exception->getMessage(),
             'payload' => \$this->getPayload(),

@@ -146,10 +146,10 @@ final class Machinjiri extends Container
         ErrorHandler::register($dev);
 
         // Prepare an event listener with a dedicated logger for event-related messages
-        $this->listener = new EventListener(new Logger('events'));
+        $this->listener = new EventListener(new Logger('bootstrap', Logger::DEBUG, true));
 
         // Create logger instance
-        $this->logger = new Logger('app');
+        $this->logger = new Logger('bootstrap', Logger::DEBUG);
 
         try {
             // Initialize service provider loader
@@ -166,6 +166,9 @@ final class Machinjiri extends Container
 
             // Boot service providers
             $this->providerLoader->boot();
+            
+            // load and render routes
+            $this->loadRoutes();
 
             // Signal that the application has finished initializing
             $this->listener->trigger('app.initialize');

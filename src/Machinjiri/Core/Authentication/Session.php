@@ -28,13 +28,13 @@ class Session {
         $this->timeout = $lifetimeMinutes * 60;
         
         $this->cookieName = $_ENV['SESSION_COOKIE'] ?? 'machinjiri_session';
-        $this->domain = $_ENV['SESSION_DOMAIN'] === 'null' ? null : ($_ENV['SESSION_DOMAIN'] ?? null);
+        $this->domain = $_ENV['SESSION_DOMAIN'] ?? null;
         $this->secure = filter_var($_ENV['SESSION_SECURE_COOKIE'] ?? false, FILTER_VALIDATE_BOOLEAN);
     }
 
     private function configureSession(): void {
         // Determine session save path based on driver
-        $sessionPath = $_ENV['SESSION_DRIVER'] === 'file' 
+        $sessionPath = env('SESSION_DRIVER') === 'file' 
             ? Container::$appBasePath . "/../storage/session/"
             : '';
 

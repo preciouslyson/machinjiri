@@ -3,7 +3,7 @@
 namespace Mlangeni\Machinjiri\Core;
 
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-use Mlangeni\Machinjiri\Core\Routing\DotEnv;
+use Mlangeni\Machinjiri\Core\Artisans\Helpers\DotEnv;
 
 /**
  * Container

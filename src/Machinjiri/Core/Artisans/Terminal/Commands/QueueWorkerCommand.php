@@ -41,6 +41,7 @@ class QueueDriverResolver
     {
         $types = ['database', 'redis', 'file', 'memory', 'sync'];
         $this->generator->createDefaultQueueConfig();
+        $this->generator->ensureQueueServiceProviderExistsInConfig();
         foreach ($types as $type) {
             try {
                 $this->generator->generateQueueDriverIfNotExists($type, [

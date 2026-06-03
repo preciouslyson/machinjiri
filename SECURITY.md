@@ -8,6 +8,7 @@ This framework is actively maintained and supported for the following versions:
 | Version | Supported          |
 | ------- | ------------------ |
 | 1.2.1   | :white_check_mark: |
+| 2.0.0   | :white_check_mark: |
 
 
 ## Reporting a Vulnerability

@@ -13,6 +13,7 @@ class BaseJobDispatcher implements JobDispatcherInterface
     protected Container $app;
     protected QueueInterface $queue;
     protected string $defaultQueue = 'default';
+    protected ?BackgroundWorkerManager $workerManager = null;
     
     /**
      * Create a new job dispatcher
@@ -36,6 +37,11 @@ class BaseJobDispatcher implements JobDispatcherInterface
      */
     public function dispatchToQueue(JobInterface $job, string $queue): string
     {
+        // Validate queue name before using it
+        if (!$this->isValidQueueName($queue)) {
+            throw new MachinjiriException("Invalid queue name: {$queue}", 60020);
+        }
+        
         $jobId = $this->queue->push($job, $queue, $job->getDelay());
         
         resolve('events')->trigger('job.dispatched', [
@@ -46,6 +52,11 @@ class BaseJobDispatcher implements JobDispatcherInterface
         ]);
         
         return $jobId;
+    }
+    
+    private function isValidQueueName(string $queue): bool
+    {
+        return preg_match('/^[a-zA-Z0-9_\-]+$/', $queue) === 1;
     }
     
     /**
@@ -66,12 +77,12 @@ class BaseJobDispatcher implements JobDispatcherInterface
             throw new MachinjiriException('Invalid job instance', 60011);
         }
         
-        $processor = $this->app->getProviderLoader()->resolve('job.processor');
+        $processor = resolve('queue.processor');
         if (!$processor) {
             throw new MachinjiriException('Job processor not configured', 60012);
         }
         
-        $this->app->getProviderLoader()->resolve('events')->trigger('job.processing', [
+        resolve('events')->trigger('job.processing', [
             'job_id' => $job->getId(),
             'job_name' => $job->getName(),
             'queue' => 'sync',
@@ -109,7 +120,7 @@ class BaseJobDispatcher implements JobDispatcherInterface
             $jobIds[] = $this->dispatch($job);
         }
         
-        $this->app->getProviderLoader()->resolve('events')->trigger('job.bulk_dispatched', [
+        resolve('events')->trigger('job.bulk_dispatched', [
             'count' => count($jobIds),
             'queue' => $this->getDefaultQueue(),
         ]);

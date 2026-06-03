@@ -77,7 +77,8 @@ class QueueJobGenerator
         $this->srcPath = $this->appBasePath . '/src/Machinjiri/';
         $this->jobsPath = $this->appBasePath . '/app/Jobs/';
         $this->queuesPath = $this->appBasePath . '/app/Queue/Drivers/';
-        $this->configPath = $this->appBasePath . '/config/';
+        $config = $this->appBasePath . '/config/';
+        $this->configPath = is_dir($config) ? $config : $this->appBasePath . '/../config/'; 
         $this->migrationsPath = $this->appBasePath . '/database/migrations/';
     }
 
@@ -930,6 +931,7 @@ class {$name}Queue extends BaseQueue
         \$query = new QueryBuilder(\$failedTable);
         
         \$result = \$query
+            ->select()
             ->where('queue', '=', \$queue)
             ->orderBy('failed_at', 'DESC')
             ->limit(\$limit)
@@ -949,6 +951,7 @@ class {$name}Queue extends BaseQueue
         
         // Get failed job
         \$failedJob = \$failedQuery
+            ->select()
             ->where('id', '=', \$jobId)
             ->first();
             
@@ -991,6 +994,7 @@ class {$name}Queue extends BaseQueue
     {
         // Get the job from jobs table
         \$job = \$this->queryBuilder
+            ->select()
             ->where('id', '=', \$jobId)
             ->first();
             
@@ -1074,7 +1078,7 @@ PHP;
     /**
      * Generate Redis queue template
      */
-    private function generateRedisQueueTemplate(string $name): string
+    private function generateRedisQueueTemplate(string $name)
     {
         return <<<PHP
 <?php
@@ -2747,7 +2751,7 @@ return [
     | Supported: "sync", "database", "redis", "file", "memory"
     |
     */
-    'default' => getenv('QUEUE_DRIVER', 'sync'),
+    'default' => env('QUEUE_DRIVER', 'sync'),
     
     /*
     |--------------------------------------------------------------------------
@@ -2801,7 +2805,7 @@ return [
     */
     'failed' => [
         'driver' => 'database',
-        'database' => getenv('DB_CONNECTION', 'mysql'),
+        'database' => env('DB_CONNECTION', 'mysql'),
         'table' => 'failed_jobs',
     ],
 ];

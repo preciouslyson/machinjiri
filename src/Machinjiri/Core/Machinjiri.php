@@ -25,6 +25,7 @@ use Mlangeni\Machinjiri\Core\Database\DatabaseConnection;
 use Mlangeni\Machinjiri\Core\Database\Migrations\MigrationHandler;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
+use Mlangeni\Machinjiri\Core\Artisans\Helpers\DotEnv;
 
 /**
  * Final application class that bootstraps the framework.
@@ -76,10 +77,10 @@ final class Machinjiri extends Container
      * @param bool   $dev        Whether the application should run in development mode.
      * @return self
      */
-    public static function App(string $appBasePath, bool $dev = true): self
+    public static function App(string $appBasePath, ?bool $dev = null): self
     {
        if (self::$instance === null) {
-           self::$environment = $dev;
+           self::$environment = $dev ?? self::resolveDebugMode($appBasePath);
            self::$instance = new self($appBasePath, self::$environment);
        }
        return self::$instance;
@@ -146,10 +147,10 @@ final class Machinjiri extends Container
         ErrorHandler::register($dev);
 
         // Prepare an event listener with a dedicated logger for event-related messages
-        $this->listener = new EventListener(new Logger('events'));
+        $this->listener = new EventListener(new Logger('bootstrap', Logger::DEBUG, true));
 
         // Create logger instance
-        $this->logger = new Logger('app');
+        $this->logger = new Logger('bootstrap', Logger::DEBUG);
 
         try {
             // Initialize service provider loader
@@ -166,6 +167,9 @@ final class Machinjiri extends Container
 
             // Boot service providers
             $this->providerLoader->boot();
+            
+            // load and render routes
+            $this->loadRoutes();
 
             // Signal that the application has finished initializing
             $this->listener->trigger('app.initialize');
@@ -676,4 +680,12 @@ final class Machinjiri extends Container
             self::getEnvironment()
         );
     }
+    
+    private static function resolveDebugMode (string $path): bool 
+    {
+      $mode = (new DotEnv($path))->load()->getVariables()['APP_DEBUG'];
+      if ($mode || $mode === "true" || $mode === 1) return true;
+      if (!$mode || $mode === 0 || $mode === "false") return false;
+    }
+    
 }

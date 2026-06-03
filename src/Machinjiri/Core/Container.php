@@ -3,7 +3,7 @@
 namespace Mlangeni\Machinjiri\Core;
 
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-use Mlangeni\Machinjiri\Core\Routing\DotEnv;
+use Mlangeni\Machinjiri\Core\Artisans\Helpers\DotEnv;
 
 /**
  * Container
@@ -81,6 +81,10 @@ class Container
      * Application environment
      */
     protected $appEnvironment;
+    /**
+     * is Artisan Applicationironment
+     */
+    protected $isArtisan;
     
     /**
      * Provider loader instance
@@ -93,7 +97,7 @@ class Container
      * @param string $appBasePath Application base path — trimmed of trailing directory separator.
      * @param bool $appEnvironment Application environment (true = development, false = production)
      */
-    public function __construct(string $appBasePath, bool $appEnvironment = true)
+    public function __construct(string $appBasePath, bool $appEnvironment = true, ?bool $isArtisan = null)
     {
         // Normalize and store the base path for later use.
         self::$appBasePath = rtrim($appBasePath, DIRECTORY_SEPARATOR);
@@ -119,6 +123,8 @@ class Container
         if (self::$instance === null) {
             self::$instance = $this;
         }
+        
+        $this->isArtisan = $isArtisan ?? false;
     }
     
     /**
@@ -238,7 +244,7 @@ class Container
      */
     protected function getRootPath(): string
     {
-        return self::$appBasePath . "/../";
+        return (!$this->isArtisan) ? self::$appBasePath . "/../" : self::$appBasePath . DIRECTORY_SEPARATOR;
     }
     
     /**
@@ -375,7 +381,9 @@ class Container
      */
     protected function loadRoutes(): void
     {
-        require $this->routes . "web.php";
+        $routes = $this->routes . "web.php";
+        if (!is_file($routes)) throw new MachinjiriException("Routing Error: web.php not found in routes/");
+        require $routes;
     }
     
     /**
@@ -485,7 +493,7 @@ class Container
      *
      * @return string
      */
-    public function getStoragePath(): string
+    public function getStoragePath(): string|null
     {
         return $this->storage;
     }

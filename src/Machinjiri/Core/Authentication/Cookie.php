@@ -9,9 +9,10 @@ class Cookie {
   
   public function __construct () {
     self::$defaultPath = Container::$appBasePath . "/../storage/cookies/";
+    if (!is_dir(self::$defaultPath)) mkdir(self::$defaultPath, 0755);
   }
 
-  public function set(string $name, mixed $value, int $expire = 0, string $path = '/', string $domain = '', bool $secure = false, bool $httponly = true): void {
+  public function set(string $name, mixed $value, int $expire = 0, string $path = '', string $domain = '', bool $secure = false, bool $httponly = true): void {
     setcookie($name, (string)$value, [
       'expires' => $expire === 0 ? 0 : time() + $expire,
       'path' => !empty($path) ? $path : self::$defaultPath,

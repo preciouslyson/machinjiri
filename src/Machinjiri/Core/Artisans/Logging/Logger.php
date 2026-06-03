@@ -17,11 +17,11 @@ class Logger
     protected $minLevel;
     protected $path;
 
-    public function __construct(?string $logFile = null, string $minLevel = self::DEBUG)
+    public function __construct(?string $logFile = null, string $minLevel = self::DEBUG, ?bool $isEvent = null)
     {
-        $this->path = self::resolvePath();
+        $this->path = ($isEvent === null || !$isEvent) ? self::resolvePath() . 'reports/' : self::resolvePath() . 'events/';
         
-        $this->logFile = ($logFile === null) ? $this->path . 'logger.log' : $this->path . $logFile . '.log';
+        $this->logFile = ($logFile === null) ? $this->path . 'app-logger.log' : $this->path . $logFile . '.log';
         $this->minLevel = $minLevel;
     }
     
@@ -46,7 +46,7 @@ class Logger
     {
         $this->log(self::CRITICAL, $message, $context);
     }
-
+    
     public function error($message, array $context = [])
     {
         $this->log(self::ERROR, $message, $context);

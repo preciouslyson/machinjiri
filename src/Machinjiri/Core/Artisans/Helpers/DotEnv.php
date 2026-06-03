@@ -1,8 +1,9 @@
 <?php
 
-namespace Mlangeni\Machinjiri\Core\Routing;
+namespace Mlangeni\Machinjiri\Core\Artisans\Helpers;
 
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
+
 class DotEnv
 {
   protected $path;
@@ -14,12 +15,12 @@ class DotEnv
       $this->overload = $overload;
   }
 
-  public function load(): void
+  public function load(): self
   {
       $pathToFile = $this->path . DIRECTORY_SEPARATOR . '.env';
       
       if (!is_file($pathToFile)) {
-          $pathToFile = "./.env";
+          $pathToFile = $this->path  . "/../.env";
       }
       
       $filePath = $pathToFile;
@@ -36,6 +37,7 @@ class DotEnv
           }
           $this->processLine($line);
       }
+      return $this;
   }
 
   protected function isComment(string $line): bool

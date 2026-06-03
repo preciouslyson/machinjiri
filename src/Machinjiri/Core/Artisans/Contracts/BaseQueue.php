@@ -5,6 +5,7 @@ namespace Mlangeni\Machinjiri\Core\Artisans\Contracts;
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 
 /**
  * Abstract Queue Driver
@@ -25,7 +26,7 @@ abstract class BaseQueue implements QueueInterface
         $this->app = $app;
         $this->name = $name;
         $this->config = $config;
-        $this->events = new EventListener(new \Mlangeni\Machinjiri\Core\Artisans\Logging\Logger('queue'));
+        $this->events = new EventListener(new \Mlangeni\Machinjiri\Core\Artisans\Logging\Logger('queue-driver', Logger::DEBUG, true));
     }
     
     /**
@@ -57,7 +58,7 @@ abstract class BaseQueue implements QueueInterface
             }
         }
         
-        $this->events->trigger('queue.bulk', [
+        $this->events->trigger('queue.bulk - queue:{queue}', [
             'queue' => $queue,
             'count' => count($jobIds),
             'delay' => $delay,

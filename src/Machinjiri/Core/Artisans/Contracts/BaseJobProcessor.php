@@ -24,7 +24,7 @@ abstract class BaseJobProcessor implements JobProcessorInterface
     public function __construct(Container $app)
     {
         $this->app = $app;
-        $this->events = new EventListener(new \Mlangeni\Machinjiri\Core\Artisans\Logging\Logger('job_processor'));
+        $this->events = new EventListener(new \Mlangeni\Machinjiri\Core\Artisans\Logging\Logger('queue-processor'));
     }
     
     /**
@@ -34,7 +34,7 @@ abstract class BaseJobProcessor implements JobProcessorInterface
     {
         $job->incrementAttempts();
         
-        $this->triggerEvent('job.processing', [
+        $this->triggerEvent('job.processing - id:{job_id}', [
             'job_id'   => $job->getId(),
             'job_name' => $job->getName(),
             'attempt'  => $job->getAttempts(),
@@ -51,7 +51,7 @@ abstract class BaseJobProcessor implements JobProcessorInterface
             $result = $job->handle();
             
             $executionTime = microtime(true) - $startTime;
-            $this->triggerEvent('job.handled', [
+            $this->triggerEvent('job.handled - id:{job_id}', [
                 'job_id'         => $job->getId(),
                 'job_name'       => $job->getName(),
                 'execution_time' => $executionTime,
@@ -68,7 +68,7 @@ abstract class BaseJobProcessor implements JobProcessorInterface
      */
     public function handleFailure(JobInterface $job, MachinjiriException $exception): void
     {
-        $this->events->trigger('job.failed', [
+        $this->events->trigger('job.failed - id:{job_id}', [
             'job_id' => $job->getId(),
             'job_name' => $job->getName(),
             'exception' => $exception->getMessage(),
@@ -90,7 +90,7 @@ abstract class BaseJobProcessor implements JobProcessorInterface
     {
         $this->markAsCompleted($job);
         
-        $this->events->trigger('job.completed', [
+        $this->events->trigger('job.completed - id:{job_id}', [
             'job_id' => $job->getId(),
             'job_name' => $job->getName(),
             'attempts' => $job->getAttempts(),
@@ -105,7 +105,7 @@ abstract class BaseJobProcessor implements JobProcessorInterface
     {
         $actualDelay = $delay > 0 ? $delay : $job->getNextRetryDelay();
 
-        $this->events->trigger('job.retrying', [
+        $this->events->trigger('job.retrying - id:{job_id}', [
             'job_id' => $job->getId(),
             'job_name' => $job->getName(),
             'delay' => $actualDelay,
@@ -119,7 +119,7 @@ abstract class BaseJobProcessor implements JobProcessorInterface
                 return true;
             }
         } catch (\Throwable $e) {
-            $this->events->trigger('job.retry_failed', [
+            $this->events->trigger('job.retry_failed - id:{job_id}', [
                 'job_id' => $job->getId(),
                 'exception' => $e->getMessage(),
             ]);
@@ -153,7 +153,7 @@ abstract class BaseJobProcessor implements JobProcessorInterface
 
     public function markAsCompleted(JobInterface $job): void
     {
-        $this->events->trigger('job.marked_completed', [
+        $this->events->trigger('job.marked_completed - id:{job_id}', [
             'job_id' => $job->getId(),
             'job_name' => $job->getName(),
         ]);

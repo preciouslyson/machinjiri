@@ -6,6 +6,8 @@ use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 use Mlangeni\Machinjiri\Core\Http\HttpRequest;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
+use Mlangeni\Machinjiri\Core\Transport\Mail\MailManager;
+use Mlangeni\Machinjiri\Core\Transport\Mail\MailMessage;
 
 class ErrorHandler
 {
@@ -83,17 +85,20 @@ class ErrorHandler
     ): void {
         self::$displayErrors = $displayErrors;
         
-        self::$logFile = $logFile ?: self::resolvePath() . 'error.log';
+        self::$logFile = $logFile ?: self::resolvePath() . 'app-error-log.log';
         self::$detailLevel = max(0, min(2, $detailLevel)); // Clamp between 0-2
-        self::$reportErrors = $config['report_errors'] ?? true;
+        
+        $envReportErrors = filter_var(env('REPORT_ERRORS'), FILTER_VALIDATE_BOOLEAN);
+        self::$reportErrors = $config['report_errors'] ?? ($envReportErrors !== false ? $envReportErrors : true);
+        
         self::$ignoredErrors = $config['ignored_errors'] ?? [];
         self::$throttleConfig = array_merge(self::$throttleConfig, $config['throttle'] ?? []);
 
         // Initialize logger
-        self::$logger = new Logger('errors');
+        self::$logger = new Logger('exceptions');
         
         // Initialize event listener
-        self::$eventListener = new EventListener(new Logger('events'));
+        self::$eventListener = new EventListener(new Logger('exceptions', Logger::DEBUG, true));
 
         // Set error reporting based on environment
         error_reporting($displayErrors ? E_ALL : E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR);
@@ -302,10 +307,220 @@ class ErrorHandler
         // Log error
         self::logError($exception);
 
-        // Send notification if configured
+        // Send email notification if configured
         if (self::$reportErrors) {
+            self::sendErrorReport($exception);
             self::notifyAboutError($exception);
         }
+    }
+    
+    /**
+     * Send an error report via email using the mail system.
+     *
+     * @param \Throwable $exception
+     */
+    private static function sendErrorReport(\Throwable $exception): void
+    {
+        $supportEmail = getenv('APP_SUPPORT_EMAIL');
+        if (empty($supportEmail)) {
+            self::$logger?->warning('Error reporting enabled but APP_SUPPORT_EMAIL is not set in .env');
+            return;
+        }
+
+        // Avoid recursive errors by catching all exceptions during mailing
+        try {
+            // Try to obtain MailManager from the container
+            if (!class_exists(Container::class) || !method_exists(Container::class, 'getInstance')) {
+                self::$logger?->warning('Container not available for sending error report email');
+                return;
+            }
+
+            $container = Container::getInstance();
+            if (!$container || !$container->bound(MailManager::class)) {
+                self::$logger?->warning('MailManager not bound in container for error reporting');
+                return;
+            }
+
+            /** @var MailManager $mailManager */
+            $mailManager = resolve(MailManager::class);
+
+            // Build the email content
+            $subject = sprintf(
+                '[ERROR] %s: %s in %s on line %d',
+                get_class($exception),
+                substr($exception->getMessage(), 0, 100),
+                basename($exception->getFile()),
+                $exception->getLine()
+            );
+
+            // Build a detailed plain text report
+            $textBody = self::buildErrorReportText($exception);
+
+            // Build a simple HTML version (optional but nice)
+            $htmlBody = self::buildErrorReportHtml($exception);
+
+            $message = new MailMessage();
+            $message->from($supportEmail, 'Error Handler')
+                    ->to($supportEmail)
+                    ->subject($subject)
+                    ->html($htmlBody, $textBody)
+                    ->priority(1); // High priority
+
+            // Send synchronously (not queued) for immediate alert
+            $mailManager->send($message);
+
+            self::$logger?->info('Error report email sent to ' . $supportEmail);
+        } catch (\Throwable $e) {
+            error_log('ErrorHandler: Failed to send error report email: ' . $e->getMessage());
+            if (self::$logger) {
+                self::$logger->error('Failed to send error report email: {exception}', ['exception' => $e]);
+            }
+        }
+    }
+    
+    /**
+     * Build a plain text error report for the email.
+     *
+     * @param \Throwable $exception
+     * @return string
+     */
+    private static function buildErrorReportText(\Throwable $exception): string
+    {
+        $timestamp = date('Y-m-d H:i:s');
+        $exceptionClass = get_class($exception);
+        $message = $exception->getMessage();
+        $file = $exception->getFile();
+        $line = $exception->getLine();
+        $code = $exception->getCode();
+        $trace = $exception->getTraceAsString();
+
+        $requestUri = $_SERVER['REQUEST_URI'] ?? 'CLI';
+        $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'CLI';
+        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
+        $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        $sessionId = session_id() ?: 'none';
+        $memoryUsage = memory_get_usage(true) / 1024 / 1024 . ' MB';
+        $peakMemory = memory_get_peak_usage(true) / 1024 / 1024 . ' MB';
+
+        $report = <<<TEXT
+============================================================
+                ERROR REPORT - {$timestamp}
+============================================================
+
+Exception Class: {$exceptionClass}
+Code: {$code}
+Message: {$message}
+File: {$file}
+Line: {$line}
+
+--- Request Context ---
+URI: {$requestMethod} {$requestUri}
+IP: {$ipAddress}
+User Agent: {$userAgent}
+Session ID: {$sessionId}
+Memory: {$memoryUsage} (Peak: {$peakMemory})
+
+--- Additional Context ---
+TEXT;
+
+        if (!empty(self::$context)) {
+            $report .= "\n" . print_r(self::$context, true);
+        } else {
+            $report .= "\n(none)";
+        }
+
+        $report .= "\n\n--- Stack Trace ---\n{$trace}\n";
+
+        // Include environment variables (sanitized)
+        $report .= "\n--- Selected Environment Variables ---\n";
+        $envKeys = ['APP_ENV', 'APP_DEBUG', 'APP_URL', 'APP_NAME'];
+        foreach ($envKeys as $key) {
+            $value = getenv($key) ?: 'not set';
+            $report .= "{$key}: {$value}\n";
+        }
+
+        return $report;
+    }
+    
+    /**
+     * Build a simple HTML version of the error report.
+     *
+     * @param \Throwable $exception
+     * @return string
+     */
+    private static function buildErrorReportHtml(\Throwable $exception): string
+    {
+        $timestamp = date('Y-m-d H:i:s');
+        $exceptionClass = htmlspecialchars(get_class($exception));
+        $message = htmlspecialchars($exception->getMessage());
+        $file = htmlspecialchars($exception->getFile());
+        $line = $exception->getLine();
+        $trace = htmlspecialchars($exception->getTraceAsString());
+
+        $requestUri = htmlspecialchars($_SERVER['REQUEST_URI'] ?? 'CLI');
+        $requestMethod = htmlspecialchars($_SERVER['REQUEST_METHOD'] ?? 'CLI');
+        $ipAddress = htmlspecialchars($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
+
+        return <<<HTML
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: monospace; background: #f7f7f7; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        h2 { color: #c0392b; }
+        .details { background: #f0f0f0; padding: 10px; border-left: 4px solid #c0392b; margin: 15px 0; }
+        .trace { background: #f9f9f9; padding: 10px; overflow-x: auto; font-size: 12px; }
+        hr { margin: 20px 0; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>Error Report</h2>
+    <p><strong>Time:</strong> {$timestamp}</p>
+    <div class="details">
+        <strong>{$exceptionClass}</strong><br>
+        <strong>Message:</strong> {$message}<br>
+        <strong>File:</strong> {$file}<br>
+        <strong>Line:</strong> {$line}<br>
+        <strong>Request:</strong> {$requestMethod} {$requestUri}<br>
+        <strong>IP:</strong> {$ipAddress}
+    </div>
+    <h3>Stack Trace</h3>
+    <div class="trace"><pre>{$trace}</pre></div>
+    <hr>
+    <small>Generated by Machinjiri Error Handler</small>
+</div>
+</body>
+</html>
+HTML;
+    }
+    
+    /**
+     * Notify about error (e.g., email, slack, etc.) - placeholder for additional notifications.
+     *
+     * @param \Throwable $exception
+     */
+    private static function notifyAboutError(\Throwable $exception): void
+    {
+        if (self::$eventListener) {
+            self::$eventListener->trigger('error.notification', [
+                'exception' => $exception,
+                'level' => self::getErrorLevel($exception),
+                'timestamp' => time()
+            ]);
+        }
+    }
+    
+    /**
+     * Display error to user in a user-friendly way
+     *
+     * @param \Throwable $exception
+     */
+    private static function displayError(\Throwable $exception): void
+    {
+        // Deprecated - use renderException instead
+        self::renderException($exception);
     }
 
     /**
@@ -421,25 +636,6 @@ class ErrorHandler
     }
 
     /**
-     * Notify about error (e.g., email, slack, etc.)
-     *
-     * @param \Throwable $exception
-     */
-    private static function notifyAboutError(\Throwable $exception): void
-    {
-        // This is a placeholder for notification system
-        // In a real implementation, you might send emails, Slack messages, etc.
-        
-        if (self::$eventListener) {
-            self::$eventListener->trigger('error.notification', [
-                'exception' => $exception,
-                'level' => self::getErrorLevel($exception),
-                'timestamp' => time()
-            ]);
-        }
-    }
-
-    /**
      * Get error level for notification
      *
      * @param \Throwable $exception
@@ -459,17 +655,6 @@ class ErrorHandler
         }
         
         return 'ERROR';
-    }
-
-    /**
-     * Display error to user in a user-friendly way
-     *
-     * @param \Throwable $exception
-     */
-    private static function displayError(\Throwable $exception): void
-    {
-        // Deprecated - use renderException instead
-        self::renderException($exception);
     }
 
     /**
@@ -530,7 +715,6 @@ class ErrorHandler
         $appVersion = getenv("APP_VERSION") ?? "1.0.0";
         $environment = getenv("APP_ENV") ?? "development";
 
-        // Cozy color palette (matching welcome page)
         $primaryColor = '#E68A5E';
         $primaryDark = '#C4633A';
         $bgColor = '#FCF7F0';
@@ -540,14 +724,13 @@ class ErrorHandler
         $errorHighlight = '#FDE8E8';
         $errorBorder = '#F5C6C6';
 
-        // Enhanced cozy HTML with Laravel-like design but warm
         echo <<<HTML
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{$appName} • Cozy Error</title>
+    <title>{$appName} • Error/Exception</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
@@ -703,6 +886,9 @@ class ErrorHandler
             font-size: 0.85rem;
             margin-bottom: 1.5rem;
             color: #5E4B3A;
+            word-break: break-word;
+            white-space: normal;
+            overflow-wrap: break-word;
         }
         
         .code-snippet {
@@ -944,7 +1130,6 @@ class ErrorHandler
             }
         }
         
-        /* dark mode toggle (optional, keeping cozy but with dark variant) */
         body.dark-mode {
             --bg: #2A2622;
             --card-bg: #3A3530DD;
@@ -962,7 +1147,7 @@ class ErrorHandler
     <div class="error-wrapper">
         <div class="error-header">
             <div class="app-info">
-                <h1><i class="fas fa-couch"></i> {$appName} <span style="font-size:0.8rem;">v{$appVersion}</span></h1>
+                <h1><i class="fas fa-desktop"></i> {$appName} <span style="font-size:0.8rem;">v{$appVersion}</span></h1>
                 <div>
                     <span class="environment">{$environment}</span>
                     <span class="environment" style="background: #FDE8E8; color: var(--danger);">Error #{$errorCode}</span>

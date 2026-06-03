@@ -7,7 +7,7 @@ use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 
 /**
- * Abstract Worker
+ * Abstract Worker – supports heartbeat callbacks for supervisor monitoring.
  */
 class BaseWorker implements WorkerInterface
 {
@@ -38,6 +38,11 @@ class BaseWorker implements WorkerInterface
 
     protected array $timeoutTracking = [];
     
+    // Heartbeat support for supervisor
+    protected $heartbeatCallback = null;
+    protected int $heartbeatInterval = 60;
+    protected int $lastHeartbeatTime = 0;
+
     /**
      * Create a new worker instance
      */
@@ -46,7 +51,35 @@ class BaseWorker implements WorkerInterface
         $this->app = $app;
         $this->queue = $queue;
         $this->processor = $processor;
-        $this->events = new EventListener(new \Mlangeni\Machinjiri\Core\Artisans\Logging\Logger('worker'));
+        $this->events = new EventListener(new \Mlangeni\Machinjiri\Core\Artisans\Logging\Logger('queue-worker', Logger::DEBUG, true));
+    }
+    
+    /**
+     * Set a callback to be called periodically (heartbeat) for supervisor monitoring.
+     *
+     * @param callable $callback Function that will be called (e.g., update heartbeat file)
+     * @param int $intervalSeconds How often to call the callback (default 60)
+     */
+    public function setHeartbeatCallback(callable $callback, int $intervalSeconds = 60): void
+    {
+        $this->heartbeatCallback = $callback;
+        $this->heartbeatInterval = $intervalSeconds;
+    }
+    
+    /**
+     * Call the heartbeat callback if enough time has passed.
+     */
+    protected function maybeSendHeartbeat(): void
+    {
+        if (!$this->heartbeatCallback) {
+            return;
+        }
+        
+        $now = time();
+        if ($now - $this->lastHeartbeatTime >= $this->heartbeatInterval) {
+            call_user_func($this->heartbeatCallback);
+            $this->lastHeartbeatTime = $now;
+        }
     }
     
     /**
@@ -61,6 +94,9 @@ class BaseWorker implements WorkerInterface
         $this->status['processed'] = 0;
         $this->status['failed'] = 0;
         $this->status['memory_peak'] = memory_get_usage();
+        
+        // Send initial heartbeat immediately
+        $this->maybeSendHeartbeat();
         
         $this->events->trigger('worker.started', [
             'queue' => $queue,
@@ -136,6 +172,7 @@ class BaseWorker implements WorkerInterface
             $result = $this->processor->process($job);
             $this->processor->handleSuccess($job, $result);
             $this->status['processed']++;
+            $this->status['last_job_at'] = time();
             return true;
         } catch (\Throwable $e) {
             $exception = $e instanceof MachinjiriException
@@ -176,15 +213,30 @@ class BaseWorker implements WorkerInterface
                 $processed++;
                 $emptyCycles = 0; // Reset empty cycles
                 
+                // Send heartbeat after each successful job (or periodically)
+                $this->maybeSendHeartbeat();
+                
                 if ($maxJobs && $processed >= $maxJobs) {
                     break;
                 }
             } else {
                 $emptyCycles++;
                 
+                // Even when idle, send heartbeat occasionally
+                $this->maybeSendHeartbeat();
+                
                 if ($this->options['stopOnEmpty']) {
                     break;
                 }
+            }
+            
+            // Check memory limit
+            if ($this->memoryExceeded()) {
+                $this->events->trigger('worker.memory_exceeded', [
+                    'memory' => memory_get_usage(),
+                    'limit' => $this->options['memory'] * 1024 * 1024,
+                ]);
+                break;
             }
         }
         
@@ -235,6 +287,7 @@ class BaseWorker implements WorkerInterface
             if ($this->processJob($job, $queue)) {
                 $processed++;
             }
+            $this->maybeSendHeartbeat(); // heartbeat during batch
         }
         
         return $processed;
@@ -247,6 +300,7 @@ class BaseWorker implements WorkerInterface
             $result = $this->processor->process($job);
             $this->processor->handleSuccess($job, $result);
             $this->status['processed']++;
+            $this->status['last_job_at'] = time();
             return true;
         } catch (\Throwable $e) {
 

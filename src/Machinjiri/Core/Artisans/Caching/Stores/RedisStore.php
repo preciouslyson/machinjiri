@@ -198,4 +198,9 @@ class RedisStore implements CacheStore
     {
         return 'redis';
     }
+    
+    public function getClient(): PredisClient
+    {
+        return $this->redis;
+    }
 }

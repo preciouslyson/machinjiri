@@ -19,12 +19,39 @@ class CacheManager
     protected ?CacheStore $defaultStore = null;
     protected Metrics\CacheMetrics $metrics;
     protected ?StampedeProtector $stampedeProtector = null;
+    
+    protected array $tableStrategies = [];
+    protected array $strategyTtls = [];
 
     public function __construct(array $config = [])
     {
         $this->config = array_merge($this->getDefaultConfig(), $config);
         $this->metrics = new Metrics\CacheMetrics();
         $this->stampedeProtector = new StampedeProtector($this->metrics);
+        $this->tableStrategies = $this->config['table_strategies'] ?? [];
+        $this->strategyTtls = $this->config['strategy_ttls'] ?? [];
+    }
+    
+    /**
+     * Get the caching strategy name for a given table.
+     *
+     * @param string $table
+     * @return string|null
+     */
+    public function getTableStrategy(string $table): ?string
+    {
+        return $this->tableStrategies[$table] ?? null;
+    }
+    
+    /**
+     * Get the TTL (seconds) for a given strategy name.
+     *
+     * @param string $strategy
+     * @return int|null
+     */
+    public function getStrategyTtl(string $strategy): ?int
+    {
+        return $this->strategyTtls[$strategy] ?? null;
     }
 
     protected function getDefaultConfig(): array
@@ -62,7 +89,11 @@ class CacheManager
                 'enabled' => false,
                 'failures_threshold' => 5,
                 'timeout' => 30
-            ]
+            ],
+            'table_strategies' => [],   // e.g., ['users' => 'short', 'reports' => 'long']
+            'strategy_ttls' => [        // e.g., ['short' => 300, 'long' => 7200]
+                'default' => 3600,
+            ],
         ];
     }
 
@@ -167,16 +198,20 @@ class CacheManager
     {
         return $this->store()->set($key, $value, $ttl ?? $this->config['default_ttl']);
     }
-
-    public function remember(string $key, callable $callback, ?int $ttl = null): mixed
+    
+    public function remember(string $key, callable $callback, ?int $ttl = null, array $tags = []): mixed
     {
         $ttl = $ttl ?? $this->config['default_ttl'];
-        $store = $this->store();
-
-        if ($this->config['stampede_protection'] && $this->stampedeProtector) {
-            return $this->stampedeProtector->remember($store, $key, $callback, $ttl);
+    
+        if (!empty($tags)) {
+            return $this->tags($tags)->remember($key, $callback, $ttl);
         }
-
+    
+        if ($this->config['stampede_protection'] && $this->stampedeProtector) {
+            return $this->stampedeProtector->remember($this->store(), $key, $callback, $ttl);
+        }
+    
+        $store = $this->store();
         $value = $store->get($key);
         if ($value !== null) {
             return $value;

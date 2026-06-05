@@ -304,7 +304,7 @@ class {$name}Job extends BaseJob
     public function failed(MachinjiriException \$exception): void
     {
         // Log the failure
-        (new Logger({$name}-job))
+        (new Logger("{$name}-job"))
         ->warning(sprintf(
           '{$name}Job failed after %d attempts: %s',
           \$this->getAttempts(),
@@ -1092,7 +1092,7 @@ use Predis\Client;
 use Predis\Connection\ConnectionException;
 
 /**
- * {$name} Queue Driver (Predis based)
+ * Redis Queue Driver (Predis based)
  *
  * Redis-based queue driver for high-performance job processing.
  */
@@ -1112,11 +1112,11 @@ class RedisQueue extends BaseQueue
     ) {
         parent::__construct($app, $name, $config);
         
-        $this->config = array_merge([
-            'host' => '127.0.0.1',
-            'port' => 6379,
-            'password' => null,
-            'database' => 0,
+        \$this->config = array_merge([
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'port' => env('REDIS_PORT', 6379),
+            'password' => env('REDIS_PASSWORD', null),
+            'database' => env('REDIS_DATABASE', 0),
             'prefix' => 'queue:',
             'retry_after' => 90,
             'timeout' => 2.5,
@@ -1168,7 +1168,7 @@ class RedisQueue extends BaseQueue
             \$this->redis->zadd(\$delayedKey, \$score, \$serialized);
         } else {
             // Immediate queue
-            \$this->redis->rpush($\key, \$serialized);
+            \$this->redis->rpush(\$key, \$serialized);
         }
         
         // Store job metadata
@@ -3093,8 +3093,8 @@ PHP;
             }
         }
         $providerPath = $this->appBasePath . '/app/Providers/QueueServiceProvider.php';
-        if (!is_file($providerPath)) $this->generateQueueServiceProvider();
-        return;
+        
+        $this->generateQueueServiceProvider();
     }
 
     /**
@@ -4194,30 +4194,16 @@ use Mlangeni\Machinjiri\Core\Transport\Mail\MailManager;
  */
 class {$name}Job extends BaseJob
 {
-    /**
-     * Create a new job instance
-     *
-     * @param \Mlangeni\Machinjiri\Core\Container \$app
-     * @param MailMessage \$message The email message to send
-     * @param string|null \$transportName Optional specific transport
-     * @param array \$options Job options (queue, delay, maxAttempts, etc.)
-     */
     public function __construct(
         \Mlangeni\Machinjiri\Core\Container \$app,
-        MailMessage \$message,
-        ?string \$transportName = null,
+        array \$payload,
         array \$options = []
     ) {
-        \$payload = [
-            'message' => \$message->jsonSerialize(),
-            'transport' => \$transportName,
-        ];
-        
         \$defaultOptions = [
-            'maxAttempts' => {$maxAttempts},
-            'queue' => '{$queue}',
-            'timeout' => {$timeout},
-            'delay' => {$delay},
+            'maxAttempts' => 3,
+            'queue' => 'mails',
+            'timeout' => 60,
+            'delay' => 0,
         ];
         
         parent::__construct(\$app, \$payload, array_merge(\$defaultOptions, \$options));
@@ -4246,6 +4232,7 @@ class {$name}Job extends BaseJob
         
         \$this->addMetadata('message_id', \$response->getMessageId());
         \$this->addMetadata('sent_at', date('Y-m-d H:i:s'));
+        
     }
 
     /**
@@ -4256,7 +4243,7 @@ class {$name}Job extends BaseJob
         parent::failed(\$exception);
         
         // Additional failure handling – e.g., log to a dead‑letter queue
-        \$this->app->getProviderLoader()->resolve('events')->trigger('mail.job.failed', [
+        resolve('events')->trigger('mail.job.failed', [
             'job_id' => \$this->getId(),
             'exception' => \$exception->getMessage(),
             'payload' => \$this->getPayload(),

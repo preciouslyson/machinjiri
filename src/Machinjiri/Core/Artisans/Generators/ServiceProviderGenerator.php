@@ -291,7 +291,7 @@ class {$name} extends BaseServiceProvider
      */
     protected function loadConfiguration(): void
     {
-        \$configFile = \$this->app->config . '{$configName}.php';
+        \$configFile = \$this->app->config . '/services/{$configName}.php';
         
         if (file_exists(\$configFile)) {
             \$this->mergeConfigFrom(\$configFile, '{$configName}');
@@ -355,8 +355,9 @@ PHP;
     {
         // Ensure config directory exists
         $this->ensureDirectoryExists($this->configPath);
+        $name = str_replace('serviceprovider', '', $name);
         
-        $configFile = $this->configPath . $name . '.php';
+        $configFile = $this->configPath . 'services/' . $name . '.php';
         
         // Check if config file already exists
         if (file_exists($configFile)) {

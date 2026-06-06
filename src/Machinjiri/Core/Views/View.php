@@ -35,6 +35,7 @@ class View
     protected array $sections = [];
     protected array $parentSections = []; // for @parent support
     protected ?string $currentSection = null;
+    private static $yielded = [];
 
     // File extension mapping
     protected array $extensionMap = [
@@ -188,7 +189,9 @@ class View
      */
     public function render(): string
     {
-        // Push this instance onto the stack
+        if (isset(self::$yielded[$this->view])) return "";
+        self::$yielded[$this->view] = true;
+        
         array_push(self::$instanceStack, $this);
 
         // Run view composer if registered
@@ -239,6 +242,7 @@ class View
             extract($data, EXTR_SKIP);
             ob_start();
             include $cacheFile;
+            unlink($cacheFile);
             return ob_get_clean();
         })($cacheFile, $data);
     }
@@ -295,13 +299,19 @@ class View
     public static function section(string $name, ?string $content = null): void
     {
         $instance = self::getCurrentInstance();
-
+    
         if ($content !== null) {
             $instance->sections[$name] = $content;
         } else {
             if ($instance->currentSection) {
                 throw new MachinjiriException('Cannot nest sections');
             }
+    
+            // If this section already has content (from a parent view), preserve it as the parent content
+            if (isset($instance->sections[$name])) {
+                $instance->parentSections[$name] = $instance->sections[$name];
+            }
+    
             $instance->currentSection = $name;
             ob_start();
         }
@@ -313,14 +323,11 @@ class View
         if (!$instance->currentSection) {
             throw new MachinjiriException('No active section');
         }
-
+    
         $content = ob_get_clean();
         $sectionName = $instance->currentSection;
-
-        if (isset($instance->sections[$sectionName])) {
-            $instance->parentSections[$sectionName] = $instance->sections[$sectionName];
-        }
-
+    
+        // Overwrite the section with the newly captured content
         $instance->sections[$sectionName] = $content;
         $instance->currentSection = null;
     }
@@ -328,7 +335,7 @@ class View
     public static function yield(string $name): void
     {
         $instance = self::getCurrentInstance();
-        echo $instance->sections[$name] ?? '';
+        print $instance->sections[$name] ?? '';
     }
 
     public static function extend(string $layout): void
@@ -340,8 +347,14 @@ class View
     public static function parent(): void
     {
         $instance = self::getCurrentInstance();
-        $sectionName = $instance->currentSection ?? debug_backtrace()[1]['args'][0] ?? null;
-        if ($sectionName && isset($instance->parentSections[$sectionName])) {
+        $sectionName = $instance->currentSection;
+    
+        if (!$sectionName) {
+            // If no active section, parent() cannot be called meaningfully
+            throw new MachinjiriException('@parent must be used inside a section');
+        }
+    
+        if (isset($instance->parentSections[$sectionName])) {
             echo $instance->parentSections[$sectionName];
         }
     }

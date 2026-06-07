@@ -8,7 +8,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Mlangeni\Machinjiri\Core\Artisans\Helpers\Mkutumula;
+use Mlangeni\Machinjiri\Core\Artisans\Generators\ResourceGenerator;
 use Mlangeni\Machinjiri\Core\Routing\DotEnv;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Container;
@@ -40,8 +40,8 @@ class App
                 {
                     return $this->executeWithStyle($input, $output, 'App Controller', function (SymfonyStyle $ss) use ($input) {
                         $name = $input->getArgument('name');
-                        $mkutumula = new Mkutumula();
-                        if ($mkutumula->create($name, 'controller')) {
+                        $resourceGenerator = new ResourceGenerator();
+                        if ($resourceGenerator->create($name, 'controller')) {
                             $ss->success("Controller Class '" . $name . "' created successfully");
                             return Command::SUCCESS;
                         } else {
@@ -70,8 +70,8 @@ class App
                 {
                     return $this->executeWithStyle($input, $output, 'App Model', function (SymfonyStyle $ss) use ($input) {
                         $name = $input->getArgument('name');
-                        $mkutumula = new Mkutumula();
-                        if ($mkutumula->create($name, 'model')) {
+                        $resourceGenerator = new ResourceGenerator();
+                        if ($resourceGenerator->create($name, 'model')) {
                             $ss->success("Model Class '" . $name . "' created successfully");
                             return Command::SUCCESS;
                         } else {
@@ -100,8 +100,8 @@ class App
                 {
                     return $this->executeWithStyle($input, $output, 'App Middleware', function (SymfonyStyle $ss) use ($input) {
                         $name = $input->getArgument('name');
-                        $mkutumula = new Mkutumula();
-                        if ($mkutumula->create($name, 'middleware')) {
+                        $resourceGenerator = new ResourceGenerator();
+                        if ($resourceGenerator->create($name, 'middleware')) {
                             $ss->success("Middleware Class '" . $name . "' created successfully");
                             return Command::SUCCESS;
                         } else {

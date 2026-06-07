@@ -2,7 +2,7 @@
 
 namespace Mlangeni\Machinjiri\Core\Http;
 
-use Mlangeni\Machinjiri\Core\Network\CurlHandler;
+use Mlangeni\Machinjiri\Core\Http\HttpClient;
 use Mlangeni\Machinjiri\Core\Authentication\Session;
 use Mlangeni\Machinjiri\Core\Authentication\Cookie;
 use Mlangeni\Machinjiri\Core\Authentication\OAuth;
@@ -91,14 +91,14 @@ class HttpRequest {
     }
 
     private function initializeClient(): void {
-        $this->client = new CurlHandler('', $this->session, $this->cookie);
+        $this->client = new HttpClient('', $this->session, $this->cookie);
     }
 
-    public function getClient(): CurlHandler {
+    public function getClient(): HttpClient {
         return $this->client;
     }
 
-    public function setClient(CurlHandler $client): self {
+    public function setClient(HttpClient $client): self {
         $this->client = $client;
         return $this;
     }
@@ -231,7 +231,7 @@ class HttpRequest {
         // Apply OAuth headers
         $this->applyOAuthHeaders($mergedHeaders);
         
-        // Convert headers to CurlHandler format
+        // Convert headers to HttpClient format
         $curlHeaders = [];
         foreach ($mergedHeaders as $key => $value) {
             $curlHeaders[] = "{$key}: {$value}";

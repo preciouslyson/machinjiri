@@ -7,7 +7,7 @@ use Mlangeni\Machinjiri\Core\Http\HttpResponse;
 use Mlangeni\Machinjiri\Core\Authentication\Session;
 use Mlangeni\Machinjiri\Core\Authentication\Cookie;
 use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
-use Mlangeni\Machinjiri\Core\Network\CurlHandler;
+use Mlangeni\Machinjiri\Core\Http\HttpClient;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 use \InvalidArgumentException;
 use \RuntimeException;
@@ -32,7 +32,7 @@ class OAuth
     private Session $session;
     private Cookie $cookie;
     private ?QueryBuilder $queryBuilder = null;
-    private ?CurlHandler $httpClient = null;
+    private ?HttpClient $httpClient = null;
     private ?Logger $logger = null;
 
     public function __construct(
@@ -44,7 +44,7 @@ class OAuth
         array $scopes = [],
         ?Session $session = null,
         ?Cookie $cookie = null,
-        ?CurlHandler $httpClient = null,
+        ?HttpClient $httpClient = null,
         ?Logger $logger = null
     ) {
         $this->clientId = $clientId;
@@ -64,7 +64,7 @@ class OAuth
         $this->queryBuilder = $queryBuilder;
     }
 
-    public function setHttpClient(CurlHandler $httpClient): void
+    public function setHttpClient(HttpClient $httpClient): void
     {
         $this->httpClient = $httpClient;
     }
@@ -272,7 +272,7 @@ class OAuth
     private function httpRequest(string $url, array $data, string $method = 'POST', ?array $headers = null): string
     {
         try {
-            $client = $this->httpClient ?? new CurlHandler();
+            $client = $this->httpClient ?? new HttpClient();
             
             // Set headers if provided
             if ($headers) {

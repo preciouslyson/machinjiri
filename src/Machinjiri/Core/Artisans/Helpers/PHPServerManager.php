@@ -1,6 +1,6 @@
 <?php
 
-namespace Mlangeni\Machinjiri\Core\Network;
+namespace Mlangeni\Machinjiri\Core\Artisans\Helpers;
 
 
 class PHPServerManager
@@ -19,7 +19,7 @@ class PHPServerManager
      * @param string $documentRoot Document root directory
      * @param array $options Additional options
      */
-    public function __construct(int $port = 30000,
+    public function __construct(int $port = 3000,
         array $options = []
     ) {
         $this->address = 'localhost:' . $port;

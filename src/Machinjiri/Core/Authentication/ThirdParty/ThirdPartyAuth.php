@@ -9,7 +9,7 @@ use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
 use Mlangeni\Machinjiri\Core\Http\HttpRequest;
 use Mlangeni\Machinjiri\Core\Http\HttpResponse;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-use Mlangeni\Machinjiri\Core\Network\CurlHandler;
+use Mlangeni\Machinjiri\Core\Http\HttpClient;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 
 /**
@@ -23,7 +23,7 @@ class ThirdPartyAuth
     private Session $session;
     private Cookie $cookie;
     private ?QueryBuilder $queryBuilder = null;
-    private ?CurlHandler $httpClient = null;
+    private ?HttpClient $httpClient = null;
     private ?Logger $logger = null;
     private string $defaultProvider = 'google';
     private array $userMapping = [
@@ -38,7 +38,7 @@ class ThirdPartyAuth
         Session $session = null,
         Cookie $cookie = null,
         QueryBuilder $queryBuilder = null,
-        CurlHandler $httpClient = null,
+        HttpClient $httpClient = null,
         Logger $logger = null
     ) {
         $this->session = $session ?? new Session();
@@ -201,7 +201,7 @@ class ThirdPartyAuth
             $scopes,
             $this->session,
             $this->cookie,
-            $this->httpClient ?? new CurlHandler(),
+            $this->httpClient ?? new HttpClient(),
             $this->logger
         );
 
@@ -214,7 +214,7 @@ class ThirdPartyAuth
 
     private function getProviderHttpOptions(string $provider): array
     {
-        // HTTP options are now handled by CurlHandler in OAuth class
+        // HTTP options are now handled by HttpClient in OAuth class
         return [];
     }
 
@@ -304,7 +304,7 @@ class ThirdPartyAuth
             $url = $this->config['user_info_endpoints'][$provider];
             $headers = $this->getUserInfoHeaders($provider, $accessToken);
 
-            $client = $this->httpClient ?? new CurlHandler();
+            $client = $this->httpClient ?? new HttpClient();
             $client->setHeaders($headers);
             
             $response = $client->get($url);
@@ -795,7 +795,7 @@ HTML;
         return $this->config;
     }
 
-    public function setHttpClient(CurlHandler $httpClient): self
+    public function setHttpClient(HttpClient $httpClient): self
     {
         $this->httpClient = $httpClient;
         return $this;

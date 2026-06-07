@@ -8,7 +8,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Mlangeni\Machinjiri\Core\Network\PHPServerManager;
+use Mlangeni\Machinjiri\Core\Artisans\Helpers\PHPServerManager;
 
 class PHPServerCommands
 {

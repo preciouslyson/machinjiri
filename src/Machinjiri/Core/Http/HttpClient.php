@@ -1,6 +1,6 @@
 <?php
 
-namespace Mlangeni\Machinjiri\Core\Network;
+namespace Mlangeni\Machinjiri\Core\Http;
 
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Authentication\Session;
@@ -8,7 +8,7 @@ use Mlangeni\Machinjiri\Core\Authentication\Cookie;
 use Mlangeni\Machinjiri\Core\Http\HttpRequest;
 use Mlangeni\Machinjiri\Core\Http\HttpResponse;
 
-class CurlHandler
+class HttpClient
 {
     private $ch;
     private $baseUrl;
@@ -44,7 +44,7 @@ class CurlHandler
             CURLOPT_MAXREDIRS => $this->maxRedirects,
             CURLOPT_TIMEOUT => $this->timeout,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_USERAGENT => 'Machinjiri-CurlHandler/1.0',
+            CURLOPT_USERAGENT => 'Machinjiri-HttpClient/1.0',
             CURLOPT_HEADER => false,
             CURLOPT_FAILONERROR => false
         ];

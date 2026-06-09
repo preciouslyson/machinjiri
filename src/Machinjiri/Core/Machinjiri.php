@@ -683,7 +683,8 @@ final class Machinjiri extends Container
     
     private static function resolveDebugMode (string $path): bool 
     {
-      $mode = (new DotEnv($path))->load()->getVariables()['APP_DEBUG'];
+      $path = $path . '/../';
+      $mode = (new DotEnv(false, false))->setPath($path)->load()->getVariables()['APP_DEBUG'];
       if ($mode || $mode === "true" || $mode === 1) return true;
       if (!$mode || $mode === 0 || $mode === "false") return false;
     }

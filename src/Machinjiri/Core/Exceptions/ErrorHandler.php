@@ -68,6 +68,11 @@ class ErrorHandler
      * @var array Error counters
      */
     private static $errorCounters = [];
+    
+    /**
+     * @var array $genericRendered
+     */
+    private static $genericRendered = [];
 
     /**
      * Register the custom error handler
@@ -85,7 +90,7 @@ class ErrorHandler
     ): void {
         self::$displayErrors = $displayErrors;
         
-        self::$logFile = $logFile ?: self::resolvePath() . 'app-error-log.log';
+        self::$logFile = $logFile ?: self::resolvePath() . '/reports/app-error-log.log';
         self::$detailLevel = max(0, min(2, $detailLevel)); // Clamp between 0-2
         
         $envReportErrors = filter_var(env('REPORT_ERRORS'), FILTER_VALIDATE_BOOLEAN);
@@ -162,15 +167,10 @@ class ErrorHandler
      * @param string $errfile File where error occurred
      * @param int $errline Line number where error occurred
      * @return bool
-     * @throws \ErrorException
+     * @throws MachinjiriException
      */
     public static function handleError(int $errno, string $errstr, string $errfile, int $errline): bool
     {
-        // Don't handle errors that are not in the error_reporting level
-        if (!(error_reporting() & $errno)) {
-            return false;
-        }
-
         // Check if error should be ignored
         if (in_array($errno, self::$ignoredErrors)) {
             return true;
@@ -191,8 +191,11 @@ class ErrorHandler
                 'errline' => $errline
             ]);
         }
-
+        
+        if (!self::$displayErrors) self::renderGenericErrorPage();
+        
         throw new \ErrorException($errstr, 0, $errno, $errfile, $errline);
+        
     }
 
     /**
@@ -550,9 +553,6 @@ HTML;
         if (self::$displayErrors) {
             // Development mode - show detailed error
             self::renderErrorPage($exception);
-        } else {
-            // Production mode - show generic error message
-            self::renderGenericErrorPage();
         }
     }
 
@@ -1712,8 +1712,11 @@ HTML;
     /**
      * Render generic error page for production (cozy style)
      */
-    private static function renderGenericErrorPage(): void
+    public static function renderGenericErrorPage(): void
     {
+        if (isset(self::$genericRendered['error'])) return;
+        self::$genericRendered['error'] = true;
+        
         $appName = getenv("APP_NAME") ?? "Machinjiri";
         $supportEmail = getenv("APP_SUPPORT_EMAIL") ?? "support@example.com";
         $errorId = uniqid('ERR-', true);
@@ -1728,24 +1731,22 @@ HTML;
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{$appName} • Cozy Error</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>{$appName} • Let’s fix this</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        :root {
-            --primary: #E68A5E;
-            --primary-dark: #C4633A;
-            --bg: #FCF7F0;
-            --card: #FFFFFFDD;
-            --text: #2E2C2A;
-            --text-light: #6B5E53;
-            --border: #F2E5D8;
-            --radius: 32px;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        * { margin:0; padding:0; box-sizing:border-box; }
+
         body {
-            background: var(--bg);
-            font-family: 'Inter', system-ui, sans-serif;
+            background: linear-gradient(145deg, #FEF6E6 0%, #F9EDDD 100%);
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, sans-serif;
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -1753,113 +1754,436 @@ HTML;
             padding: 1.5rem;
             position: relative;
         }
+
+        /* organic abstract blob background */
         body::before {
-            content: "";
+            content: '';
             position: fixed;
-            inset: 0;
-            background-image: radial-gradient(#E8DCCC 1px, transparent 1px);
-            background-size: 28px 28px;
-            opacity: 0.2;
+            top: -20%;
+            left: -10%;
+            width: 70%;
+            height: 70%;
+            background: radial-gradient(circle at 30% 40%, rgba(230, 138, 94, 0.08), transparent 70%);
+            border-radius: 50%;
+            z-index: 0;
             pointer-events: none;
         }
-        .cozy-error {
-            max-width: 550px;
+
+        body::after {
+            content: '';
+            position: fixed;
+            bottom: -15%;
+            right: -5%;
+            width: 65%;
+            height: 65%;
+            background: radial-gradient(circle at 70% 60%, rgba(196, 99, 58, 0.06), transparent 75%);
+            border-radius: 50%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* main cozy card */
+        .error-container {
+            max-width: 620px;
             width: 100%;
-            background: var(--card);
-            backdrop-filter: blur(2px);
-            border-radius: var(--radius);
-            padding: 2rem;
-            text-align: center;
-            border: 1px solid var(--border);
-            box-shadow: 0 20px 35px -12px rgba(0,0,0,0.08);
+            background: rgba(255, 253, 250, 0.96);
+            backdrop-filter: blur(4px);
+            border-radius: 48px;
+            box-shadow: 0 25px 45px -12px rgba(0, 0, 0, 0.15), 0 2px 0 0 rgba(255, 255, 255, 0.6) inset;
+            border: 1px solid rgba(242, 229, 216, 0.8);
+            overflow: hidden;
             position: relative;
             z-index: 2;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            animation: floatUp 0.5s cubic-bezier(0.2, 0.9, 0.4, 1.1);
         }
-        .cozy-icon {
-            font-size: 4rem;
-            color: var(--primary);
+
+        .error-container:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 32px 55px -14px rgba(0, 0, 0, 0.18);
+        }
+
+        @keyframes floatUp {
+            0% {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* inner padding */
+        .error-card {
+            padding: 2.4rem 2rem 2rem;
+        }
+
+        /* playful icon + ring */
+        .icon-wrap {
+            display: flex;
+            justify-content: center;
             margin-bottom: 1rem;
         }
+
+        .icon-badge {
+            background: linear-gradient(135deg, #FFF1E6, #FFEADB);
+            width: 88px;
+            height: 88px;
+            border-radius: 68px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 12px 18px -10px rgba(230, 138, 94, 0.2);
+            transition: all 0.2s;
+        }
+
+        .cozy-icon {
+            font-size: 3.4rem;
+            color: var(--primary, #E68A5E);
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.05));
+        }
+
         h1 {
             font-size: 2rem;
-            color: var(--primary-dark);
-            margin-bottom: 0.8rem;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            background: linear-gradient(125deg, #C4633A, #E68A5E);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            margin-bottom: 0.9rem;
+            text-align: center;
         }
-        .message {
-            color: var(--text-light);
+
+        .message-block {
+            text-align: center;
             margin-bottom: 1.5rem;
-            line-height: 1.5;
         }
-        .error-id {
-            background: #FEF3EA;
-            padding: 0.5rem 1rem;
-            border-radius: 60px;
-            font-family: monospace;
-            font-size: 0.8rem;
-            display: inline-block;
-            margin-bottom: 1.8rem;
-            color: var(--primary-dark);
-        }
-        .actions {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-bottom: 1.8rem;
-        }
-        .btn {
-            padding: 0.6rem 1.3rem;
-            border-radius: 60px;
+
+        .main-message {
+            font-size: 1.08rem;
+            color: #3C342E;
             font-weight: 500;
-            text-decoration: none;
+            line-height: 1.4;
+        }
+
+        .sub-message {
+            font-size: 0.9rem;
+            color: #7F6E5F;
+            margin-top: 0.5rem;
+        }
+
+        /* error ID panel - modern card */
+        .ref-panel {
+            background: #FEF6EF;
+            border-radius: 80px;
+            padding: 0.65rem 1rem 0.65rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin: 1.5rem 0 1.4rem;
+            border: 1px solid #F9E3D0;
+            transition: all 0.2s;
+        }
+
+        .ref-id {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #B45F3A;
+            letter-spacing: 0.2px;
+            background: #FFFFFFB3;
+            padding: 0.3rem 1rem 0.3rem 0.9rem;
+            border-radius: 48px;
+        }
+
+        .ref-id i {
+            font-size: 0.9rem;
+            color: #D67A4C;
+        }
+
+        .ref-id span {
+            word-break: break-all;
+        }
+
+        .copy-btn {
+            background: white;
+            border: none;
+            padding: 0.4rem 1rem;
+            border-radius: 40px;
+            font-size: 0.75rem;
+            font-weight: 500;
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
+            color: #C4633A;
+            cursor: pointer;
             transition: 0.2s;
+            font-family: 'Inter', sans-serif;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+            border: 1px solid #FFDCC8;
+        }
+
+        .copy-btn:hover {
+            background: #FEF0E5;
+            transform: scale(0.97);
+            border-color: #E68A5E;
+        }
+
+        .copy-btn i {
+            font-size: 0.75rem;
+        }
+
+        /* action buttons group */
+        .action-group {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+            margin: 2rem 0 1.8rem;
+        }
+
+        .btn {
+            padding: 0.7rem 1.6rem;
+            border-radius: 60px;
+            font-weight: 600;
             font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            transition: all 0.2s ease;
             cursor: pointer;
             border: none;
+            text-decoration: none;
+            background: white;
+            font-family: 'Inter', sans-serif;
         }
+
         .btn-primary {
-            background: var(--primary);
+            background: #E68A5E;
             color: white;
+            box-shadow: 0 4px 8px rgba(196, 99, 58, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
+
         .btn-primary:hover {
-            background: var(--primary-dark);
+            background: #C4633A;
             transform: translateY(-2px);
+            box-shadow: 0 8px 18px rgba(196, 99, 58, 0.25);
         }
+
         .btn-secondary {
-            background: #FFF3E6;
-            color: var(--primary-dark);
-            border: 1px solid #FFE2CC;
+            background: #FFF4EB;
+            color: #B45A34;
+            border: 1px solid #FADDCB;
         }
-        .contact {
-            font-size: 0.75rem;
-            color: var(--text-light);
-            border-top: 1px solid var(--border);
-            padding-top: 1.2rem;
+
+        .btn-secondary:hover {
+            background: #FFEDE2;
+            transform: translateY(-2px);
+            border-color: #E68A5E;
         }
-        a { color: var(--primary-dark); text-decoration: none; }
-        a:hover { text-decoration: underline; }
+
+        /* support footer */
+        .support-footer {
+            border-top: 1px solid #F1E2D4;
+            padding: 1.2rem 2rem 1.4rem;
+            background: #FEFAF5;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #7B6556;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.8rem;
+            align-items: baseline;
+        }
+
+        .support-footer a {
+            color: #C4633A;
+            text-decoration: none;
+            font-weight: 500;
+            transition: 0.1s;
+        }
+
+        .support-footer a:hover {
+            text-decoration: underline;
+            color: #A84E2A;
+        }
+
+        .ref-caption {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* toast message for copy */
+        .toast-msg {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) scale(0.9);
+            background: #2E2C2A;
+            color: #FCF3EA;
+            padding: 0.6rem 1.2rem;
+            border-radius: 60px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+            z-index: 999;
+            white-space: nowrap;
+            box-shadow: 0 6px 14px rgba(0,0,0,0.1);
+            pointer-events: none;
+            font-family: 'Inter', monospace;
+        }
+
+        .toast-msg.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) scale(1);
+        }
+
+        /* responsive */
+        @media (max-width: 500px) {
+            .error-card {
+                padding: 1.7rem 1.2rem;
+            }
+            .ref-panel {
+                flex-direction: column;
+                align-items: stretch;
+                border-radius: 48px;
+                padding: 0.8rem;
+            }
+            .copy-btn {
+                justify-content: center;
+            }
+            .support-footer {
+                flex-direction: column;
+                gap: 0.3rem;
+            }
+            h1 {
+                font-size: 1.7rem;
+            }
+            .btn {
+                padding: 0.6rem 1.3rem;
+                font-size: 0.85rem;
+            }
+        }
+
+        /* smooth focus ring */
+        button:focus-visible, .btn:focus-visible {
+            outline: 3px solid #E68A5E;
+            outline-offset: 2px;
+        }
     </style>
 </head>
 <body>
-<div class="cozy-error">
-    <div class="cozy-icon"><i class="fas fa-mug-hot"></i></div>
-    <h1>Something feels off</h1>
-    <p class="message">We've encountered a small hiccup. Our team has been notified, and we'll get it fixed as soon as possible.</p>
-    <div class="error-id"><i class="fas fa-fingerprint"></i> {$errorId}</div>
-    <div class="actions">
-        <button class="btn btn-primary" onclick="window.location.href='/'"><i class="fas fa-home"></i> Home</button>
-        <button class="btn btn-secondary" onclick="window.location.reload()"><i class="fas fa-redo"></i> Retry</button>
+<div class="error-container">
+    <div class="error-card">
+        <div class="icon-wrap">
+            <div class="icon-badge">
+                <i class="fas fa-mug-hot cozy-icon"></i>
+            </div>
+        </div>
+        <h1>Oops, Something went wrong</h1>
+        <div class="message-block">
+            <div class="main-message">
+                We hit a little turbulence — but don’t worry, we’re on it.
+            </div>
+            <div class="sub-message">
+                Our team has been alerted and everything will be smooth again shortly.
+            </div>
+        </div>
+
+        <!-- error reference with copy action -->
+        <div class="ref-panel">
+            <div class="ref-id">
+                <i class="fas fa-fingerprint"></i>
+                <span id="errorIdDisplay">{$errorId}</span>
+            </div>
+            <button class="copy-btn" id="copyErrorBtn" aria-label="Copy error ID">
+                <i class="fas fa-copy"></i> Copy ID
+            </button>
+        </div>
+
+        <!-- actionable buttons -->
+        <div class="action-group">
+            <button class="btn btn-primary" onclick="window.location.href='/'">
+                <i class="fas fa-arrow-left"></i> Homepage
+            </button>
+            <button class="btn btn-secondary" onclick="window.location.reload()">
+                <i class="fas fa-rotate-right"></i> Try again
+            </button>
+        </div>
     </div>
-    <div class="contact">
-        <i class="fas fa-envelope"></i> Need help? <a href="mailto:{$supportEmail}">{$supportEmail}</a> • Reference: <strong>{$errorId}</strong>
+    <div class="support-footer">
+        <span><i class="fas fa-envelope"></i> Need help? <a href="mailto:{$supportEmail}">{$supportEmail}</a></span>
+        <span class="ref-caption"><i class="fas fa-hashtag"></i> Reference: <strong>{$errorId}</strong></span>
+        <span><i class="fas fa-clock"></i> Auto-notified</span>
     </div>
 </div>
+<div id="copyToast" class="toast-msg"><i class="fas fa-check-circle"></i> Error ID copied</div>
 <script>
-    // Optional: log error ID to console
-    console.log('Error ID: {$errorId}');
+    (function() {
+        function showToast(message) {
+            const toast = document.getElementById('copyToast');
+            if (!toast) return;
+            toast.innerHTML = '<i class="fas fa-check-circle"></i> ' + message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2400);
+        }
+        const copyBtn = document.getElementById('copyErrorBtn');
+        const errorSpan = document.getElementById('errorIdDisplay');
+        
+        if (copyBtn && errorSpan) {
+            copyBtn.addEventListener('click', async () => {
+                const errorId = errorSpan.innerText || '{$errorId}';
+                if (!errorId || errorId === '{$errorId}') {
+                    // fallback in case variable is empty but still try
+                    if (errorId && errorId !== '') {
+                        try {
+                            await navigator.clipboard.writeText(errorId);
+                            showToast('Error ID copied');
+                        } catch (err) {
+                            // fallback for older browsers
+                            fallbackCopy(errorId);
+                        }
+                    } else {
+                        showToast('No reference yet, reload if needed');
+                    }
+                } else {
+                    try {
+                        await navigator.clipboard.writeText(errorId);
+                        showToast('Error ID copied');
+                    } catch (err) {
+                        fallbackCopy(errorId);
+                    }
+                }
+            });
+        }
+
+        function fallbackCopy(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            showToast('Copied to clipboard');
+        }
+
+        console.log('️Support reference: {$errorId} | App: {$appName}');
+    })();
 </script>
 </body>
 </html>

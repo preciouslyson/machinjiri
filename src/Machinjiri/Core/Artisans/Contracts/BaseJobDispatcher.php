@@ -4,6 +4,8 @@ namespace Mlangeni\Machinjiri\Core\Artisans\Contracts;
 
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
+use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 
 /**
  * Job Dispatcher
@@ -14,6 +16,7 @@ class BaseJobDispatcher implements JobDispatcherInterface
     protected QueueInterface $queue;
     protected string $defaultQueue = 'default';
     protected ?BackgroundWorkerManager $workerManager = null;
+    protected EventListener $eventListener;
     
     /**
      * Create a new job dispatcher
@@ -22,6 +25,7 @@ class BaseJobDispatcher implements JobDispatcherInterface
     {
         $this->app = $app;
         $this->queue = $queue;
+        $this->eventListener = new EventListener(new Logger('queue-dispatcher', Logger::DEBUG, true));
     }
     
     /**
@@ -44,7 +48,7 @@ class BaseJobDispatcher implements JobDispatcherInterface
         
         $jobId = $this->queue->push($job, $queue, $job->getDelay());
         
-        resolve('events')->trigger('job.dispatched', [
+        $this->eventListener->trigger('job.dispatched - {queue}'. $queue, [
             'job_id' => $jobId,
             'job_name' => $job->getName(),
             'queue' => $queue,
@@ -82,7 +86,7 @@ class BaseJobDispatcher implements JobDispatcherInterface
             throw new MachinjiriException('Job processor not configured', 60012);
         }
         
-        resolve('events')->trigger('job.processing', [
+        $this->eventListener->trigger('job.processing', [
             'job_id' => $job->getId(),
             'job_name' => $job->getName(),
             'queue' => 'sync',
@@ -120,7 +124,7 @@ class BaseJobDispatcher implements JobDispatcherInterface
             $jobIds[] = $this->dispatch($job);
         }
         
-        resolve('events')->trigger('job.bulk_dispatched', [
+        $this->eventListener->trigger('job.bulk_dispatched', [
             'count' => count($jobIds),
             'queue' => $this->getDefaultQueue(),
         ]);

@@ -2,31 +2,48 @@
 
 namespace Mlangeni\Machinjiri\Core\Artisans\Helpers;
 
+use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 
 class DotEnv
 {
-  protected $path;
+  protected ?string $path = null;
   protected $overload;
+  private $isArtisan;
 
-  public function __construct(string $path, bool $overload = false)
+  public function __construct(bool $isArtisan, bool $overload = false)
   {
-      $this->path = rtrim($path, DIRECTORY_SEPARATOR);
+      $this->isArtisan = $isArtisan;
       $this->overload = $overload;
+  }
+  
+  public function setPath(string $path): self 
+  {
+    $this->path = rtrim($path, DIRECTORY_SEPARATOR);
+    return $this;
   }
 
   public function load(): self
   {
-      $pathToFile = $this->path . DIRECTORY_SEPARATOR . '.env';
+      if ($this->path === null) {
+        $path = Container::$appBasePath . '/../';
+        if ($this->isArtisan) $path = getcwd()  . DIRECTORY_SEPARATOR;
+        $this->setPath($path);
+      }
+      $filePath = $this->path . DIRECTORY_SEPARATOR . '.env';
       
-      if (!is_file($pathToFile)) {
-          $pathToFile = $this->path  . "/../.env";
+      $test = ($this->isArtisan) ? "Yes" : "No";
+      
+      if (!is_file($filePath)) {
+          $filePath = str_replace("../", "", $filePath);
+          if (!is_file($filePath)) {
+            throw new MachinjiriException('Could not locate ENV in ' . $filePath . " isArtisan = " . $test);
+          }
+          
       }
       
-      $filePath = $pathToFile;
-      
       if (!is_readable($filePath)) {
-          throw new MachinjiriException("Environment file is not readable");
+          throw new MachinjiriException("Environment file is not readable: \n path: " . $filePath);
       }
 
       $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);

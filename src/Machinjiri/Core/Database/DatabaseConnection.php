@@ -126,12 +126,9 @@ class DatabaseConnection
      */
     private static function createSqliteConnection(): PDO
     {
-        $dir = (is_dir(self::$path)) ? self::$path : getcwd() . '/database/';
-        $path = $dir . "database.sqlite";
+        $path = (is_file(self::$path)) ? self::$path : getcwd() . '/database/database.sqlite';
         
-        if (!is_file($path)) {
-          fopen($path, "w");
-        }
+        if (!is_file($path)) @fopen($path, 'w');
         
         $dsn = "sqlite:{$path}";
 

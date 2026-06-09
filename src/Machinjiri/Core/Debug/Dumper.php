@@ -3,6 +3,7 @@
 namespace Mlangeni\Machinjiri\Core\Debug;
 
 use Mlangeni\Machinjiri\Core\Container;
+use Mlangeni\Machinjiri\Core\Exceptions\ErrorHandler;
 
 /**
  * Dumper - Provides pretty variable dumping with optional termination.
@@ -31,11 +32,8 @@ class Dumper
     public static function dd(...$args): never
     {
         $app = Container::instancePresent() ? Container::getInstance() : null;
-        if ($app && !$app->isDevelopment()) {
-            // In production, maybe log instead of dumping?
-            // For security, we can just die with a generic message.
-            die('Application error.');
-        }
+        if ($app && !$app->isDevelopment()) ErrorHandler::renderGenericErrorPage();
+        
         static::dump(...$args);
         exit(1);
     }

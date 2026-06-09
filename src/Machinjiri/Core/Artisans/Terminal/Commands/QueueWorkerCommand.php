@@ -118,11 +118,9 @@ trait QueueCommandHelper
     protected QueueJobGenerator $queueGenerator;
     protected QueueDriverResolver $driverResolver;
     protected array $queueConfig;
-
-    private function bootstrapDependencies(): void
+    
+    private function _init(): void 
     {
-        $this->loadEnvironmentVariables();
-        
         $this->appContainer = $this->getContainerInstance();
         $this->logger = new Logger('queue-worker');
         $this->queueGenerator = new QueueJobGenerator(getcwd());
@@ -134,23 +132,26 @@ trait QueueCommandHelper
             $this->queueGenerator,
             $this->queueConfig
         );
+    }
 
+    private function bootstrapDependencies(): void
+    {
+        $this->_init();
+        $this->loadEnvironmentVariables();
         $this->bootstrapDatabaseConnection();
     }
 
     private function loadEnvironmentVariables(): void
     {
-        $projectRoot = getcwd();
-        $envPath = $projectRoot;
-        if (!file_exists($envPath . '/.env') && file_exists(dirname($envPath) . '/.env')) {
-            $envPath = dirname($envPath);
-        }
-
         try {
-            $dotenv = new \Mlangeni\Machinjiri\Core\Routing\DotEnv($envPath);
+            $dotenv = new \Mlangeni\Machinjiri\Core\Artisans\Helpers\DotEnv(false, false);
+            $dotenv->setPath(getcwd());
             $dotenv->load();
         } catch (\Throwable $e) {
-            $this->logger?->warning('Could not load .env file: ' . $e->getMessage());
+            $this->logger->debug("Could not load .env \n{file}\n{error}", [
+                'file' => $envPath,
+                'error' => $e->getMessage()
+              ]);
         }
     }
 
@@ -286,7 +287,7 @@ trait QueueCommandHelper
                 $config['charset'] = getenv('DB_CHARSET') ?: 'utf8mb4';
                 break;
             case 'sqlite':
-                $config['path'] = $basePath . '/database/database.sqlite';
+                $config['path'] = getcwd() . '/database/database.sqlite';
                 break;
             case 'mongodb':
                 $config['host'] = getenv('DB_HOST') ?: 'localhost';

@@ -364,7 +364,7 @@ class Container
      */
     public function dotEnv(): ?array
     {
-        $dotEnv = new DotEnv($this->getRootPath());
+        $dotEnv = new DotEnv(false, true);
         $dotEnv->load();
 
         // Retrieve parsed variables from DotEnv

@@ -5,6 +5,7 @@ namespace Mlangeni\Machinjiri\Core\Debug;
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
+use Mlangeni\Machinjiri\Core\Exceptions\ErrorHandler;
 
 /**
  * Debugger
@@ -115,7 +116,7 @@ class Debugger
 
         // Fallback logger if none provided
         if (!$this->logger) {
-            $this->logger = new Logger('debug');
+            $this->logger = new Logger('app-debug');
         }
 
         // Store singleton
@@ -260,8 +261,7 @@ class Debugger
     public function dd(...$args): never
     {
         if (!$this->enabled) {
-            // In production, just die with minimal output
-            die('Application error.');
+            ErrorHandler::renderGenericErrorPage();
         }
 
         Dumper::dd(...$args);

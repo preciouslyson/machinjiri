@@ -110,12 +110,13 @@ abstract class AbstractController
      * @param int    $statusCode
      * @return HttpResponse
      */
-    protected function redirect(string $url, int $statusCode = 302): HttpResponse
+    protected function redirect(string $url, int $statusCode = 302): void
     {
         $response = new HttpResponse();
         $response->setStatusCode($statusCode)
-                 ->setHeader('Location', $url);
-        return $response;
+                 ->setHeader('Location', $url)
+                 ->send();
+        return;
     }
 
     /**

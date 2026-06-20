@@ -26,14 +26,8 @@ class FactoryManager
         // Get factories path from container
         $reflection = new ReflectionClass($container);
         $factoriesProperty = $reflection->getProperty('factories');
-        $factoriesProperty->setAccessible(true);
         $this->factoriesPath = Container::$appBasePath . '/database/factories/';
         $this->factoriesAltPath = Container::$appBasePath . '/../database/factories/';
-        
-        // Ensure directory exists
-        if (!is_dir($this->factoriesPath)) {
-            mkdir($this->factoriesPath, 0755, true);
-        }
         
         // Initialize Faker
         if (!class_exists(FakerFactory::class)) {

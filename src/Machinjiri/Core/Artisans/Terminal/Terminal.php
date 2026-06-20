@@ -11,6 +11,7 @@ use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\QueueWorkerCommand;
 use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\Angular;
 use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\Vite;
 use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\ViewCommands;
+use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\WebhookCommand;
 
 class Terminal extends Application
 {
@@ -23,6 +24,7 @@ class Terminal extends Application
         Angular::class,
         Vite::class,
         ViewCommands::class,
+        WebhookCommand::class,
     ];
 
     public function __construct()

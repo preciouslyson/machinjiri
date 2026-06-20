@@ -196,13 +196,13 @@ class TemplateGenerator
 $layout
 
 <% section('title') %>
-    {{ $title ?? 'Welcome' }}
+    {{ \$title ?? 'Welcome' }}
 <% endsection %>
 
 <% section('content') %>
     <div class="container">
-        <h1>{{ $heading ?? 'Hello World' }}</h1>
-        <p>This is your view: {{ $__view__ }}</p>
+        <h1>{{ \$heading ?? 'Hello World' }}</h1>
+        <p>This is your view: {{ \$__view__ }}</p>
     </div>
 <% endsection %>
 
@@ -216,8 +216,8 @@ HTML;
     
     private function partialStub () { return <<<'STUB'
 <div class="partial">
-    <h3>{{ $title ?? 'Partial title' }}</h3>
-    <p>{{ $content ?? 'Partial content' }}</p>
+    <h3>{{ \$title ?? 'Partial title' }}</h3>
+    <p>{{ \$content ?? 'Partial content' }}</p>
 </div> 
 STUB;
     }

@@ -49,6 +49,7 @@ class Container
     public $unitTesting;
     public $seeders;
     public $factories;
+    public $migrations;
     
     /**
      * Service container properties
@@ -216,6 +217,7 @@ class Container
         $this->unitTesting = $root . "tests/Unit";
         $this->seeders = $this->database . "seeders/";
         $this->factories = $this->database . "factories/";
+        $this->migrations = $this->database . "migrations/";
         
         // Also store in paths array for easy access
         $this->paths = [
@@ -338,23 +340,19 @@ class Container
     {
         // If file exists include it, otherwise fallback to empty array
         $config = is_file($configPath) ? include $configPath : [];
-        $envVars = $this->dotEnv();
         
-        // If config is not a valid array or lacks a driver, but env vars exist, use them
-        if ((!is_array($config) || empty($config['driver'])) && $envVars) {
-            return [
-                "driver" => $envVars["DB_CONNECTION"] ?? '',
-                "host" => $envVars["DB_HOST"] ?? '',
-                "username" => $envVars["DB_USERNAME"] ?? '',
-                "password" => $envVars["DB_PASSWORD"] ?? '',
-                "database" => $envVars["DB_DATABASE"] ?? '',
-                "port" => $envVars["DB_PORT"] ?? '',
-                "path" => $envVars["DB_PATH"] ?? '',
-                "dsn" => $envVars["DB_DSN"] ?? ''
-            ];
+        if (!is_array($config)) throw new MachinjiriException("Database Error: Configuration 'database.php' not found in config folder", 10115);
+        if (empty($config['default'])) throw new MachinjiriException("Database Error: Default driver not specified", 10116);
+        if (empty($config['connections']) || count($config['connections']) == 0) throw new MachinjiriException("Database Error: no connections defined in config", 10117);
+        if (isset($config['default']) && !isset($config['connections'][$config['default']])) throw new MachinjiriException("Database Error: The configuration for default driver [{$config['default']}] does not match any in connection configuration", 10118);
+        if (count($config['connections'][$config['default']]) == 0) throw new MachinjiriException("Database Error: The configuration for default driver [{$config['default']}] is not set.", 10119);
+        
+        $configuration = $config['connections'][$config['default']];
+        if (isset($config['pool']) && count($config['pool']) > 0) {
+            $configuration['pool'] = $config['pool'];
         }
-        
-        return $config;
+
+        return $configuration;
     }
     
     /**
@@ -382,7 +380,7 @@ class Container
     protected function loadRoutes(): void
     {
         $routes = $this->routes . "web.php";
-        if (!is_file($routes)) throw new MachinjiriException("Routing Error: web.php not found in routes/");
+        if (!is_file($routes) && ($this->isArtisan == null || !$this->isArtisan)) throw new MachinjiriException("Routing Error: web.php not found in routes/");
         require $routes;
     }
     

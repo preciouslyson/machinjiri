@@ -229,7 +229,7 @@ final class Machinjiri extends Container
             $this->listener->trigger('db.connected.driver.' . DatabaseConnection::getDriver());
         } catch (MachinjiriException $e) {
             // Log a critical error with context and show the error
-            $dbLogger->critical('connection failed', [
+            $dbLogger->critical("Connection failed \ndriver => {driver}\nerror => {message}", [
                 'driver' => DatabaseConnection::getDriver(),
                 'message' => $e->getMessage()
             ]);

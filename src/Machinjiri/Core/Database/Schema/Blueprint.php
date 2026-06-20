@@ -28,10 +28,10 @@ class Blueprint
     protected bool $withSoftDeletes = false;
     protected string $comment = '';
 
-    public function __construct(string $table, QueryBuilder $query)
+    public function __construct(string $table, ?QueryBuilder $query = null)
     {
         $this->table = $table;
-        $this->query = $query;
+        $this->query = $query ?? new QueryBuilder($table);
     }
 
     /**

@@ -44,84 +44,113 @@ class ResourceGenerator
     {
         $namespace = 'Mlangeni\\Machinjiri\\App\\Models';
         $filePath = $this->basePath . 'Models/' . $className . '.php';
-        
+    
         $template = <<<EOT
 <?php
 
 namespace $namespace;
 
 use Mlangeni\\Machinjiri\\Core\\Artisans\\Base\\AbstractModel;
+use Mlangeni\\Machinjiri\\Core\\Date\\DateTimeHandler;
 
 class $className extends AbstractModel
 {
     /**
      * The table associated with the model.
-     *
-     * @var string
      */
     protected string \$table = '{$this->tableName($className)}';
-    
+
     /**
      * The primary key for the model.
-     *
-     * @var string
      */
     protected string \$primaryKey = 'id';
-    
+
+    /**
+     * The primary key data type (int, string, etc.)
+     */
+    protected string \$keyType = 'int';
+
+    /**
+     * Indicates if the primary key is auto-incrementing.
+     */
+    public bool \$incrementing = true;
+
     /**
      * The attributes that are mass assignable.
-     *
-     * @var array
      */
     protected array \$fillable = [
         // 'column_name',
     ];
-    
+
     /**
      * The attributes that are not mass assignable.
-     *
-     * @var array
+     * Default ['*'] blocks all mass assignment unless fillable is defined.
      */
-    protected array \$guarded = ['id'];
-    
+    protected array \$guarded = ['*'];
+
     /**
-     * Enable/disable query caching for this model.
-     *
-     * @var bool
+     * The attributes that should be cast to native types or DateTimeHandler.
+     * Supported casts: int, float, string, bool, array, json, object, datetime, date, timestamp.
      */
-    protected static bool \$cacheEnabled = false;
-    
+    protected array \$casts = [
+        // 'created_at' => 'datetime',
+        // 'updated_at' => 'datetime',
+        // 'deleted_at' => 'datetime',
+        // 'is_active'  => 'boolean',
+        // 'metadata'   => 'array',
+    ];
+
     /**
-     * Cache TTL in seconds (null = use default).
-     *
-     * @var int|null
+     * The storage format for datetime fields.
      */
-    protected static ?int \$cacheTtl = null;
-    
+    protected string \$dateFormat = 'Y-m-d H:i:s';
+
     /**
-     * Cache tags for this model.
-     *
-     * @var array
+     * The timezone for datetime handling.
      */
-    protected static array \$cacheTags = [];
-    
+    protected string \$timezone = 'UTC';
+
     /**
-     * Enable/disable automatic timestamps.
-     *
-     * @var bool
+     * Indicates if the model should be timestamped.
      */
     protected bool \$timestamps = true;
-    
+
     /**
-     * Enable/disable soft deletes.
-     *
-     * @var bool
+     * Indicates if the model uses soft deletes.
      */
     protected bool \$softDelete = false;
-    
-    // Add your custom methods below
+
+    /**
+     * Enable query caching for this model.
+     */
+    protected static bool \$cacheEnabled = false;
+
+    /**
+     * Cache TTL in seconds (null uses default).
+     */
+    protected static ?int \$cacheTtl = null;
+
+    /**
+     * Cache tags for this model.
+     */
+    protected static array \$cacheTags = [];
+
+    // -------------------------------------------------------------------------
+    // Relationships
+    // -------------------------------------------------------------------------
+
+    // Example:
+    // public function posts()
+    // {
+    //     return \$this->hasMany(Post::class, 'user_id');
+    // }
+
+    // -------------------------------------------------------------------------
+    // Custom Methods
+    // -------------------------------------------------------------------------
 }
 EOT;
+    
         return $this->saveFile($filePath, $template);
     }
     

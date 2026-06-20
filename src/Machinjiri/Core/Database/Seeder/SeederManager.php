@@ -23,14 +23,8 @@ class SeederManager
         // Get seeders path from container
         $reflection = new ReflectionClass($container);
         $seedersProperty = $reflection->getProperty('seeders');
-        $seedersProperty->setAccessible(true);
         $this->seedersPath = Container::$appBasePath . '/database/seeders/';
-        $this->seedersAltPath = Container::$appBasePath . '/../database/seeders/';
-        
-        // Ensure directory exists
-        if (!is_dir($this->seedersPath)) {
-            mkdir($this->seedersPath, 0755, true);
-        }
+        $this->seedersAltPath = Container::$appBasePath . '/../database/seeders/';  
     }
     
     /**

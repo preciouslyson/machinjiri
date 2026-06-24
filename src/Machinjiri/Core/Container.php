@@ -49,7 +49,6 @@ class Container
     public $unitTesting;
     public $seeders;
     public $factories;
-    public $migrations;
     
     /**
      * Service container properties
@@ -217,7 +216,6 @@ class Container
         $this->unitTesting = $root . "tests/Unit";
         $this->seeders = $this->database . "seeders/";
         $this->factories = $this->database . "factories/";
-        $this->migrations = $this->database . "migrations/";
         
         // Also store in paths array for easy access
         $this->paths = [
@@ -380,7 +378,7 @@ class Container
     protected function loadRoutes(): void
     {
         $routes = $this->routes . "web.php";
-        if (!is_file($routes) && ($this->isArtisan == null || !$this->isArtisan)) throw new MachinjiriException("Routing Error: web.php not found in routes/");
+        if (!is_file($routes)) throw new MachinjiriException("Routing Error: web.php not found in routes/");
         require $routes;
     }
     

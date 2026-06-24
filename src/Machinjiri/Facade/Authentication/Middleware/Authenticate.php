@@ -2,23 +2,24 @@
 
 namespace Mlangeni\Machinjiri\Facade\Authentication\Middleware;
 
+use Mlangeni\Machinjiri\Core\Artisans\Base\AbstractMiddleware;
 use Mlangeni\Machinjiri\Core\Http\HttpRequest;
 use Mlangeni\Machinjiri\Core\Http\HttpResponse;
 use Mlangeni\Machinjiri\Facade\Authentication\Auth;
 
-class Authenticate
+class Authenticate extends AbstractMiddleware
 {
-    private ?string $redirectTo = null;
-    private array $guards = [];
+    protected ?string $redirectTo = null;
+    protected array $guards = [];
 
     public function __construct(array $guards = [])
     {
         $this->guards = $guards;
     }
 
-    public function handle(HttpRequest $request, HttpResponse $response, callable $next, ...$guards)
+    public function handle(HttpRequest $request, HttpResponse $response, callable $next, array $params = [])
     {
-        $guards = empty($guards) ? $this->guards : $guards;
+        $guards = empty($params) ? $this->guards : $params;
         
         foreach ($guards as $guard) {
             if (Auth::guard($guard)->check()) {
@@ -34,7 +35,6 @@ class Authenticate
         if ($request->expectsJson()) {
             return $response->sendError('Unauthenticated', 401);
         }
-        
         return $response->redirect($this->redirectTo ?? '/login');
     }
 

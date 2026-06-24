@@ -13,19 +13,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Mlangeni\Machinjiri\Core\Database\Migrations\MigrationCreator;
 use Mlangeni\Machinjiri\Core\Database\Migrations\MigrationHandler;
 use Mlangeni\Machinjiri\Core\Machinjiri;
-use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Facade\UI\Bootstrap\Misc\Keywords;
-use \PDO;
-
-trait MigrationBootstrap {
-    
-    public function getContainer (): ?Container
-    {
-        $bootstrap = getcwd() . '/bootstrap/artisan.php';
-        return (is_file($bootstrap)) ? require $bootstrap : null;
-    }
-    
-}
 
 class Migrations
 {
@@ -44,12 +32,14 @@ class Migrations
                 protected function configure(): void
                 {
                     $this->addArgument('name', InputArgument::REQUIRED, 'The name of the migration template. Note: must be lowercase and worlds must be separated by underscores. Example create_user_table ');
+                    $this->addOption('blueprint', null, InputOption::VALUE_NONE, 'Create a Migration with Blueprint functionality');
                 }
 
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Database Migration [Create a Migration]', function (SymfonyStyle $ss) use ($input) {
                         $name = $input->getArgument('name');
+                        $bluePrint = (bool) $input->getOption('blueprint');
 
                         if (in_array($name, Keywords::internal())) {
                             $ss->error("Name is Invalid! Choose a proper migration name");
@@ -66,7 +56,7 @@ class Migrations
                             }
                         }
 
-                        $ss->success("Created: " . basename($creator->create($name)));
+                        $ss->success("Created: " . basename($creator->create($name, $bluePrint)));
                         return Command::SUCCESS;
                     });
                 }
@@ -85,20 +75,15 @@ class Migrations
                 {
                     return $this->executeWithStyle($input, $output, 'Database Migration [List Created Migrations]', function (SymfonyStyle $ss) {
                         $creator = new MigrationCreator();
+                        $ss->section("List of Migrations");
                         $files = [];
                         if (count($creator->getMigrationFiles()) > 0) {
                             foreach ($creator->getMigrationFiles() as $migration) {
-                                if (is_dir($migration)) continue;
                                 $files[] = basename($migration);
                             }
-                            if (count($files) > 0) {
-                                $ss->section("List of Migrations");
-                                $ss->listing($files);
-                            } else {
-                                $ss->info("No Migrations available.");
-                            }
+                            $ss->listing($files);
                         } else {
-                            $ss->info("No Migrations available.");
+                            $ss->warning("No Migrations available.");
                         }
                         return Command::SUCCESS;
                     });
@@ -135,7 +120,7 @@ class Migrations
             },
 
             new class extends Command {
-                use CommandHelper, MigrationBootstrap;
+                use CommandHelper;
 
                 public function __construct()
                 {
@@ -146,16 +131,17 @@ class Migrations
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Database Migration [List of Ran Migrations]', function (SymfonyStyle $ss) {
-                        $migrationHandler = new MigrationHandler($this->getContainer(), $this->getContainer()->resolve("db.kernel.connection"));
-                        $ranMigrations = $migrationHandler->getRanMigrations(true);
+                        Machinjiri::App(getcwd(), true);
+                        $mh = new MigrationHandler();
+                        $runMigrations = $mh->getRanMigrations(true);
 
-                        if (count($ranMigrations) > 0) {
+                        if (count($runMigrations) > 0) {
                             $counter = 0;
                             $headers = ['No.', 'Migration', 'Created At'];
                             $rows = [];
-                            foreach ($ranMigrations as $ranMigration) {
+                            foreach ($runMigrations as $runMigration) {
                                 $counter++;
-                                $rows[] = [$counter, $ranMigration['migration'], $ranMigration['created_at']];
+                                $rows[] = [$counter, $runMigration['migration'], $runMigration['created_at']];
                             }
                             $ss->table($headers, $rows);
                         } else {
@@ -167,7 +153,7 @@ class Migrations
             },
 
             new class extends Command {
-                use CommandHelper, MigrationBootstrap;
+                use CommandHelper;
 
                 public function __construct()
                 {
@@ -178,24 +164,19 @@ class Migrations
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Database Migration [Run Available Migrations]', function (SymfonyStyle $ss) {
+                        Machinjiri::App(getcwd(), true);
                         $ss->progressStart(100);
                         $ss->progressAdvance();
-                        $migrationHandler = new MigrationHandler($this->getContainer(), $this->getContainer()->resolve("db.kernel.connection"));
-                        $result = $migrationHandler->migrate();
+                        (new MigrationHandler())->migrate();
                         $ss->progressFinish();
-                        $ss->section("Operation Completed");
-                        $ss->listing([
-                            "Total successfull: " . $result['successfull'],
-                            "Total failed: " . $result['failed']
-                        ]);
-                        if ($result['failed'] > 0 ) $ss->text("Note: check storage/logs/reports/migrations.log for failed migrations.");
+                        $ss->success("Operation completed successfully");
                         return Command::SUCCESS;
                     });
                 }
             },
 
             new class extends Command {
-                use CommandHelper, MigrationBootstrap;
+                use CommandHelper;
 
                 public function __construct()
                 {
@@ -206,10 +187,10 @@ class Migrations
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Database Migrations [Rollback Migrations]', function (SymfonyStyle $ss) {
+                        Machinjiri::App(getcwd(), true);
                         $ss->progressStart(100);
                         $ss->progressAdvance();
-                        $migrationHandler = new MigrationHandler($this->getContainer(), $this->getContainer()->resolve("db.kernel.connection"));
-                        $migrationHandler->rollback();
+                        (new MigrationHandler())->rollback();
                         $ss->progressFinish();
                         $ss->success("Operation Complete!");
                         return Command::SUCCESS;

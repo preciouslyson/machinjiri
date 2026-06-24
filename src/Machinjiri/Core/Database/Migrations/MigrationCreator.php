@@ -30,9 +30,9 @@ class MigrationCreator
     }
 
     /**
-     * Create a new migration file using the Blueprint schema builder.
+     * Create a new migration file
      */
-    public function create(string $name): string
+    public function create(string $name, bool $useBluePrint = false): string
     {
         $tableName = strtolower($name);
         $name = $this->sanitizeName($name);
@@ -43,7 +43,9 @@ class MigrationCreator
 
         $className = $this->generateClassName($name);
 
-        $content = $this->generateStub($className, $tableName);
+        $content = !$useBluePrint
+            ? $this->generateStub($className, $tableName)
+            : $this->generateBlueprintStub($className, $tableName);
 
         if (file_put_contents($filePath, $content) === false) {
             $this->logger->error('Failed to create migration file', ['path' => $filePath]);
@@ -86,94 +88,113 @@ class MigrationCreator
     }
 
     /**
-     * Generate migration file stub using Blueprint.
+     * Generate migration file stub
      */
     protected function generateStub(string $className, string $table): string
     {
         return <<<STUB
 <?php
 
+use Mlangeni\\Machinjiri\\Core\\Database\\QueryBuilder;
+
+class $className
+{
+    /**
+     * Run the migration
+     */
+    public function up(QueryBuilder \$query): void
+    {
+        // Implement your migration here
+        
+        // Example:
+        
+        // \$query->createTable('$table', [
+          // \$query->id()->autoIncrement()->primaryKey(),
+          // \$query->string('column', 255)->notNull()
+        // ])->execute();
+        
+    }
+
+    /**
+     * Reverse the migration
+     */
+    public function down(QueryBuilder \$query): void
+    {
+        // Implement rollback here
+        // Example: 
+        // \$query-->dropTable('$table')->execute();
+    }
+}
+STUB;
+    }
+    
+    public function getMigrationFiles () : array {
+      return scandir($this->migrationsPath);
+    }
+    
+    public function removeMigration (string $name) : bool {
+      $path = $this->migrationsPath . $name = preg_match('/(.php)/', $name) ? $name : $name .".php";
+      if (is_file($path)) {
+        @unlink($path);
+        return true;
+      }
+      return false;
+    }
+    
+    /**
+     * Generate migration file stub with Blueprint
+     */
+    protected function generateBlueprintStub(string $className, string $table): string
+    { return <<<STUB
+<?php
+
+use Mlangeni\\Machinjiri\\Core\\Database\\QueryBuilder;
 use Mlangeni\\Machinjiri\\Core\\Database\\Schema\\Blueprint;
 
 class {$className}
 {
     /**
-     * Run the migration.
+     * Run the migration
      */
-    public function up(): void
+    public function up(QueryBuilder \$query): void
     {
-        // Create a new Blueprint instance for the table.
-        \$blueprint = new Blueprint('$table');
-        
-        // Define your table columns here.
+        // Method 1: Using Blueprint directly
+        \$blueprint = new Blueprint('$table', \$query);
         \$blueprint->id();
+        // Add your columns here
         // \$blueprint->string('name')->notNull();
-        // \$blueprint->timestamps();
-        // \$blueprint->softDeletes();
+        \$blueprint->build();
         
-        // (Optional) Add indexes, foreign keys, or table options.
-        // \$blueprint->unique('email');
-        // \$blueprint->foreign('user_id')->references('id')->on('users');
-        // \$blueprint->engine('InnoDB');
-        
-        // Execute the migration.
-        \$blueprint->setAction('create')->build();
+        // Method 2: Using the helper method
+        // \$query->createTableWithBlueprint('$table', function (Blueprint \$table) {
+        //     \$table->id();
+        //     \$table->string('name')->notNull();
+        // });
     }
 
     /**
-     * Reverse the migration.
+     * Reverse the migration
      */
-    public function down(): void
+    public function down(QueryBuilder \$query): void
     {
-        // Drop the table.
-        (new Blueprint('user_roles'))
-            ->setAction('drop')
-            ->build();
+        \$query->dropTable('$table')->execute();
     }
 }
 STUB;
     }
-
-    /**
-     * Get all migration file names in the migration directory.
-     */
-    public function getMigrationFiles(): array
+    
+    public function getFileName (string $filename): string 
     {
-        $files = scandir($this->migrationsPath);
-        return $files ? array_filter($files, function ($file) {
-            return pathinfo($file, PATHINFO_EXTENSION) === 'php';
-        }) : [];
+      $baseName = pathinfo($filename, PATHINFO_FILENAME);
+      $parts = explode('_', $baseName);
+      
+      $nameParts = array_slice($parts, 4);
+      
+      $className = implode('', array_map(function ($part) {
+          return ucfirst($part);
+      }, $nameParts));
+      
+      return $className;
     }
-
-    /**
-     * Remove a migration file by name or full filename.
-     */
-    public function removeMigration(string $name): bool
-    {
-        // If name doesn't end with .php, append it.
-        $path = $this->migrationsPath . (str_ends_with($name, '.php') ? $name : $name . '.php');
-        if (is_file($path)) {
-            @unlink($path);
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Extract the class name from a migration filename.
-     */
-    public function getFileName(string $filename): string
-    {
-        $baseName = pathinfo($filename, PATHINFO_FILENAME);
-        $parts = explode('_', $baseName);
-        
-        // The class name is after the timestamp (first 4 parts).
-        $nameParts = array_slice($parts, 4);
-        
-        $className = implode('', array_map(function ($part) {
-            return ucfirst($part);
-        }, $nameParts));
-        
-        return $className;
-    }
+    
 }

@@ -8,8 +8,8 @@ use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Firebase\JWT\ExpiredException;
 use Firebase\JWT\SignatureInvalidException;
-use DomainException;
-use UnexpectedValueException;
+use \DomainException;
+use \UnexpectedValueException;
 
 /**
  * Bangwe - Security Encryption & JWT Manager

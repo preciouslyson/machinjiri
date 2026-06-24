@@ -12,18 +12,16 @@ class MigrationHandler
     protected string $migrationsPath;
     protected QueryBuilder $queryBuilder;
     protected Logger $logger;
-    public array $errors = [];
 
-    public function __construct(
-        ?Container $container = null,
-        ?\PDO $connection = null
-    )
+    public function __construct(?\PDO $connection = null)
     {
-        $this->logger = new Logger('migrations');
+        $this->logger = new Logger('migrations_handler');
 
-        $container = $container ?? (Container::instancePresent()) ? Container::getInstance() : null;
-
-        $this->migrationsPath = rtrim($container->migrations, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        $path = Container::$appBasePath . "/../database/migrations/";
+        if (!is_dir($path)) {
+            $path = Container::$terminalBase . "database/migrations/";
+        }
+        $this->migrationsPath = rtrim($path, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
 
         // If a PDO connection is provided, create a QueryBuilder bound to it.
         // Otherwise, QueryBuilder will use its default connection (from global config).
@@ -96,10 +94,8 @@ class MigrationHandler
 
     /**
      * Run all pending migrations
-     * Returns ran migrations count
-     * @return int 
      */
-    public function migrate(): array
+    public function migrate(): void
     {
         $ranMigrations = array_column($this->getRanMigrations(), 'migration');
         $files = $this->getMigrationFiles();
@@ -107,62 +103,36 @@ class MigrationHandler
 
         // Sort migrations by filename
         sort($files);
-        $countRan = 0;
-        $countFailed = 0;
+
         foreach ($files as $file) {
             if (in_array($file, $ranMigrations)) {
                 continue;
             }
-            try {
-                $this->runMigration($file, $batch);
-                if (isset($this->errors['run-errors'])) {
-                    $countFailed++;
-                } else {
-                    $countRan++;
-                }
-            } catch (MachinjiriException $e) {
-                $this->logger->error("Unable to run migration \n{migration}\n{batch}\n{error}", [
-                    "migration" => $file,
-                    "batch" => $batch,
-                    "error" => $e->getMessage()
-                ]);
-                $this->clearErrors();
-            }
+
+            $this->runMigration($file, $batch);
         }
-        return ['successfull' => $countRan, 'failed' => $countFailed];
     }
 
     /**
      * Execute a specific migration
      */
-    public function runMigration(string $migrationFile, int $batch): void
+    protected function runMigration(string $migrationFile, int $batch): void
     {
-        $path = $this->migrationsPath . $migrationFile;
-        if (!is_file($path)) throw new MachinjiriException("Unable to locate migration file in: " . $path);
-        
-        require_once $path;
-        $className = $this->getMigrationClassName($path);
+        require_once $this->migrationsPath . $migrationFile;
 
-        try {
-            $migration = new $className();
-            $result = $migration->up();
+        $className = $this->getMigrationClassName($migrationFile);
+        $migration = new $className();
 
-            // Record migration
-            $this->queryBuilder
-                ->insert([
-                    'migration' => $migrationFile,
-                    'batch' => $batch
-                ])
-                ->execute();
-        } catch (MachinjiriException $e) {
-            $this->logger->debug($e->getMessage());
-            $this->errors['run-errors'] = [
-                "migration" => $migrationFile,
-                "batch" => $batch,
-                "error" => $e->getMessage(),
-                "line" => $e->getLine()
-            ];
-        }
+        // Run migration
+        $migration->up(new QueryBuilder('temp_table'));
+
+        // Record migration
+        $this->queryBuilder
+            ->insert([
+                'migration' => $migrationFile,
+                'batch' => $batch
+            ])
+            ->execute();
     }
 
     /**
@@ -241,11 +211,6 @@ class MigrationHandler
         foreach ($files as $file) {
             $this->runMigration($file, $batch);
         }
-    }
-
-    private function clearErrors (): void 
-    {
-        $this->errors = [];
     }
     
 }

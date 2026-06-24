@@ -2,244 +2,94 @@
 
 namespace Mlangeni\Machinjiri\Facade\Authentication;
 
-use Mlangeni\Machinjiri\Facade\Authentication\Guards\SessionGuard;
-use Mlangeni\Machinjiri\Facade\Authentication\Models\User;
+use Mlangeni\Machinjiri\Core\Authentication\AuthManager;
+use Mlangeni\Machinjiri\Core\Container;
 
+/**
+ * Facade for the authentication system.
+ *
+ * All methods are proxied to the underlying AuthManager instance.
+ */
 class Auth
 {
-    private static ?Guard $guard = null;
-    private static string $defaultGuard = 'session';
-    private static array $guards = [];
-    private static ?User $userModel = null;
+    protected static ?AuthManager $manager = null;
 
     /**
-     * Initialize the authentication system
+     * Get the underlying AuthManager instance.
+     */
+    protected static function getManager(): AuthManager
+    {
+        if (static::$manager === null) {
+            static::$manager = resolve(AuthManager::class);
+        }
+        return static::$manager;
+    }
+
+    /**
+     * Initialize the authentication system (legacy compatibility).
+     * Now uses the container to set up the manager.
      */
     public static function initialize(array $config = []): void
     {
-        $defaultGuard = $config['default'] ?? 'session';
-        $guardsConfig = $config['guards'] ?? [];
-        
-        self::$defaultGuard = $defaultGuard;
-        
-        foreach ($guardsConfig as $name => $guardConfig) {
-            self::registerGuard($name, $guardConfig);
-        }
-        
-        if (isset($config['model'])) {
-            self::setUserModel($config['model']);
-        }
+        // The manager is configured via the container; this is a no‑op for backward compatibility.
+        // If you need to override config, you can pass it to the container binding.
+        // For now, we ensure the manager is resolved.
+        static::getManager();
     }
 
     /**
-     * Register a guard
+     * Dynamically proxy static calls to the manager.
      */
-    public static function registerGuard(string $name, array $config): void
+    public static function __callStatic(string $method, array $parameters)
     {
-        $driver = $config['driver'] ?? 'session';
-        
-        if ($driver === 'session') {
-            self::$guards[$name] = new SessionGuard(
-                $config['session'] ?? null,
-                $config['cookie'] ?? null,
-                $config['queryBuilder'] ?? null,
-                $config['hasher'] ?? null,
-                $config['model'] ?? User::class
-            );
-        }
+        return static::getManager()->$method(...$parameters);
     }
 
-    /**
-     * Set the user model
-     */
-    public static function setUserModel(string $model): void
-    {
-        if (!class_exists($model)) {
-            throw new \InvalidArgumentException("User model {$model} does not exist");
-        }
-        
-        self::$userModel = $model;
-    }
+    // --- Explicit methods for IDE completion ---
 
-    /**
-     * Get the current guard instance
-     */
     public static function guard(?string $name = null): Guard
     {
-        $name = $name ?? self::$defaultGuard;
-        
-        if (!isset(self::$guards[$name])) {
-            throw new \InvalidArgumentException("Auth guard [{$name}] is not defined");
-        }
-        
-        return self::$guards[$name];
+        return static::getManager()->guard($name);
     }
 
-    /**
-     * Check if user is authenticated
-     */
     public static function check(): bool
     {
-        return self::guard()->check();
+        return static::getManager()->check();
     }
 
-    /**
-     * Check if user is a guest
-     */
     public static function guest(): bool
     {
-        return self::guard()->guest();
+        return static::getManager()->guest();
     }
 
-    /**
-     * Get the authenticated user
-     */
     public static function user(): ?Authenticatable
     {
-        return self::guard()->user();
+        return static::getManager()->user();
     }
 
-    /**
-     * Get the authenticated user's ID
-     */
     public static function id(): mixed
     {
-        return self::guard()->id();
+        return static::getManager()->id();
     }
 
-    /**
-     * Attempt to authenticate a user
-     */
     public static function attempt(array $credentials, bool $remember = false): bool
     {
-        return self::guard()->attempt($credentials, $remember);
+        return static::getManager()->attempt($credentials, $remember);
     }
 
-    /**
-     * Log a user into the application
-     */
     public static function login(Authenticatable $user, bool $remember = false): void
     {
-        self::guard()->login($user, $remember);
+        static::getManager()->login($user, $remember);
     }
 
-    /**
-     * Log the user out of the application
-     */
     public static function logout(): void
     {
-        self::guard()->logout();
+        static::getManager()->logout();
     }
 
-    /**
-     * Validate user credentials
-     */
     public static function validate(array $credentials): bool
     {
-        return self::guard()->validate($credentials);
+        return static::getManager()->validate($credentials);
     }
 
-    /**
-     * Create a new user instance
-     */
-    public static function create(array $attributes): User
-    {
-        $model = self::$userModel ?? User::class;
-        return new $model($attributes);
-    }
-
-    /**
-     * Find a user by ID
-     */
-    public static function find(mixed $id): ?User
-    {
-        $model = self::$userModel ?? User::class;
-        $user = new $model();
-        
-        $data = $user->getQueryBuilder()
-            ->where('id', '=', $id)
-            ->first();
-        
-        if ($data) {
-            return new $model($data);
-        }
-        
-        return null;
-    }
-
-    /**
-     * Find a user by credentials
-     */
-    public static function findByCredentials(array $credentials): ?User
-    {
-        $model = self::$userModel ?? User::class;
-        $user = new $model();
-        
-        $query = $user->getQueryBuilder();
-        
-        foreach ($credentials as $key => $value) {
-            $query->where($key, '=', $value);
-        }
-        
-        $data = $query->first();
-        
-        if ($data) {
-            return new $model($data);
-        }
-        
-        return null;
-    }
-
-    /**
-     * Hash a password
-     */
-    public static function hash(string $password): string
-    {
-        $hasher = new \Mlangeni\Machinjiri\Security\Hashing\Hasher();
-        return $hasher->make($password);
-    }
-
-    /**
-     * Verify a password
-     */
-    public static function verify(string $password, string $hashed): bool
-    {
-        $hasher = new \Mlangeni\Machinjiri\Security\Hashing\Hasher();
-        return $hasher->verify($password, $hashed);
-    }
-
-    /**
-     * Check if user has a role
-     */
-    public static function hasRole(string $role): bool
-    {
-        $user = self::user();
-        return $user ? $user->hasRole($role) : false;
-    }
-
-    /**
-     * Check if user has a permission
-     */
-    public static function hasPermission(string $permission): bool
-    {
-        $user = self::user();
-        return $user ? $user->hasPermission($permission) : false;
-    }
-
-    /**
-     * Get all registered guards
-     */
-    public static function getGuards(): array
-    {
-        return array_keys(self::$guards);
-    }
-
-    /**
-     * Register an event listener for authentication events
-     */
-    public static function on(string $event, callable $listener): void
-    {
-        // Implementation depends on your event system
-        // This is a placeholder for event registration
-    }
 }

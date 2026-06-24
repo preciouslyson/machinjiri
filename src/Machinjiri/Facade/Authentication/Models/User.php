@@ -2,44 +2,55 @@
 
 namespace Mlangeni\Machinjiri\Facade\Authentication\Models;
 
+use Mlangeni\Machinjiri\Core\Artisans\Base\AbstractModel;
 use Mlangeni\Machinjiri\Facade\Authentication\Authenticatable;
-use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
-use Mlangeni\Machinjiri\Core\Authentication\Session;
-use Mlangeni\Machinjiri\Core\Authentication\Cookie;
 
-class User implements Authenticatable
+class User extends AbstractModel implements Authenticatable
 {
-    private array $attributes = [];
-    private ?QueryBuilder $queryBuilder;
-    private Session $session;
-    private Cookie $cookie;
+    protected string $table = 'users';
+    protected string $primaryKey = 'id';
+    protected array $fillable = ['name', 'email', 'password', 'remember_token', 'role', 'permissions'];
+    protected array $hidden = ['password', 'remember_token'];
+    protected array $casts = [
+        'permissions' => 'array',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
+    protected static bool $cacheEnabled = false;
 
-    public function __construct(array $attributes = [])
-    {
-        $this->attributes = $attributes;
-        $this->session = new Session();
-        $this->cookie = new Cookie();
-        $this->queryBuilder = new QueryBuilder('users');
-    }
+    // --- Authenticatable methods ---
 
     public function getAuthIdentifier(): mixed
     {
-        return $this->attributes['id'] ?? null;
+        $identifier = $this->getAttribute($this->getAuthIdentifierName());
+        if ($identifier === null) {
+            $query = (!$this->cacheEnabled) ? $this->newQuery() : $this->newCachedQuery() ;
+            $result = $query->select([$this->getAuthIdentifierName()])
+                        ->where('email', '=', $this->getAuthEmail())
+                        ->first();
+            $identifier = $result[$this->getAuthIdentifierName()];
+        }
+        return $identifier;
     }
-
+    
     public function getAuthPassword(): string
     {
-        return $this->attributes['password'] ?? '';
+        return $this->getAttribute('password') ?? '';
+    }
+
+    public function getAuthEmail(): string
+    {
+        return $this->getAttribute('email') ?? '';
     }
 
     public function getRememberToken(): string
     {
-        return $this->attributes['remember_token'] ?? '';
+        return $this->getAttribute('remember_token') ?? '';
     }
 
     public function setRememberToken(string $token): void
     {
-        $this->attributes['remember_token'] = $token;
+        $this->setAttribute('remember_token', $token);
     }
 
     public function getRememberTokenName(): string
@@ -49,108 +60,25 @@ class User implements Authenticatable
 
     public function getAuthIdentifierName(): string
     {
-        return 'id';
+        return $this->primaryKey;
     }
+
+    // --- Role & Permission helpers ---
 
     public function hasRole(string $role): bool
     {
-        return $this->attributes['role'] === $role;
+        return $this->getAttribute('role') === $role;
     }
 
     public function hasPermission(string $permission): bool
     {
-        // Check permissions from database or cache
-        $permissions = $this->getPermissions();
+        $permissions = $this->getAttribute('permissions') ?? [];
         return in_array($permission, $permissions);
     }
 
-    private function getPermissions(): array
-    {
-        if (isset($this->attributes['permissions'])) {
-            return is_array($this->attributes['permissions']) 
-                ? $this->attributes['permissions'] 
-                : json_decode($this->attributes['permissions'], true);
-        }
-        return [];
-    }
-
-    public function fill(array $attributes): self
-    {
-        $this->attributes = array_merge($this->attributes, $attributes);
-        return $this;
-    }
-
-    public function save(): bool
-    {
-        $id = $this->getAuthIdentifier();
-        
-        if ($id) {
-            // Update existing user
-            $result = $this->queryBuilder
-                ->where('id', '=', $id)
-                ->update($this->attributes)
-                ->execute();
-        } else {
-            // Insert new user
-            $result = $this->queryBuilder
-                ->insert($this->attributes)
-                ->execute();
-            
-            if (isset($result['lastInsertId'])) {
-                $this->attributes['id'] = $result['lastInsertId'];
-                return true;
-            }
-        }
-        
-        return false;
-    }
-
-    public function delete(): bool
-    {
-        $id = $this->getAuthIdentifier();
-        
-        if ($id) {
-            $result = $this->queryBuilder
-                ->where('id', '=', $id)
-                ->delete()
-                ->execute();
-            
-            return $result['rowCount'] > 0;
-        }
-        
-        return false;
-    }
-
-    public function getAttribute(string $key, mixed $default = null): mixed
-    {
-        return $this->attributes[$key] ?? $default;
-    }
-
-    public function setAttribute(string $key, mixed $value): self
-    {
-        $this->attributes[$key] = $value;
-        return $this;
-    }
-
-    public function toArray(): array
-    {
-        unset($this->attributes['password']);
-        unset($this->attributes['remember_token']);
-        return $this->attributes;
-    }
-
-    public function __get(string $name): mixed
+    // Magic accessors to support legacy code
+    public function __get($name): mixed
     {
         return $this->getAttribute($name);
-    }
-
-    public function __set(string $name, mixed $value): void
-    {
-        $this->setAttribute($name, $value);
-    }
-
-    public function __isset(string $name): bool
-    {
-        return isset($this->attributes[$name]);
     }
 }

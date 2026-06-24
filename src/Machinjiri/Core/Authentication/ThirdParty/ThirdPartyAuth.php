@@ -35,11 +35,11 @@ class ThirdPartyAuth
 
     public function __construct(
         array $config = [],
-        Session $session = null,
-        Cookie $cookie = null,
-        QueryBuilder $queryBuilder = null,
-        HttpClient $httpClient = null,
-        Logger $logger = null
+        ?Session $session = null,
+        ?Cookie $cookie = null,
+        ?QueryBuilder $queryBuilder = null,
+        ?HttpClient $httpClient = null,
+        ?Logger $logger = null
     ) {
         $this->session = $session ?? new Session();
         $this->cookie = $cookie ?? new Cookie();
@@ -53,7 +53,7 @@ class ThirdPartyAuth
     private function loadDefaultConfig(array $config): array
     {
         $defaults = [
-            'redirect_uri' => $_ENV['APP_URL'] ?? 'http://localhost:8000' . '/auth/callback',
+            'redirect_uri' => $_ENV['APP_URL'] ?? 'http://localhost:3000' . '/auth/callback',
             'session_key_prefix' => 'thirdparty_auth_',
             'user_table' => 'users',
             'provider_table' => 'user_providers',
@@ -169,18 +169,29 @@ class ThirdPartyAuth
     private function initializeProviders(): void
     {
         foreach ($this->config['endpoints'] as $provider => $endpoints) {
-            if (isset($_ENV["{$provider}_client_id"]) && isset($_ENV["{$provider}_client_secret"])) {
-                $this->providers[$provider] = $this->createOAuthProvider(
-                    $provider,
-                    $_ENV["{$provider}_client_id"],
-                    $_ENV["{$provider}_client_secret"],
-                    $this->config['redirect_uri'] . '?provider=' . $provider,
-                    $endpoints['authorization'],
-                    $endpoints['token'],
-                    $this->config['scopes'][$provider] ?? []
-                );
+            $env = $this->getProviderEnvConfig(strtoupper($provider));
+            if (($env['id'] === null && $env['secret'] === null)) {
+                throw new MachinjiriException("Configuration for OAuth provider [ {$provider} ] not provided in .env");
             }
+            $this->providers[$provider] = $this->createOAuthProvider(
+                $provider,
+                $env['id'],
+                $env['secret'],
+                $this->config['redirect_uri'] . '?provider=' . $provider,
+                $endpoints['authorization'],
+                $endpoints['token'],
+                $this->config['scopes'][$provider] ?? []
+            );
+            
         }
+    }
+
+    private function getProviderEnvConfig(string $provider): array
+    {
+        return [
+            'id' => env($provider . '_CLIENT_ID', null),
+            'secret' => env($provider . '_CLIENT_SECRET', null)
+        ];
     }
 
     private function createOAuthProvider(
@@ -250,7 +261,7 @@ class ThirdPartyAuth
         $this->providers[$provider]->handleAuthorizationRedirect($response);
     }
 
-    public function handleCallback(HttpRequest $request, string $provider = null): array
+    public function handleCallback(HttpRequest $request, ?string $provider = null): array
     {
         $provider = $provider ?? $request->getQueryParam('provider') ?? $this->session->get('auth_provider');
         
@@ -614,7 +625,7 @@ class ThirdPartyAuth
             ->execute();
     }
 
-    public function disconnectProvider(string $provider, int $userId = null): bool
+    public function disconnectProvider(string $provider, ?int $userId = null): bool
     {
         if (!$this->queryBuilder) {
             return false;
@@ -667,7 +678,7 @@ class ThirdPartyAuth
             ->get();
     }
 
-    public function refreshToken(string $provider, int $userId = null): ?array
+    public function refreshToken(string $provider, ?int $userId = null): ?array
     {
         $oauth = $this->getProvider($provider);
         if (!$oauth) {
@@ -677,7 +688,7 @@ class ThirdPartyAuth
         return $oauth->refreshToken();
     }
 
-    public function isAuthenticated(string $provider = null): bool
+    public function isAuthenticated(?string $provider = null): bool
     {
         if ($provider) {
             $oauth = $this->getProvider($provider);
@@ -700,7 +711,7 @@ class ThirdPartyAuth
         return $oauth ? $oauth->getStoredToken() : null;
     }
 
-    public function logout(string $provider = null): void
+    public function logout(?string $provider = null): void
     {
         if ($provider) {
             $oauth = $this->getProvider($provider);
@@ -753,7 +764,7 @@ class ThirdPartyAuth
 HTML;
     }
 
-    public function getLoginButtons(array $providers = null, array $attributes = []): string
+    public function getLoginButtons(?array $providers = null, array $attributes = []): string
     {
         $providers = $providers ?? $this->getAvailableProviders();
         $buttons = [];
@@ -828,4 +839,108 @@ HTML;
             $this->logger->log($level, $message, $context);
         }
     }
+
+    /**
+     * Authenticate a user using an OAuth access token.
+     * 
+     * @param string $provider  Provider name (google, github, etc.)
+     * @param string $accessToken
+     * @return array|null  The user data (as stored in the users table) or null if invalid.
+     * @throws MachinjiriException
+     */
+    public function authenticateWithToken(string $provider, string $accessToken): ?array
+    {
+        if (!$this->isProviderAvailable($provider)) {
+            throw new MachinjiriException("Provider '{$provider}' not available.");
+        }
+    
+        // Fetch user info from provider
+        $userInfo = $this->getUserInfo($provider, $accessToken);
+        if (empty($userInfo['provider_id'])) {
+            throw new MachinjiriException("Invalid user info from provider.");
+        }
+    
+        // Check if we already have a provider connection
+        $existingProvider = $this->queryBuilder
+            ->select(['*'])
+            ->from($this->config['provider_table'])
+            ->where('provider', '=', $provider)
+            ->where('provider_id', '=', $userInfo['provider_id'])
+            ->first();
+    
+        if ($existingProvider) {
+            // Update token information
+            $this->queryBuilder
+                ->update([
+                    'access_token' => $accessToken,
+                    'updated_at' => date('Y-m-d H:i:s')
+                ])
+                ->where('id', '=', $existingProvider['id'])
+                ->execute();
+    
+            // Return the user
+            return $this->queryBuilder
+                ->select(['*'])
+                ->from($this->config['user_table'])
+                ->where('id', '=', $existingProvider['user_id'])
+                ->first();
+        }
+    
+        // No existing provider connection. If auto-create is on, create user.
+        if (!$this->config['auto_create_users']) {
+            return null;
+        }
+    
+        // Check if user exists by email
+        $existingUser = null;
+        if (!empty($userInfo['email'])) {
+            $existingUser = $this->queryBuilder
+                ->select(['*'])
+                ->from($this->config['user_table'])
+                ->where('email', '=', $userInfo['email'])
+                ->first();
+        }
+    
+        if ($existingUser) {
+            $userId = $existingUser['id'];
+        } else {
+            // Create new user
+            $userId = $this->createUser($userInfo);
+        }
+    
+        // Create provider connection
+        $this->queryBuilder
+            ->insert([
+                'user_id' => $userId,
+                'provider' => $provider,
+                'provider_id' => $userInfo['provider_id'],
+                'access_token' => $accessToken,
+                'refresh_token' => null, // We don't have refresh token here
+                'token_expires' => null,
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s')
+            ])
+            ->into($this->config['provider_table'])
+            ->execute();
+    
+        // Return the user
+        return $this->queryBuilder
+            ->select(['*'])
+            ->from($this->config['user_table'])
+            ->where('id', '=', $userId)
+            ->first();
+    }
+    
+    /**
+     * Retrieve a user by ID from the local users table.
+     */
+    public function findUserById(int $id): ?array
+    {
+        return $this->queryBuilder
+            ->select(['*'])
+            ->from($this->config['user_table'])
+            ->where('id', '=', $id)
+            ->first();
+    }
+    
 }

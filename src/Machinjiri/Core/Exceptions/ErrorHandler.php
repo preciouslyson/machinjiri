@@ -49,7 +49,7 @@ class ErrorHandler
     /**
      * @var bool Whether to send error reports
      */
-    private static $reportErrors = true;
+    private static $reportErrors;
 
     /**
      * @var array Ignored error types
@@ -93,8 +93,7 @@ class ErrorHandler
         self::$logFile = $logFile ?: self::resolvePath() . '/reports/app-error-log.log';
         self::$detailLevel = max(0, min(2, $detailLevel)); // Clamp between 0-2
         
-        $envReportErrors = filter_var(env('REPORT_ERRORS'), FILTER_VALIDATE_BOOLEAN);
-        self::$reportErrors = $config['report_errors'] ?? ($envReportErrors !== false ? $envReportErrors : true);
+        self::$reportErrors = $config['report_errors'] ?? filter_var(env('REPORT_ERRORS'), FILTER_VALIDATE_BOOLEAN);
         
         self::$ignoredErrors = $config['ignored_errors'] ?? [];
         self::$throttleConfig = array_merge(self::$throttleConfig, $config['throttle'] ?? []);
@@ -345,7 +344,8 @@ class ErrorHandler
             }
 
             /** @var MailManager $mailManager */
-            $mailManager = resolve(MailManager::class);
+            $mailManager = $container->resolve(MailManager::class);
+            
 
             // Build the email content
             $subject = sprintf(
@@ -374,9 +374,8 @@ class ErrorHandler
 
             self::$logger?->info('Error report email sent to ' . $supportEmail);
         } catch (\Throwable $e) {
-            error_log('ErrorHandler: Failed to send error report email: ' . $e->getMessage());
             if (self::$logger) {
-                self::$logger->error('Failed to send error report email: {exception}', ['exception' => $e]);
+                self::$logger->error("Failed to send error report email to: {$supportEmail} due to \n {message}", ['message' => $e->getMessage()]);
             }
         }
     }
@@ -602,8 +601,7 @@ HTML;
             "[%s] %s: %s in %s on line %d\n".
             "Code: %d | Session: %s | Memory: %s (Peak: %s)\n".
             "Request: %s %s | IP: %s | Agent: %s\n".
-            "Additional Context: %s\n".
-            "Stack Trace:\n%s\n\n",
+            "Additional Context: %s\n",
             $context['timestamp'],
             $context['exception_class'],
             $context['message'],
@@ -617,8 +615,7 @@ HTML;
             $context['request_uri'],
             $context['ip_address'],
             $context['user_agent'],
-            json_encode($context['additional_context']),
-            $context['trace']
+            json_encode($context['additional_context'])
         );
 
         error_log($logMessage, 3, self::$logFile);

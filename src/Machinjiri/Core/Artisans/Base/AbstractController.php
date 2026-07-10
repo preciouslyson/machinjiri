@@ -312,7 +312,7 @@ abstract class AbstractController
         }
 
         /** @var FormRequest $formRequest */
-        $formRequest = resolve($formRequestClass, [
+        $formRequest = Container::resolve($formRequestClass, [
             'httpRequest' => $this->request,
             'httpResponse' => $this->response,
             'session' => $this->session,

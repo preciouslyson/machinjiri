@@ -99,10 +99,22 @@ class ErrorHandler
         self::$throttleConfig = array_merge(self::$throttleConfig, $config['throttle'] ?? []);
 
         // Initialize logger
-        self::$logger = new Logger('exceptions');
+        self::$logger = new Logger(
+            'exceptions', 
+            Logger::DEBUG, 
+            false,
+            '',
+            'exception'
+        );
         
         // Initialize event listener
-        self::$eventListener = new EventListener(new Logger('exceptions', Logger::DEBUG, true));
+        self::$eventListener = new EventListener(new Logger(
+            'exceptions', 
+            Logger::DEBUG, 
+            true,
+            '',
+            'exception'
+        ));
 
         // Set error reporting based on environment
         error_reporting($displayErrors ? E_ALL : E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR);
@@ -618,9 +630,6 @@ HTML;
             json_encode($context['additional_context'])
         );
 
-        error_log($logMessage, 3, self::$logFile);
-
-        // Also log to logger if available
         if (self::$logger) {
             self::$logger->error($exception->getMessage(), [
                 'exception' => $context['exception_class'],

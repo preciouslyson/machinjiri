@@ -1,6 +1,8 @@
 <?php
 
-namespace Mlangeni\Machinjiri\Core\Database;
+namespace Mlangeni\Machinjiri\Core\Database\Builders;
+
+use Mlangeni\Machinjiri\Core\Database\Grammars\Grammar;
 
 class ColumnBuilder
 {

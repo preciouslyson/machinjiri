@@ -345,7 +345,7 @@ namespace Mlangeni\Machinjiri\App\Jobs;
 
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseJob;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
+use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 
 /**
@@ -726,7 +726,7 @@ namespace Mlangeni\Machinjiri\App\Queue\Drivers;
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseQueue;
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\JobInterface;
 use Mlangeni\Machinjiri\Core\Database\DatabaseConnection;
-use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
+use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 
 /**
@@ -2878,7 +2878,7 @@ PHP;
         $template = <<<PHP
 <?php
 
-use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
+use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
 use Mlangeni\Machinjiri\Core\Database\DatabaseConnection;
 
 class {$migrationName}
@@ -3201,7 +3201,7 @@ class QueueServiceProvider extends ServiceProvider
         if ($driver === 'database') {
             $table = $config['drivers']['database']['table'] ?? 'jobs';
             
-            $query = new \Mlangeni\Machinjiri\Core\Database\QueryBuilder('');
+            $query = new \Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder('');
             $sql = $query->createTable($table, [
                 'id' => $query->id()->primary()->autoincrement(),
                 'queue' => $query->string('queue', 255)->notNull(),
@@ -3331,7 +3331,7 @@ PHP;
         $template = <<<'PHP'
 <?php
 
-use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
+use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
 use Mlangeni\Machinjiri\Core\Database\DatabaseConnection;
 
 class CreateJobsTable
@@ -3633,7 +3633,7 @@ namespace Mlangeni\Machinjiri\App\Jobs;
 
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseJob;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
+use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
 
 /**
  * {$name} Job

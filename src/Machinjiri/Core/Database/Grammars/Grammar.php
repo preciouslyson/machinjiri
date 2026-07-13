@@ -1,6 +1,6 @@
 <?php
 
-namespace Mlangeni\Machinjiri\Core\Database;
+namespace Mlangeni\Machinjiri\Core\Database\Grammars;
 
 abstract class Grammar
 {

@@ -693,7 +693,7 @@ final class Machinjiri extends Container
 
     private static function systemLogger(string $logFile, bool $event = false): Logger 
     {
-        return new Logger($logFile, Logger::DEBUG, $event, '', 'system');
+        return new Logger($logFile, Logger::DEBUG, $event, 'application', 'system');
     }
     
 }

@@ -9,7 +9,7 @@ use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Database\Caching\CachedQueryBuilder;
-use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
+use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
 use Mlangeni\Machinjiri\Core\Date\DateTimeHandler;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use DateTimeInterface;

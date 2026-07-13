@@ -84,19 +84,19 @@ class Logger
 
     protected function createLogFile(string $path, ?string $logFile = null): string
     {
-        return str_replace(['-', ' '], '_', $path . ($logFile ?? 'log') . '_' . date('Y-m-d') . '.log');
+        return $path . str_replace(['-', ' '], '_',  ($logFile ?? 'log') . '_' . date('Y-m-d') . '.log');
     }
 
     protected function resolveLogPath(?string $referrer = null, ?bool $isEvent = false, ?string $subdirectory = null): string
     {
         $path = self::getLogsRoot();
-        $referrers = ['system', 'exception', getenv('APP_NAME') ?? 'app'];
+        $referrers = ['system', 'app'];
         $type = $isEvent ? 'events' : 'reports';
 
         if ($referrer === null || !in_array($referrer, $referrers, true)) {
             $referrer = 2;
         }
-        $structure[] = ($referrer !== 2) ? $referrers[array_search($referrer, $referrers, true)] : $referrers[$referrer];
+        $structure[] = ($referrer !== 1) ? $referrers[array_search($referrer, $referrers, true)] : $referrers[$referrer];
 
         if ($subdirectory !== null && !empty($subdirectory)) {
             $subdirectories = explode(
@@ -110,9 +110,27 @@ class Logger
         
         $structure[] = $type;
 
-        return $path . implode(DIRECTORY_SEPARATOR, $structure) . DIRECTORY_SEPARATOR;
+        $path =  $path . implode(DIRECTORY_SEPARATOR, $structure) . DIRECTORY_SEPARATOR;
+        
+        return (is_dir($path)) ? $path : self::buildDir($structure);
     }
 
+    private static function buildDir(array $subdirectories): string 
+    {
+        $base = self::getLogsRoot();
+        if (count($subdirectories) > 0) {
+            $directory = $base;
+            foreach ($subdirectories as $subdirectory) {
+                if (empty($subdirectory)) continue;
+                $directory .= $subdirectory . DIRECTORY_SEPARATOR;
+                if (!is_dir($directory)) 
+                    mkdir($directory, 0755);
+            }
+            return $directory;
+        }
+        return $base;
+    }
+    
     protected static function getLogsRoot(): string
     {
         $appBase = Container::$appBasePath . '/../storage/logs/';
@@ -201,10 +219,10 @@ class Logger
     {
         // Ensure the directory exists using the Filesystem (LocalAdapter)
         $directory = dirname($this->logFile);
-        $this->ensureDirectoryExists($directory);
-
         // Write with exclusive lock (atomic append)
+        
         $fp = fopen($this->logFile, 'ab');
+        
         if ($fp === false) {
             // Fallback: error_log
             error_log('Logger: cannot open log file: ' . $this->logFile);

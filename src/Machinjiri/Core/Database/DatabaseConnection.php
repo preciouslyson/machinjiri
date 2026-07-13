@@ -169,7 +169,7 @@ class DatabaseConnection
                 $connection->query('SELECT 1');
                 self::$pool[$key] = $connection;
             } catch (PDOException $e) {
-                // Connection is dead, discard it
+                // Connection is dead, will discard it
             }
         }
     }
@@ -402,7 +402,7 @@ class DatabaseConnection
         if ($driver === 'sqlite') {
             $database = self::$path;
             if (!is_file(self::$path) && is_dir(self::$path)) {
-                $database = self::$path . 'database.sqlite';
+                $database = self::$path . '/database.sqlite';
                 if (!is_file($database)) @fopen($database, 'w');
             }
             $path = (is_file($database)) ? $database : getcwd() . '/database/database.sqlite';

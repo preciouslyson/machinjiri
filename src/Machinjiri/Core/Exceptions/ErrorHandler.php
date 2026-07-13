@@ -103,8 +103,8 @@ class ErrorHandler
             'exceptions', 
             Logger::DEBUG, 
             false,
-            '',
-            'exception'
+            'exceptions',
+            'system'
         );
         
         // Initialize event listener
@@ -112,8 +112,8 @@ class ErrorHandler
             'exceptions', 
             Logger::DEBUG, 
             true,
-            '',
-            'exception'
+            'exceptions',
+            'system'
         ));
 
         // Set error reporting based on environment
@@ -129,7 +129,6 @@ class ErrorHandler
             ob_start();
         }
 
-        self::$eventListener->trigger('error_handler.registered');
     }
     
     /**

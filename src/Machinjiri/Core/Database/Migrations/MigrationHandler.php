@@ -1,7 +1,7 @@
 <?php
 
 namespace Mlangeni\Machinjiri\Core\Database\Migrations;
-use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
+use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
@@ -15,7 +15,7 @@ class MigrationHandler
 
     public function __construct(?\PDO $connection = null)
     {
-        $this->logger = new Logger('migrations_handler');
+        $this->logger = new Logger('migration_handler', Logger::DEBUG, false, '', 'system');
 
         $path = Container::$appBasePath . "/../database/migrations/";
         if (!is_dir($path)) {

@@ -34,7 +34,11 @@ class PHPServerCommands
                     return $this->executeWithStyle($input, $output, 'Development Server', function (SymfonyStyle $ss) use ($input) {
                         $userPort = $input->getOption('port');
                         $port = ($userPort !== null) ? $userPort : 3000;
-                        $options = ['log_file' => getcwd() . '/php_server.log'];
+                        $dir = getcwd() . '/storage/dev-server/';
+                        $options = [];
+                        if (is_dir($dir)) {
+                            $options['log_file'] = $dir . 'dev_server_' . date('Y_m_d') . '.log';
+                        }
 
                         $serverMgr = new PHPServerManager($port, $options);
                         $result = $serverMgr->start();

@@ -1,12 +1,12 @@
 <?php
 
-namespace Mlangeni\Machinjiri\Core\Database;
-use Mlangeni\Machinjiri\Core\Database\Grammar;
-class MySqlGrammar extends Grammar
+namespace Mlangeni\Machinjiri\Core\Database\Grammars;
+
+class PostgresGrammar extends Grammar
 {
     public function compileAutoIncrement(): string
     {
-        return 'AUTO_INCREMENT';
+        return '';
     }
 
     public function compileColumnType(string $type, array $parameters = []): string
@@ -14,15 +14,14 @@ class MySqlGrammar extends Grammar
         $type = strtoupper($type);
         
         return match ($type) {
-            'INTEGER' => $this->compileIntegerType($parameters),
-            'INT' => $this->compileIntegerType($parameters),
+            'INTEGER', 'INT' => $this->compileIntegerType($parameters),
             'TINYINT' => $this->compileTinyIntType($parameters),
             'STRING' => $this->compileStringType($parameters),
             'TEXT' => 'TEXT',
             'FLOAT' => $this->compileFloatType($parameters),
             'DECIMAL' => $this->compileDecimalType($parameters),
             'DATE' => 'DATE',
-            'DATETIME' => 'DATETIME',
+            'DATETIME' => 'TIMESTAMP',
             'TIMESTAMP' => 'TIMESTAMP',
             default => $type
         };
@@ -30,24 +29,22 @@ class MySqlGrammar extends Grammar
 
     public function wrapTable(string $table): string
     {
-        return "{$this->tablePrefix}{$table}";
+        return "\"{$this->tablePrefix}{$table}\"";
     }
 
     public function wrapColumn(string $column): string
     {
-        return "{$column}";
+        return "\"{$column}\"";
     }
 
     protected function compileIntegerType(array $parameters): string
     {
-        $length = $parameters[0] ?? 11;
-        return $length == 11 ? "INTEGER" : "INT({$length})";
+        return 'INTEGER';
     }
 
     protected function compileTinyIntType(array $parameters): string
     {
-        $length = $parameters[0] ?? 1;
-        return "TINYINT({$length})";
+        return 'SMALLINT';
     }
 
     protected function compileStringType(array $parameters): string
@@ -58,18 +55,15 @@ class MySqlGrammar extends Grammar
 
     protected function compileFloatType(array $parameters): string
     {
-        if (!empty($parameters)) {
-            return 'FLOAT(' . implode(',', $parameters) . ')';
-        }
-        return 'FLOAT';
+        return 'REAL';
     }
 
     protected function compileDecimalType(array $parameters): string
     {
         if (!empty($parameters)) {
-            return 'DECIMAL(' . implode(',', $parameters) . ')';
+            return 'NUMERIC(' . implode(',', $parameters) . ')';
         }
-        return 'DECIMAL';
+        return 'NUMERIC';
     }
 
     public function compileCreateTable(string $table, array $columns, array $options = []): string
@@ -79,11 +73,40 @@ class MySqlGrammar extends Grammar
         if (!empty($options)) {
             $optionStrings = [];
             foreach ($options as $key => $value) {
+                if ($key === 'engine') {
+                    continue;
+                }
                 $optionStrings[] = strtoupper($key) . '=' . $value;
             }
-            $sql .= ' ' . implode(' ', $optionStrings);
+            if (!empty($optionStrings)) {
+                $sql .= ' ' . implode(' ', $optionStrings);
+            }
         }
         
         return $sql;
+    }
+
+    public function compileAlterTable(
+        string $table, 
+        array $addedColumns, 
+        array $modifiedColumns, 
+        array $droppedColumns
+    ): string {
+        $sql = "ALTER TABLE {$this->wrapTable($table)}";
+        $actions = [];
+
+        foreach ($addedColumns as $name => $builder) {
+            $actions[] = "ADD COLUMN {$builder}";
+        }
+
+        foreach ($modifiedColumns as $name => $builder) {
+            $actions[] = "ALTER COLUMN {$builder}";
+        }
+
+        foreach ($droppedColumns as $name) {
+            $actions[] = "DROP COLUMN {$this->wrapColumn($name)}";
+        }
+
+        return $sql . ' ' . implode(', ', $actions);
     }
 }

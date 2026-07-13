@@ -259,7 +259,13 @@ abstract class BaseJob implements JobInterface
     protected function getLogger(): Logger
     {
         if ($this->logger === null) {
-            $this->logger = new Logger('queue-jobs');
+            $this->logger = new Logger(
+                'queue-jobs',
+                Logger::DEBUG,
+                false,
+                'queue-system',
+                'system'
+            );
         }
         return $this->logger;
     }

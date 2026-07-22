@@ -17,6 +17,7 @@ use Mlangeni\Machinjiri\Core\Artisans\Contracts\JobInterface;
 use Mlangeni\Machinjiri\Core\Artisans\Generators\QueueJobGenerator;
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 use Mlangeni\Machinjiri\Core\Database\DatabaseConnection;
 use Mlangeni\Machinjiri\Core\Database\Migrations\MigrationCreator;
 use Mlangeni\Machinjiri\Core\Database\Migrations\MigrationHandler;
@@ -122,7 +123,13 @@ trait QueueCommandHelper
     private function _init(): void 
     {
         $this->appContainer = $this->getContainerInstance();
-        $this->logger = new Logger('queue-worker', Logger::DEBUG, false, 'queue-system', 'system');
+        $this->logger = new Logger(
+            "queue-worker",
+            Logger::DEBUG,
+            false,
+            "queue",
+            "system"
+        );
         $this->queueGenerator = new QueueJobGenerator(getcwd());
         $rawConfig = $this->loadQueueConfig(null);
         $this->queueConfig = $this->validateQueueConfig($rawConfig);
@@ -239,6 +246,7 @@ trait QueueCommandHelper
     protected function executeSafely(InputInterface $input, OutputInterface $output, callable $callback): int
     {
         try {
+            
             return $callback($input, $output);
         } catch (\Throwable $e) {
             $io = new SymfonyStyle($input, $output);
@@ -358,11 +366,12 @@ trait QueueCommandHelper
         }
     }
 }
+
 trait DatabaseQueueSetup
 {
     private function ensureQueueTablesExist(\PDO $connection, string $table, string $failedTable): void
     {
-        $logger = new Logger('queue-setup', Logger::DEBUG, false, 'queue-system', 'system');
+        $logger = LoggerFactory::system('queue-setup', 'queue');
         $driverName = $connection->getAttribute(\PDO::ATTR_DRIVER_NAME);
         $driver = $this->normalizeDriver($driverName);
         
@@ -409,7 +418,7 @@ trait DatabaseQueueSetup
     
     private function createFullSchema(\PDO $connection): void
     {
-        $logger = new Logger('queue-setup', Logger::DEBUG, false, 'queue-system', 'system');
+        $logger = LoggerFactory::system('queue-setup', 'queue');
         $driverName = $connection->getAttribute(\PDO::ATTR_DRIVER_NAME);
         if (strpos($driverName, 'mongodb') !== false) {
             $logger->info('MongoDB detected – no relational tables to create.');

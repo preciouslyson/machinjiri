@@ -5,7 +5,7 @@ namespace Mlangeni\Machinjiri\Core\Artisans\Contracts;
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
-use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 
 /**
  * Job Dispatcher
@@ -25,7 +25,7 @@ class BaseJobDispatcher implements JobDispatcherInterface
     {
         $this->app = $app;
         $this->queue = $queue;
-        $this->eventListener = new EventListener(new Logger('queue-dispatcher', Logger::DEBUG, true));
+        $this->eventListener = new EventListener(LoggerFactory::system('queue-dispatcher', 'queue', true));
     }
     
     /**

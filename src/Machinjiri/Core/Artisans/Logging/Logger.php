@@ -19,7 +19,8 @@ class Logger
     public const DEBUG     = 'debug';
 
     protected Filesystem $filesystem;
-    protected string $logFile;          // absolute path
+    protected string $logFile;         // absolute path
+    protected string $logFilename;
     protected string $minLevel;
     protected string $path;
     protected array $defaultContext = [];
@@ -84,7 +85,8 @@ class Logger
 
     protected function createLogFile(string $path, ?string $logFile = null): string
     {
-        return $path . str_replace(['-', ' '], '_',  ($logFile ?? 'log') . '_' . date('Y-m-d') . '.log');
+        $this->logFilename = $logFile ?? "log";
+        return $path . str_replace(['-', ' '], '_',  $this->logFilename . '[' . date('Ymd') . '].log');
     }
 
     protected function resolveLogPath(?string $referrer = null, ?bool $isEvent = false, ?string $subdirectory = null): string
@@ -257,6 +259,48 @@ class Logger
     public function setIncludeBacktrace(bool $enable): void
     {
         $this->includeBacktrace = $enable;
+    }
+
+    public function get(?int $date = null): array
+    {
+        $logFile = null;
+
+        if ($date === null) {
+            $logFile = $this->logFile;
+        } else {
+            $dir = dirname($this->logFile) . DIRECTORY_SEPARATOR;
+            $logFilename = str_replace(['-', ' '], '', $this->logFilename);
+            $date = (int) str_replace([' ', '-', '_'], '', $date);
+            $logPath = $dir . $logFilename . "[" . $date . "].log";
+            if (!is_file($logPath)) throw new MachinjiriException(
+                "Logger: log file " . $this->logFilename . " not found! Specify the name or date correctly" 
+            );
+            $logFile = $logPath;
+        }
+
+        $entries = [];
+
+        if (!is_file($logFile) || !is_readable($logFile)) return $entries;
+    
+        $handle = fopen($logFile, 'r');
+        if ($handle === false) {
+            return $entries;
+        }
+    
+        while (($line = fgets($handle)) !== false) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+    
+            $data = json_decode($line, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $entries[] = $data;
+            }
+        }
+    
+        fclose($handle);
+        return $entries;       
     }
     
 }

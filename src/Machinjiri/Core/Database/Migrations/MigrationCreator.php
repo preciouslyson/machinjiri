@@ -13,7 +13,7 @@ class MigrationCreator
 
     public function __construct(?string $customPath = null)
     {
-        $this->logger = new Logger('migrations');
+        $this->logger = new Logger('migrations', Logger::DEBUG, false, '', 'system');
 
         if ($customPath) {
             $this->migrationsPath = rtrim($customPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;

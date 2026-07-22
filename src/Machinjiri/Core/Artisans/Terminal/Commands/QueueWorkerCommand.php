@@ -122,7 +122,7 @@ trait QueueCommandHelper
     private function _init(): void 
     {
         $this->appContainer = $this->getContainerInstance();
-        $this->logger = new Logger('queue-worker');
+        $this->logger = new Logger('queue-worker', Logger::DEBUG, false, 'queue-system', 'system');
         $this->queueGenerator = new QueueJobGenerator(getcwd());
         $rawConfig = $this->loadQueueConfig(null);
         $this->queueConfig = $this->validateQueueConfig($rawConfig);
@@ -287,7 +287,7 @@ trait QueueCommandHelper
                 $config['charset'] = getenv('DB_CHARSET') ?: 'utf8mb4';
                 break;
             case 'sqlite':
-                $config['path'] = getcwd() . '/database/database.sqlite';
+                $config['path'] = getcwd() . '/database/databasered.sqlite';
                 break;
             case 'mongodb':
                 $config['host'] = getenv('DB_HOST') ?: 'localhost';
@@ -362,7 +362,7 @@ trait DatabaseQueueSetup
 {
     private function ensureQueueTablesExist(\PDO $connection, string $table, string $failedTable): void
     {
-        $logger = new Logger('queue-setup');
+        $logger = new Logger('queue-setup', Logger::DEBUG, false, 'queue-system', 'system');
         $driverName = $connection->getAttribute(\PDO::ATTR_DRIVER_NAME);
         $driver = $this->normalizeDriver($driverName);
         
@@ -409,7 +409,7 @@ trait DatabaseQueueSetup
     
     private function createFullSchema(\PDO $connection): void
     {
-        $logger = new Logger('queue-setup');
+        $logger = new Logger('queue-setup', Logger::DEBUG, false, 'queue-system', 'system');
         $driverName = $connection->getAttribute(\PDO::ATTR_DRIVER_NAME);
         if (strpos($driverName, 'mongodb') !== false) {
             $logger->info('MongoDB detected – no relational tables to create.');
@@ -429,7 +429,7 @@ trait DatabaseQueueSetup
             'mysql' => 'mysql',
             'pgsql', 'postgresql' => 'pgsql',
             'sqlite' => 'sqlite',
-            default => 'mysql'  // fallback
+            default => ''  // fallback
         };
     }
     

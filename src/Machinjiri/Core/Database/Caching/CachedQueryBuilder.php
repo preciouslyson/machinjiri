@@ -3,7 +3,7 @@
 namespace Mlangeni\Machinjiri\Core\Database\Caching;
 
 use Mlangeni\Machinjiri\Core\Artisans\Caching\CacheManager;
-use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
+use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
 use Mlangeni\Machinjiri\Core\Artisans\Caching\Metrics\CacheMetrics;
 
 class CachedQueryBuilder

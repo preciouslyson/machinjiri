@@ -940,7 +940,7 @@ use Mlangeni\Machinjiri\Core\Authentication\Session;
 use Mlangeni\Machinjiri\Core\Authentication\Cookie;
 use Mlangeni\Machinjiri\Core\Network\CurlHandler;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
-use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
+use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
 
 /**
  * Third-Party Authentication Service Provider

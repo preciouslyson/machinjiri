@@ -27,7 +27,13 @@ class BackgroundWorkerManager
     public function __construct(Container $app)
     {
         $this->app = $app;
-        $this->logger = new Logger('queue-worker-supervisor');
+        $this->logger = new Logger(
+            'queue-worker-supervisor',
+            Logger::DEBUG,
+            false,
+            'queue-system',
+            'system'
+        );
         
         $this->basePath = $this->detectBasePath();
         $this->storagePath = $this->basePath . '/storage/framework/queue';

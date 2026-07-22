@@ -1,8 +1,9 @@
 <?php
 
-namespace Mlangeni\Machinjiri\Core\Database;
+namespace Mlangeni\Machinjiri\Core\Database\Builders;
 
-use Mlangeni\Machinjiri\Core\Database\ColumnBuilder;
+use Mlangeni\Machinjiri\Core\Database\DatabaseConnection;
+use Mlangeni\Machinjiri\Core\Database\Grammars\Grammar;
 use Mlangeni\Machinjiri\Core\Database\Schema\Blueprint;
 
 class QueryBuilder {

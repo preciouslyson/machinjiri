@@ -146,11 +146,13 @@ final class Machinjiri extends Container
         // Register the global error/exception handler for the chosen environment
         ErrorHandler::register($dev);
 
+        $logFileName = "framework";
+
         // Prepare an event listener with a dedicated logger for event-related messages
-        $this->listener = new EventListener(new Logger('bootstrap', Logger::DEBUG, true));
+        $this->listener = new EventListener(self::systemLogger($logFileName, true));
 
         // Create logger instance
-        $this->logger = new Logger('bootstrap', Logger::DEBUG);
+        $this->logger = self::systemLogger($logFileName);
 
         try {
             // Initialize service provider loader
@@ -212,7 +214,7 @@ final class Machinjiri extends Container
      */
     private function dbConnect(): void
     {
-        $dbLogger = new Logger('database');
+        $dbLogger = self::systemLogger('database');
         try {
             DatabaseConnection::setPath($this->database);
             
@@ -687,6 +689,11 @@ final class Machinjiri extends Container
       $mode = (new DotEnv(false, false))->setPath($path)->load()->getVariables()['APP_DEBUG'];
       if ($mode || $mode === "true" || $mode === 1) return true;
       if (!$mode || $mode === 0 || $mode === "false") return false;
+    }
+
+    private static function systemLogger(string $logFile, bool $event = false): Logger 
+    {
+        return new Logger($logFile, Logger::DEBUG, $event, 'application', 'system');
     }
     
 }

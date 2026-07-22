@@ -2,8 +2,8 @@
 
 namespace Mlangeni\Machinjiri\Core\Database\Schema;
 
-use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
-use Mlangeni\Machinjiri\Core\Database\ColumnBuilder;
+use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
+use Mlangeni\Machinjiri\Core\Database\Builders\ColumnBuilder;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 
 class Blueprint

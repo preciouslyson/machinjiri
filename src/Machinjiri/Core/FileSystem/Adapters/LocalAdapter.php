@@ -105,6 +105,8 @@ class LocalAdapter implements FileSystem
         return true;
     }
 
+    
+
     public function writeStream(string $path, $resource, array $config = []): bool
     {
         $abs = $this->absolute($path);
@@ -282,6 +284,61 @@ class LocalAdapter implements FileSystem
     protected function relative(string $absolute): string
     {
         return substr($absolute, strlen($this->root));
+    }
+
+    /**
+     * Append string content to a file. Creates the file if it does not exist.
+     *
+     * @throws MachinjiriException
+     */
+    public function append(string $path, string $contents, array $config = []): bool
+    {
+        $abs = $this->absolute($path);
+        $this->ensureDirectory(dirname($abs));
+
+        if (is_file($abs)) {
+            $this->ensureWritable($abs);
+        }
+
+        if (file_put_contents($abs, $contents, LOCK_EX | FILE_APPEND) === false) {
+            throw new MachinjiriException("Failed to append to file: {$path}", 500);
+        }
+
+        if (isset($config['visibility'])) {
+            $this->setVisibility($path, $config['visibility']);
+        }
+        return true;
+    }
+
+    /**
+     * Append a stream resource to a file. Creates the file if it does not exist.
+     *
+     * @param resource $resource
+     * @throws MachinjiriException
+     */
+    public function appendStream(string $path, $resource, array $config = []): bool
+    {
+        $abs = $this->absolute($path);
+        $this->ensureDirectory(dirname($abs));
+
+        if (is_file($abs)) {
+            $this->ensureWritable($abs);
+        }
+
+        $dest = fopen($abs, 'ab');
+        if ($dest === false) {
+            throw new MachinjiriException("Failed to open destination stream for append: {$path}", 500);
+        }
+        $result = stream_copy_to_stream($resource, $dest);
+        fclose($dest);
+        if ($result === false) {
+            throw new MachinjiriException("Failed to append stream to file: {$path}", 500);
+        }
+
+        if (isset($config['visibility'])) {
+            $this->setVisibility($path, $config['visibility']);
+        }
+        return true;
     }
 
 }

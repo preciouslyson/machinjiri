@@ -5,7 +5,7 @@ namespace Mlangeni\Machinjiri\Core\Artisans\Contracts;
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use \SensitiveParameter;  
-use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 
 /**
  * Abstract Base Job
@@ -259,13 +259,7 @@ abstract class BaseJob implements JobInterface
     protected function getLogger(): Logger
     {
         if ($this->logger === null) {
-            $this->logger = new Logger(
-                'queue-jobs',
-                Logger::DEBUG,
-                false,
-                'queue-system',
-                'system'
-            );
+            $this->logger = LoggerFactory::system('queue-jobs', 'queue');
         }
         return $this->logger;
     }

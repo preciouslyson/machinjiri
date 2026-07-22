@@ -6,45 +6,45 @@ use Mlangeni\Machinjiri\Core\FileSystem\Filesystem;
 use Mlangeni\Machinjiri\Core\FileSystem\Adapters\LocalAdapter;
 use Mlangeni\Machinjiri\Core\FileSystem\Adapters\FtpAdapter;
 use Mlangeni\Machinjiri\Core\Container;
-use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;;
+use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 
 class LoggerFactory
 {
-    protected array $config;
-    protected array $loggers = [];
+    protected static array $config;
+    protected static array $loggers = [];
 
     public function __construct(array $config)
     {
-        $this->config = $config;
+        self::$config = $config;
     }
 
     /**
      * Get the default logger instance.
      */
-    public function logger(?string $channel = null): Logger
+    public static function logger(?string $channel = null): Logger
     {
-        $channel = $channel ?? $this->config['default'];
-        if (!isset($this->loggers[$channel])) {
-            $this->loggers[$channel] = $this->build($channel);
+        $channel = $channel ?? self::$config['default'];
+        if (!isset(self::$loggers[$channel])) {
+            self::$loggers[$channel] = self::build($channel);
         }
-        return $this->loggers[$channel];
+        return self::$loggers[$channel];
     }
 
-    protected function build(string $channel): Logger
+    protected static function build(string $channel): Logger
     {
-        $cfg = $this->config['channels'][$channel] ?? [];
+        $cfg = self::$config['channels'][$channel] ?? [];
         if (empty($cfg)) {
             throw new \InvalidArgumentException("Logger channel [{$channel}] not defined.");
         }
 
         // 1. Resolve the Filesystem based on the disk
         $diskName = $cfg['disk'] ?? 'local';
-        $diskConfig = $this->config['disks'][$diskName] ?? null;
+        $diskConfig = self::$config['disks'][$diskName] ?? null;
         if (!$diskConfig) {
             throw new MachinjiriException("Disk [{$diskName}] not configured.");
         }
 
-        $adapter = $this->createAdapter($diskConfig);
+        $adapter = self::createAdapter($diskConfig);
         $filesystem = new Filesystem($adapter);
 
         $logger = new Logger(
@@ -68,7 +68,7 @@ class LoggerFactory
         return $logger;
     }
 
-    protected function createAdapter(array $diskConfig)
+    protected static function createAdapter(array $diskConfig)
     {
         $driver = $diskConfig['driver'] ?? 'local';
         switch ($driver) {
@@ -79,5 +79,10 @@ class LoggerFactory
             default:
                 throw new MachinjiriException("Unsupported disk driver: {$driver}");
         }
+    }
+
+    public static function system (string $log, string $process, bool $event = false): Logger
+    {
+        return new Logger($log, Logger::DEBUG, $event, $process, 'system');
     }
 }

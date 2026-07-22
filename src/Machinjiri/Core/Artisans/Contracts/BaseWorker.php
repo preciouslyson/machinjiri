@@ -5,7 +5,7 @@ namespace Mlangeni\Machinjiri\Core\Artisans\Contracts;
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
-use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 
 /**
  * Abstract Worker – supports heartbeat callbacks for supervisor monitoring.
@@ -52,7 +52,7 @@ class BaseWorker implements WorkerInterface
         $this->app = $app;
         $this->queue = $queue;
         $this->processor = $processor;
-        $this->events = new EventListener(new Logger('queue-worker', Logger::DEBUG, true));
+        $this->events = new EventListener(LoggerFactory::system('queue-worker', 'queue', true));
     }
     
     /**

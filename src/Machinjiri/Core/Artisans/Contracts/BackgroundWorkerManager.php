@@ -3,7 +3,7 @@
 namespace Mlangeni\Machinjiri\Core\Artisans\Contracts;
 
 use Mlangeni\Machinjiri\Core\Container;
-use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 use Symfony\Component\Process\Process;
 
 /**
@@ -27,14 +27,7 @@ class BackgroundWorkerManager
     public function __construct(Container $app)
     {
         $this->app = $app;
-        $this->logger = new Logger(
-            'queue-worker-supervisor',
-            Logger::DEBUG,
-            false,
-            'queue-system',
-            'system'
-        );
-        
+        $this->logger = LoggerFactory::system('queue-worker-supervisor', "queue");
         $this->basePath = $this->detectBasePath();
         $this->storagePath = $this->basePath . '/storage/framework/queue';
         

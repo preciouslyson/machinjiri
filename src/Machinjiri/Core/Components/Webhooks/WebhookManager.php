@@ -4,6 +4,7 @@ namespace Mlangeni\Machinjiri\Core\Components\Webhooks;
 
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 use Mlangeni\Machinjiri\Core\Exceptions\WebhookException;
 use Mlangeni\Machinjiri\Core\Artisans\Caching\CacheManager;
 
@@ -22,7 +23,7 @@ class WebhookManager
         $this->app = $app;
         $this->subscriptionManager = $subscriptionManager;
         $this->idempotencyStore = new CacheIdempotencyStore($cacheManager);
-        $this->logger = new Logger('webhook-manager');
+        $this->logger = LoggerFactory::system("webhook-manager", "webhook", false); 
     }
 
     /**

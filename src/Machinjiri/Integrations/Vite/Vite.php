@@ -7,6 +7,7 @@ use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Http\HttpRequest;
 use Mlangeni\Machinjiri\Core\Http\HttpResponse;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 
 class Vite
 {
@@ -36,7 +37,7 @@ class Vite
     public function __construct(Container $app, ?Logger $logger = null)
     {
         $this->app = $app;
-        $this->logger = $logger ?? new Logger('vite');
+        $this->logger = $logger ?? LoggerFactory::system("vite", "integration", false);
         $this->loadConfiguration();
 
         $this->isHot = $this->app->isDevelopment() && $this->isDevServerRunning();

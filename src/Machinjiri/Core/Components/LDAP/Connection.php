@@ -5,6 +5,7 @@ namespace Mlangeni\Machinjiri\Core\Components\LDAP;
 use Mlangeni\Machinjiri\Core\Components\LDAP\Query\Builder;
 use Mlangeni\Machinjiri\Core\Exceptions\LdapException;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 use Mlangeni\Machinjiri\Core\Container;
 
@@ -19,8 +20,10 @@ class Connection
     public function __construct(array $config, ?Logger $logger = null, ?EventListener $events = null)
     {
         $this->config = $config;
-        $this->logger = $logger ?? new Logger('ldap-component');
-        $this->events = $events ?? new EventListener($this->logger);
+        $this->logger = $logger ?? LoggerFactory::system("ldap", "ldap", false);
+        $this->events = $events ?? new EventListener(
+            LoggerFactory::system("ldap", "ldap", true)
+        );
     }
 
     public function connect(): void

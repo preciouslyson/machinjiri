@@ -21,7 +21,7 @@ namespace Mlangeni\Machinjiri\Core\Providers;
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
-use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 
 /**
  * Base service provider class
@@ -82,7 +82,7 @@ abstract class ServiceProvider
     public function __construct(Container $app)
     {
         $this->app = $app;
-        $this->events = new EventListener(new Logger());
+        $this->events = new EventListener(LoggerFactory::system("service-provider", "service-provider", false));
     }
 
     /**

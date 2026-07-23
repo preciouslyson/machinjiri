@@ -4,6 +4,7 @@ namespace Mlangeni\Machinjiri\Core\Debug;
 
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 use Mlangeni\Machinjiri\Core\Exceptions\ErrorHandler;
 
@@ -116,7 +117,7 @@ class Debugger
 
         // Fallback logger if none provided
         if (!$this->logger) {
-            $this->logger = new Logger('app-debug');
+            $this->logger = LoggerFactory::system("debugger", "debug", false);
         }
 
         // Store singleton

@@ -5,6 +5,7 @@ namespace Mlangeni\Machinjiri\Core\Transport\Mail;
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\JobDispatcherInterface;
 use Mlangeni\Machinjiri\App\Jobs\SendMailJob;
@@ -48,11 +49,11 @@ class MailManager
         // Resolve dependencies from Container if possible
         $this->logger = $logger ?? ($app->bound(Logger::class) 
             ? $app->make(Logger::class) 
-            : new Logger());
+            : LoggerFactory::system("mail", "transport", false));
             
         $this->eventListener = $eventListener ?? ($app->bound(EventListener::class) 
             ? $app->make(EventListener::class) 
-            : null);
+            : new EventListener($this->logger));
             
         $this->renderer = $renderer;
         $this->dispatcher = $dispatcher;

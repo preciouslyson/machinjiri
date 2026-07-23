@@ -12,15 +12,11 @@ use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseWorker;
-use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseJobProcessor;
-use Mlangeni\Machinjiri\Core\Artisans\Contracts\JobInterface;
 use Mlangeni\Machinjiri\Core\Artisans\Generators\QueueJobGenerator;
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 use Mlangeni\Machinjiri\Core\Database\DatabaseConnection;
-use Mlangeni\Machinjiri\Core\Database\Migrations\MigrationCreator;
-use Mlangeni\Machinjiri\Core\Database\Migrations\MigrationHandler;
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BackgroundWorkerManager;
 
 class QueueDriverResolver
@@ -123,12 +119,10 @@ trait QueueCommandHelper
     private function _init(): void 
     {
         $this->appContainer = $this->getContainerInstance();
-        $this->logger = new Logger(
+        $this->logger = LoggerFactory::system(
             "queue-worker",
-            Logger::DEBUG,
-            false,
-            "queue",
-            "system"
+            'queue',
+            false
         );
         $this->queueGenerator = new QueueJobGenerator(getcwd());
         $rawConfig = $this->loadQueueConfig(null);
@@ -156,7 +150,6 @@ trait QueueCommandHelper
             $dotenv->load();
         } catch (\Throwable $e) {
             $this->logger->debug("Could not load .env \n{file}\n{error}", [
-                'file' => $envPath,
                 'error' => $e->getMessage()
               ]);
         }

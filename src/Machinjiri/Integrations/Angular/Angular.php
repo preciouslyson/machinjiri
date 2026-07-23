@@ -12,6 +12,7 @@ use Mlangeni\Machinjiri\Core\Security\Tokens\CSRFToken;
 use Mlangeni\Machinjiri\Core\Security\Encryption\Bangwe;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 
 class Angular
 {
@@ -47,8 +48,8 @@ class Angular
         $this->app = $app;
         $this->loadConfiguration();
 
-        $this->logger = $logger ?? new Logger('angular');
-        $this->eventListener = $eventListener ?? new EventListener(new Logger('angular_events'));
+        $this->logger = $logger ?? LoggerFactory::system("angular", "integration", false);
+        $this->eventListener = $eventListener ?? new EventListener(LoggerFactory::system("angular", "integration", true));
 
         if ($this->app->isDevelopment() && ($this->config['auto_detect_dev_server'] ?? true)) {
             $this->useDevServer = $this->isDevServerRunning();

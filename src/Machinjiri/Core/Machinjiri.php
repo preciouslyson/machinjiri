@@ -22,8 +22,8 @@ namespace Mlangeni\Machinjiri\Core;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Exceptions\ErrorHandler;
 use Mlangeni\Machinjiri\Core\Database\DatabaseConnection;
-use Mlangeni\Machinjiri\Core\Database\Migrations\MigrationHandler;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 use Mlangeni\Machinjiri\Core\Artisans\Helpers\DotEnv;
 
@@ -693,7 +693,7 @@ final class Machinjiri extends Container
 
     private static function systemLogger(string $logFile, bool $event = false): Logger 
     {
-        return new Logger($logFile, Logger::DEBUG, $event, 'application', 'system');
+        return LoggerFactory::system($logFile, "system", $event);
     }
     
 }

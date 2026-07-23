@@ -4,7 +4,7 @@ namespace Mlangeni\Machinjiri\Core\Exceptions;
 
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
-use Mlangeni\Machinjiri\Core\Http\HttpRequest;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 use Mlangeni\Machinjiri\Core\Transport\Mail\MailManager;
 use Mlangeni\Machinjiri\Core\Transport\Mail\MailMessage;
@@ -99,22 +99,10 @@ class ErrorHandler
         self::$throttleConfig = array_merge(self::$throttleConfig, $config['throttle'] ?? []);
 
         // Initialize logger
-        self::$logger = new Logger(
-            'exceptions', 
-            Logger::DEBUG, 
-            false,
-            'exceptions',
-            'system'
-        );
+        self::$logger = LoggerFactory::system("error-handler", "exception", false);
         
         // Initialize event listener
-        self::$eventListener = new EventListener(new Logger(
-            'exceptions', 
-            Logger::DEBUG, 
-            true,
-            'exceptions',
-            'system'
-        ));
+        self::$eventListener = new EventListener(LoggerFactory::system("error-handler", "exception", true));
 
         // Set error reporting based on environment
         error_reporting($displayErrors ? E_ALL : E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR);

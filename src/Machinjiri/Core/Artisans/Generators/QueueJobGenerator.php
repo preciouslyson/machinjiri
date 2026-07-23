@@ -20,7 +20,6 @@
 namespace Mlangeni\Machinjiri\Core\Artisans\Generators;
 
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-use Mlangeni\Machinjiri\Core\Container;
 
 class QueueJobGenerator
 {
@@ -304,7 +303,7 @@ class {$name}Job extends BaseJob
     public function failed(MachinjiriException \$exception): void
     {
         // Log the failure
-        (new Logger("{$name}-job"))
+        LoggerFactory::system("queue-worker", "queue", false)
         ->warning(sprintf(
           '{$name}Job failed after %d attempts: %s',
           \$this->getAttempts(),
@@ -541,7 +540,7 @@ class {$name}Job extends BaseJob
     public function failed(MachinjiriException \$exception): void
     {
         // Log failure with model context
-        (new Logger({$name}-job))
+        LoggerFactory::system("queue-worker", "queue", false)
         ->warning(sprintf(
           '{$name}Job failed after %d attempts: %s',
           \$this->getAttempts(),
@@ -1088,8 +1087,7 @@ namespace Mlangeni\Machinjiri\App\Queue\Drivers;
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseQueue;
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\JobInterface;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-use Predis\Client;
-use Predis\Connection\ConnectionException;
+use Mlangeni\Machinjiri\Core\Artisans\Adapters\Redis\RedisAdapter;
 
 /**
  * Redis Queue Driver (Predis based)
@@ -1098,7 +1096,7 @@ use Predis\Connection\ConnectionException;
  */
 class RedisQueue extends BaseQueue
 {
-    protected Client \$redis;
+    protected RedisAdapter \$redis;
     protected array \$config = [];
     protected string \$prefix = 'queue:';
 
@@ -1127,29 +1125,24 @@ class RedisQueue extends BaseQueue
     }
 
     /**
-     * Connect to Redis using Predis
+    * Connect to Redis using the framework Redis adapter
      */
     protected function connectRedis(): void
     {
-        \$parameters = [
-            'scheme' => 'tcp',
-            'host'   => \$this->config['host'],
-            'port'   => \$this->config['port'],
-            'database' => \$this->config['database'],
-            'timeout' => \$this->config['timeout'],
-        ];
-
-        if (\$this->config['password']) {
-            \$parameters['password'] = \$this->config['password'];
-        }
-
-        try {
-            \$this->redis = new Client(\$parameters);
-            // Test connection
-            \$this->redis->ping();
-        } catch (ConnectionException \$e) {
-            throw new MachinjiriException('Redis connection failed: ' . \$e->getMessage());
-        }
+        \$this->redis = new RedisAdapter([
+            'default' => 'default',
+            'connections' => [
+                'default' => [
+                    'host' => \$this->config['host'],
+                    'port' => \$this->config['port'],
+                    'password' => \$this->config['password'],
+                    'database' => \$this->config['database'],
+                    'timeout' => \$this->config['timeout'],
+                ],
+            ],
+            'prefix' => trim(\$this->prefix, ':'),
+            'serialize' => false,
+        ]);
     }
 
     /**

@@ -939,7 +939,7 @@ use Mlangeni\Machinjiri\Core\Authentication\ThirdPartyAuth;
 use Mlangeni\Machinjiri\Core\Authentication\Session;
 use Mlangeni\Machinjiri\Core\Authentication\Cookie;
 use Mlangeni\Machinjiri\Core\Network\CurlHandler;
-use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
 
 /**
@@ -974,7 +974,7 @@ class {$name} extends BaseServiceProvider
             \$session = new Session();
             \$cookie = new Cookie();
             \$httpClient = new CurlHandler();
-            \$logger = new Logger('auth', Logger::DEBUG);
+            \$logger = LoggerFactory::system("thirdparty-auth", "authentication", false);
             
             \$thirdPartyAuth = new ThirdPartyAuth(
                 \$config,

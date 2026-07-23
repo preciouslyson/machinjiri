@@ -3,7 +3,7 @@
 namespace Mlangeni\Machinjiri\Testing\Concerns;
 
 use Mlangeni\Machinjiri\Core\Database\DatabaseConnection;
-use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
+use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
 
 trait InteractsWithDatabase
 {

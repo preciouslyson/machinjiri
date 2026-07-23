@@ -15,6 +15,7 @@ Machinjiri is a **flexible, and powerful PHP framework** designed for rapid web 
   - [Views & Templates](#view-engine)
   - [Database](#database--orm)
   - [Authentication & Security](#authentication--security)
+    - [LDAP](#ldap)
   - [Forms & Validation](#forms--validation)
   - [Service Providers](#service-providers)
   - [Mail System](#mail-system)
@@ -155,6 +156,7 @@ Machinjiri is designed to accelerate web development with:
   - cURL (for HTTP client)
   - JSON (for API support)
   - OpenSSL (for encryption)
+    - LDAP (for directory integration)
 - **Composer**: For dependency management
 - **Database**: MySQL 5.7+, PostgreSQL 10+, or SQLite 3+
 
@@ -599,6 +601,89 @@ use Mlangeni\Machinjiri\Core\Security\Encryption\Cipher;
 $encrypter = new Cipher($key);
 $encrypted = $encrypter->encrypt($data);
 $decrypted = $encrypter->decrypt($encrypted);
+```
+
+### LDAP
+
+The LDAP component provides configured connections, escaped query filters, and LDAP entry objects. The PHP LDAP extension must be enabled before using it.
+
+**Register an LDAP manager:**
+
+```php
+// app/Providers/LdapServiceProvider.php
+namespace Mlangeni\Machinjiri\App\Providers;
+
+use Mlangeni\Machinjiri\Core\Components\LDAP\Manager as LdapManager;
+use Mlangeni\Machinjiri\Core\Container;
+use Mlangeni\Machinjiri\Core\Providers\ServiceProvider;
+
+class LdapServiceProvider extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->app->singleton('ldap.manager', function (Container $app) {
+            return new LdapManager([
+                'default' => 'directory',
+                'connections' => [
+                    'directory' => [
+                        'hosts' => [env('LDAP_HOST', 'ldap.example.com')],
+                        'port' => (int) env('LDAP_PORT', 389),
+                        'base_dn' => env('LDAP_BASE_DN', 'dc=example,dc=com'),
+                        'username' => env('LDAP_BIND_DN'),
+                        'password' => env('LDAP_BIND_PASSWORD'),
+                        'use_tls' => (bool) env('LDAP_USE_TLS', true),
+                    ],
+                ],
+            ]);
+        });
+    }
+}
+```
+
+Add the provider to `config/providers.php`, then query the directory from a controller or service:
+
+```php
+use Mlangeni\Machinjiri\Core\Components\LDAP\Manager as LdapManager;
+
+public function directoryUsers(LdapManager $ldap): array
+{
+    return $ldap->connection()->query()
+        ->where('objectClass', '=', 'inetOrgPerson')
+        ->where('mail', 'contains', '@example.com')
+        ->select(['uid', 'cn', 'mail'])
+        ->sizeLimit(100)
+        ->get();
+}
+
+foreach (directoryUsers(resolve('ldap.manager')) as $entry) {
+    echo $entry->getAttribute('cn');
+    echo $entry->getAttribute('mail');
+    echo $entry->getDn();
+}
+```
+
+For LDAP-backed authentication, configure the guard with the `ldap` provider driver. The provider searches by `uid` and `mail`, synchronizes selected attributes to the local user model, and validates passwords by binding with the user DN:
+
+```php
+// config/auth.php
+return [
+    'default' => 'web',
+    'guards' => [
+        'web' => [
+            'driver' => 'session',
+            'provider' => [
+                'driver' => 'ldap',
+                'model' => App\Models\User::class,
+                'username_attribute' => 'uid',
+                'search_fields' => ['uid', 'mail'],
+                'sync_attributes' => [
+                    'name' => 'cn',
+                    'email' => 'mail',
+                ],
+            ],
+        ],
+    ],
+];
 ```
 
 ### Forms & Validation

@@ -28,7 +28,7 @@
     "phpunit/phpunit": "^10.0",
     "mockery/mockery": "^1.5",
     "fakerphp/faker": "^1.20",
-    "brianium/paratest": "^6.6"
+    "brianium/paratest": "*"
   },
   "autoload": {
     "psr-4": {

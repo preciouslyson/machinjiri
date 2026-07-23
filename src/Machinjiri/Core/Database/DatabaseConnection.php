@@ -8,6 +8,9 @@ use \PDOException;
 use MongoDB\Client;
 use MongoDB\Driver\Exception\Exception as MongoDBException;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
+use Mlangeni\Machinjiri\Core\Database\Grammars\Grammar;
+use Mlangeni\Machinjiri\Core\Database\Grammars\MySqlGrammar;
+use Mlangeni\Machinjiri\Core\Database\Grammars\PostgresGrammar;
 
 class DatabaseConnection
 {

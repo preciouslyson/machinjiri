@@ -5,7 +5,7 @@ namespace Mlangeni\Machinjiri\Core\Authentication\ThirdParty;
 use Mlangeni\Machinjiri\Core\Authentication\OAuth;
 use Mlangeni\Machinjiri\Core\Authentication\Session;
 use Mlangeni\Machinjiri\Core\Authentication\Cookie;
-use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
+use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
 use Mlangeni\Machinjiri\Core\Http\HttpRequest;
 use Mlangeni\Machinjiri\Core\Http\HttpResponse;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;

@@ -2,9 +2,11 @@
 
 namespace Mlangeni\Machinjiri\Core\Database\Migrations;
 use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
+use Mlangeni\Machinjiri\Core\Database\Schema\Blueprint;
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 
 class MigrationHandler
 {
@@ -15,7 +17,7 @@ class MigrationHandler
 
     public function __construct(?\PDO $connection = null)
     {
-        $this->logger = new Logger('migration_handler', Logger::DEBUG, false, '', 'system');
+        $this->logger = LoggerFactory::system("migration-handler", "database", false);
 
         $path = Container::$appBasePath . "/../database/migrations/";
         if (!is_dir($path)) {
@@ -23,7 +25,7 @@ class MigrationHandler
         }
         $this->migrationsPath = rtrim($path, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
 
-        // If a PDO connection is provided, create a QueryBuilder bound to it.
+        // If a PDO connection is provided, bind the migration builders to it.
         // Otherwise, QueryBuilder will use its default connection (from global config).
         $this->queryBuilder = $connection
             ? new QueryBuilder($this->migrationsTable, $connection)
@@ -37,12 +39,11 @@ class MigrationHandler
      */
     protected function createMigrationsTable(): void
     {
-        $queryBuilder = $this->queryBuilder;
-        $queryBuilder->createTable($this->migrationsTable, [
-          $queryBuilder->string('migration')->primaryKey()->notNull(),
-          $queryBuilder->integer('batch')->notNull(),
-          $queryBuilder->timestamp('created_at')->default('CURRENT_TIMESTAMP')
-          ])->execute();
+                $blueprint = new Blueprint($this->migrationsTable, $this->queryBuilder);
+                $blueprint->string('migration')->primaryKey()->notNull();
+                $blueprint->integer('batch')->notNull();
+                $blueprint->timestamp('created_at')->default('CURRENT_TIMESTAMP');
+                $blueprint->build();
     }
 
     /**
@@ -124,7 +125,7 @@ class MigrationHandler
         $migration = new $className();
 
         // Run migration
-        $migration->up(new QueryBuilder('temp_table'));
+        $migration->up(new Blueprint($this->getMigrationTableName($migrationFile), $this->queryBuilder));
 
         // Record migration
         $this->queryBuilder
@@ -172,7 +173,7 @@ class MigrationHandler
         $migration = new $className();
 
         // Rollback migration
-        $migration->down(new QueryBuilder(''));
+        $migration->down(new Blueprint($this->getMigrationTableName($migrationFile), $this->queryBuilder));
 
         // Remove migration record
         $this->queryBuilder
@@ -201,6 +202,17 @@ class MigrationHandler
         }
         
         return $className;
+    }
+
+    /**
+     * Get the table name encoded in a migration filename.
+     */
+    protected function getMigrationTableName(string $filename): string
+    {
+        $baseName = pathinfo($filename, PATHINFO_FILENAME);
+        $parts = explode('_', $baseName);
+
+        return strtolower(implode('_', array_slice($parts, 4)));
     }
     
     public function migrateFiles(array $files): void

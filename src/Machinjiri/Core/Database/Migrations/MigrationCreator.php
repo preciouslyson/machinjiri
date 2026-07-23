@@ -5,6 +5,7 @@ namespace Mlangeni\Machinjiri\Core\Database\Migrations;
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 
 class MigrationCreator
 {
@@ -13,7 +14,7 @@ class MigrationCreator
 
     public function __construct(?string $customPath = null)
     {
-        $this->logger = new Logger('migrations', Logger::DEBUG, false, '', 'system');
+        $this->logger = LoggerFactory::system("migration-creator", "database", false);
 
         if ($customPath) {
             $this->migrationsPath = rtrim($customPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
@@ -95,34 +96,28 @@ class MigrationCreator
         return <<<STUB
 <?php
 
-use Mlangeni\\Machinjiri\\Core\\Database\\QueryBuilder;
+use Mlangeni\\Machinjiri\\Core\\Database\\Schema\\Blueprint;
 
 class $className
 {
     /**
      * Run the migration
      */
-    public function up(QueryBuilder \$query): void
+    public function up(Blueprint \$blueprint): void
     {
-        // Implement your migration here
-        
-        // Example:
-        
-        // \$query->createTable('$table', [
-          // \$query->id()->autoIncrement()->primaryKey(),
-          // \$query->string('column', 255)->notNull()
-        // ])->execute();
+        // Add your columns here
+        \$blueprint->id();
+        // \$blueprint->string('column')->notNull();
+        \$blueprint->build();
         
     }
 
     /**
      * Reverse the migration
      */
-    public function down(QueryBuilder \$query): void
+    public function down(Blueprint \$blueprint): void
     {
-        // Implement rollback here
-        // Example: 
-        // \$query-->dropTable('$table')->execute();
+        \$blueprint->setAction('drop')->build();
     }
 }
 STUB;
@@ -148,7 +143,6 @@ STUB;
     { return <<<STUB
 <?php
 
-use Mlangeni\\Machinjiri\\Core\\Database\\QueryBuilder;
 use Mlangeni\\Machinjiri\\Core\\Database\\Schema\\Blueprint;
 
 class {$className}
@@ -156,28 +150,20 @@ class {$className}
     /**
      * Run the migration
      */
-    public function up(QueryBuilder \$query): void
+    public function up(Blueprint \$blueprint): void
     {
-        // Method 1: Using Blueprint directly
-        \$blueprint = new Blueprint('$table', \$query);
         \$blueprint->id();
         // Add your columns here
         // \$blueprint->string('name')->notNull();
         \$blueprint->build();
-        
-        // Method 2: Using the helper method
-        // \$query->createTableWithBlueprint('$table', function (Blueprint \$table) {
-        //     \$table->id();
-        //     \$table->string('name')->notNull();
-        // });
     }
 
     /**
      * Reverse the migration
      */
-    public function down(QueryBuilder \$query): void
+    public function down(Blueprint \$blueprint): void
     {
-        \$query->dropTable('$table')->execute();
+        \$blueprint->setAction('drop')->build();
     }
 }
 STUB;

@@ -82,7 +82,7 @@ abstract class ServiceProvider
     public function __construct(Container $app)
     {
         $this->app = $app;
-        $this->events = new EventListener(LoggerFactory::system("service-provider", "service-provider", false));
+        $this->events = new EventListener(LoggerFactory::system("service-provider", "service_provider", false));
     }
 
     /**

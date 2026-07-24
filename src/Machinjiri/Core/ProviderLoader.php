@@ -164,15 +164,15 @@ class ProviderLoader
      */
     protected function getProviders(): array
     {
-        $providerConfig = $this->app->config . 'providers.php';
+        $providerConfig = $this->app->config . 'services/providers.php';
         
         if (file_exists($providerConfig)) {
             $config = require $providerConfig;
             return $config['providers'] ?? [];
         }
         
-                // Default: no providers. Providers should be declared in config/providers.php
-                return [];
+        // Default: no providers. Providers should be declared in config/services/providers.php
+        return [];
     }
 
     /**

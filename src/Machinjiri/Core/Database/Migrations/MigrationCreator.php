@@ -12,21 +12,16 @@ class MigrationCreator
     public string $migrationsPath;
     protected Logger $logger;
 
-    public function __construct(?string $customPath = null)
+    public function __construct(Container $container)
     {
         $this->logger = LoggerFactory::system("migration-creator", "database", false);
 
-        if ($customPath) {
-            $this->migrationsPath = rtrim($customPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-            @mkdir($this->migrationsPath, 0777, true);
-            return;
+        $path = rtrim($container->getRootPath() . "database/migrations/", DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        
+        if (!is_dir($path)) {
+            throw new MachinjiriException("Migrations directory does not exist: {$path}");
         }
 
-        $path = rtrim(Container::$appBasePath . "/../database/migrations/", DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-        if (!is_dir($path)) {
-            $path = Container::$terminalBase . "database/migrations/";
-        }
-        @mkdir($path, 0777, true);
         $this->migrationsPath = $path;
     }
 

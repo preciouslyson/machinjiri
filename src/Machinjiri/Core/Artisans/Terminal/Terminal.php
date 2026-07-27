@@ -3,20 +3,22 @@
 namespace Mlangeni\Machinjiri\Core\Artisans\Terminal;
 
 use Symfony\Component\Console\Application;
-use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\Migrations;
-use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\App;
-use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\PHPServerCommands;
-use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\ServiceProviderCommand;
-use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\QueueWorkerCommand;
-use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\Angular;
-use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\Vite;
-use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\ViewCommands;
-use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\WebhookCommand;
+use Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands\{
+    App,
+    PHPServerCommands,
+    ServiceProviderCommand,
+    QueueWorkerCommand,
+    Angular,
+    Vite,
+    ViewCommands,
+    WebhookCommand,
+    Network,
+    DatabaseCommands
+};
 
 class Terminal extends Application
 {
     protected $commandClasses = [
-        Migrations::class,
         App::class,
         PHPServerCommands::class,
         ServiceProviderCommand::class,
@@ -25,6 +27,8 @@ class Terminal extends Application
         Vite::class,
         ViewCommands::class,
         WebhookCommand::class,
+        Network::class,
+        DatabaseCommands::class
     ];
 
     public function __construct()

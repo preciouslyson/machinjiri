@@ -97,7 +97,7 @@ class FactoryBuilder
     /**
      * Create dummy data for common tables.
      */
-    public static function seedCommonData(array $counts = []): void
+    public static function seedCommonData(array $counts = []): array
     {
         $defaultCounts = [
             'users' => 10,

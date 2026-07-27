@@ -21,10 +21,6 @@ namespace Mlangeni\Machinjiri\Core;
 
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Exceptions\ErrorHandler;
-use Mlangeni\Machinjiri\Core\Database\DatabaseConnection;
-use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
-use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
-use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 use Mlangeni\Machinjiri\Core\Artisans\Helpers\DotEnv;
 
 /**
@@ -55,20 +51,6 @@ final class Machinjiri extends Container
      * @var ProviderLoader
      */
     public ?ProviderLoader $providerLoader = null;
-
-    /**
-     * Logger instance used by the application (general purpose).
-     *
-     * @var Logger
-     */
-    private Logger $logger;
-
-    /**
-     * Event listener used to trigger and handle application events.
-     *
-     * @var EventListener
-     */
-    private EventListener $listener;
 
     /**
      * Create (if necessary) and return the singleton application instance.
@@ -146,14 +128,6 @@ final class Machinjiri extends Container
         // Register the global error/exception handler for the chosen environment
         ErrorHandler::register($dev);
 
-        $logFileName = "framework";
-
-        // Prepare an event listener with a dedicated logger for event-related messages
-        $this->listener = new EventListener(self::systemLogger($logFileName, true));
-
-        // Create logger instance
-        $this->logger = self::systemLogger($logFileName);
-
         try {
             // Initialize service provider loader
             $this->providerLoader = new ProviderLoader($this);
@@ -163,9 +137,6 @@ final class Machinjiri extends Container
 
             // Register service providers
             $this->providerLoader->register();
-
-            // Establish database connection
-            $this->dbConnect();
 
             // Boot service providers
             $this->providerLoader->boot();
@@ -200,41 +171,6 @@ final class Machinjiri extends Container
             return $this;
         } catch (MachinjiriException $e) {
             // Show any initialization error to the user/developer
-            $e->show();
-        }
-    }
-
-    /**
-     * Establish database connection using framework DatabaseConnection wrapper.
-     *
-     * This method sets the path and configuration for the DatabaseConnection and triggers
-     * an event indicating which driver was connected. On failure, an error is logged and presented.
-     *
-     * @return void
-     */
-    private function dbConnect(): void
-    {
-        $dbLogger = self::systemLogger('database');
-        try {
-            DatabaseConnection::setPath($this->database);
-            
-            // Get database configuration
-            $dbConfig = $this->getConfigurations()['database'] ?? [];
-            
-            if (empty($dbConfig)) {
-                throw new MachinjiriException("Database configuration not found", 40002);
-            }
-            
-            DatabaseConnection::setConfig($dbConfig);
-
-            // Notify listeners which DB driver is in use
-            $this->listener->trigger('db.connected.driver.' . DatabaseConnection::getDriver());
-        } catch (MachinjiriException $e) {
-            // Log a critical error with context and show the error
-            $dbLogger->critical("Connection failed \ndriver => {driver}\nerror => {message}", [
-                'driver' => DatabaseConnection::getDriver(),
-                'message' => $e->getMessage()
-            ]);
             $e->show();
         }
     }
@@ -682,18 +618,12 @@ final class Machinjiri extends Container
             self::getEnvironment()
         );
     }
-    
-    private static function resolveDebugMode (string $path): bool 
-    {
-      $path = $path . '/../';
-      $mode = (new DotEnv(false, false))->setPath($path)->load()->getVariables()['APP_DEBUG'];
-      if ($mode || $mode === "true" || $mode === 1) return true;
-      if (!$mode || $mode === 0 || $mode === "false") return false;
-    }
 
-    private static function systemLogger(string $logFile, bool $event = false): Logger 
+    public static function resolveDebugMode(string $path): bool
     {
-        return LoggerFactory::system($logFile, "system", $event);
+        $dotEnv = new DotEnv(null, true, $path)->load()->getVariables();
+        $envDebug = $dotEnv['APP_DEBUG'] ?? true;
+        return filter_var($envDebug, FILTER_VALIDATE_BOOLEAN);
     }
     
 }

@@ -13,7 +13,6 @@ class FactoryManager
 {
     protected Container $container;
     protected string $factoriesPath;
-    protected string $factoriesAltPath;
     protected Generator $faker;
     protected array $createdFactories = [];
     
@@ -23,11 +22,7 @@ class FactoryManager
     {
         $this->container = $container;
         
-        // Get factories path from container
-        $reflection = new ReflectionClass($container);
-        $factoriesProperty = $reflection->getProperty('factories');
-        $this->factoriesPath = Container::$appBasePath . '/database/factories/';
-        $this->factoriesAltPath = Container::$appBasePath . '/../database/factories/';
+        $this->factoriesPath = $container->getRootPath() . 'database/factories/';
         
         // Initialize Faker
         if (!class_exists(FakerFactory::class)) {
@@ -46,7 +41,7 @@ class FactoryManager
     public function make(string $model, bool $overwrite = false): string
     {
         $filename = $this->getFactoryFileName($model);
-        $dir = is_dir($this->factoriesPath) ? $this->factoriesPath : $this->factoriesAltPath;
+        $dir = $this->factoriesPath;
         
         $fullPath = $dir . $filename;
         
@@ -88,7 +83,7 @@ class FactoryManager
     public function run(string $model, int $count = 1, array $attributes = []): array
     {
         $filename = $this->getFactoryFileName($model);
-        $fullPath = $this->factoriesAltPath . $filename;
+        $fullPath = $this->factoriesPath . $filename;
         
         if (!file_exists($fullPath)) {
             throw new MachinjiriException("Factory file not found: {$filename}", 404);
@@ -187,7 +182,7 @@ class FactoryManager
         foreach ($models as $model) {
             try {
                 $filename = $this->getFactoryFileName($model);
-                $fullPath = $this->factoriesAltPath . $filename;
+                $fullPath = $this->factoriesPath . $filename;
                 
                 if (!file_exists($fullPath)) {
                     continue;
@@ -245,7 +240,7 @@ class FactoryManager
      */
     public function list(): array
     {
-        $files = glob($this->factoriesAltPath . '*.php');
+        $files = glob($this->factoriesPath . '*.php');
         $factories = [];
         
         foreach ($files as $file) {
@@ -270,7 +265,7 @@ class FactoryManager
     public function fake(string $model, int $count = 1, array $attributes = []): array
     {
         $filename = $this->getFactoryFileName($model);
-        $fullPath = $this->factoriesAltPath . $filename;
+        $fullPath = $this->factoriesPath . $filename;
         
         if (!file_exists($fullPath)) {
             throw new MachinjiriException("Factory file not found: {$filename}", 404);

@@ -15,13 +15,13 @@ class MigrationHandler
     protected QueryBuilder $queryBuilder;
     protected Logger $logger;
 
-    public function __construct(?\PDO $connection = null)
+    public function __construct(Container $container, ?\PDO $connection = null)
     {
         $this->logger = LoggerFactory::system("migration-handler", "database", false);
 
-        $path = Container::$appBasePath . "/../database/migrations/";
+        $path = $container->getRootPath() . "database/migrations/";
         if (!is_dir($path)) {
-            $path = Container::$terminalBase . "database/migrations/";
+            throw new MachinjiriException("Migrations directory does not exist: {$path}");
         }
         $this->migrationsPath = rtrim($path, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
 

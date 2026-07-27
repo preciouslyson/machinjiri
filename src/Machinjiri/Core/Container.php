@@ -4,6 +4,9 @@ namespace Mlangeni\Machinjiri\Core;
 
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Helpers\DotEnv;
+use Mlangeni\Machinjiri\Core\Database\DatabaseConnection;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\{Logger, LoggerFactory};
+use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 
 /**
  * Container
@@ -90,6 +93,20 @@ class Container
      * Provider loader instance
      */
     public ?ProviderLoader $providerLoader = null;
+
+    /**
+     * Logger instance used by the application (general purpose).
+     *
+     * @var Logger
+     */
+    protected Logger $logger;
+
+    /**
+     * Event listener used to trigger and handle application events.
+     *
+     * @var EventListener
+     */
+    protected EventListener $listener;
     
     /**
      * Container constructor.
@@ -103,6 +120,14 @@ class Container
         self::$appBasePath = rtrim($appBasePath, DIRECTORY_SEPARATOR);
         
         $this->appEnvironment = $appEnvironment;
+
+        $logFileName = "framework";
+
+        // Prepare an event listener with a dedicated logger for event-related messages
+        $this->listener = new EventListener(self::systemLogger($logFileName, true));
+
+        // Create logger instance
+        $this->logger = self::systemLogger($logFileName);
         
         // Initialize all array properties to empty arrays
         $this->bindings = [];
@@ -180,6 +205,7 @@ class Container
     {
         $this->validateBasePath();
         $this->setupPaths();
+        $this->dbConnect();
     }
     
     /**
@@ -242,7 +268,7 @@ class Container
      *
      * @return string
      */
-    protected function getRootPath(): string
+    public function getRootPath(): string
     {
         return (!$this->isArtisan) ? self::$appBasePath . "/../" : self::$appBasePath . DIRECTORY_SEPARATOR;
     }
@@ -282,7 +308,7 @@ class Container
     protected function validateConfigurationFiles(string $appConfig, string $databaseConfig): void
     {
         // Load environment variables (if any)
-        $envVars = $this->dotEnv();
+        $envVars = self::dotEnv();
         
         // If there's no readable app.php and no environment variables, bail out
         if ((!is_file($appConfig) || !is_readable($appConfig)) && !$envVars) {
@@ -311,7 +337,7 @@ class Container
     {
         // If file exists include it, otherwise fallback to empty array
         $config = is_file($configPath) ? include $configPath : [];
-        $envVars = $this->dotEnv();
+        $envVars = self::dotEnv();
         
         // If the config is not an array but we have env vars, construct a minimal app config
         if (!is_array($config) && $envVars) {
@@ -358,9 +384,9 @@ class Container
      *
      * @return array|null Array of variables if any were loaded, otherwise null
      */
-    public function dotEnv(): ?array
+    public static function dotEnv(): ?array
     {
-        $dotEnv = new DotEnv(false, true);
+        $dotEnv = new DotEnv(self::getInstance(), true);
         $dotEnv->load();
 
         // Retrieve parsed variables from DotEnv
@@ -915,6 +941,46 @@ class Container
         }
         
         throw new MachinjiriException("Method {$method} not found on container.", 30104);
+    }
+
+    /**
+     * Establish database connection using framework DatabaseConnection wrapper.
+     *
+     * This method sets the path and configuration for the DatabaseConnection and triggers
+     * an event indicating which driver was connected. On failure, an error is logged and presented.
+     *
+     * @return void
+     */
+    private function dbConnect(): void
+    {
+        $dbLogger = self::systemLogger('database');
+        try {
+            DatabaseConnection::setPath($this->database);
+            
+            // Get database configuration
+            $dbConfig = $this->getConfigurations()['database'] ?? [];
+            
+            if (empty($dbConfig)) {
+                throw new MachinjiriException("Database configuration not found", 40002);
+            }
+            
+            DatabaseConnection::setConfig($dbConfig);
+
+            // Notify listeners which DB driver is in use
+            $this->listener->trigger('db.connected.driver.' . DatabaseConnection::getDriver());
+        } catch (MachinjiriException $e) {
+            // Log a critical error with context and show the error
+            $dbLogger->critical("Connection failed \ndriver => {driver}\nerror => {message}", [
+                'driver' => DatabaseConnection::getDriver(),
+                'message' => $e->getMessage()
+            ]);
+            $e->show();
+        }
+    }
+
+    protected static function systemLogger(string $logFile, bool $event = false): Logger 
+    {
+        return LoggerFactory::system($logFile, "system", $event);
     }
     
 }

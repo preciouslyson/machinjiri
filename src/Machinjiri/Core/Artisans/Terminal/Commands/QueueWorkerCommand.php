@@ -1134,15 +1134,13 @@ class QueueWorkerCommand
                             return Command::FAILURE;
                         }
             
-                        if (file_exists($bootstrapPath)) {
-                            $this->queueConfig = $this->loadQueueConfig($input->getOption('config'));
-                            $this->driverResolver = new QueueDriverResolver(
-                                $this->appContainer,
-                                $this->logger,
-                                $this->queueGenerator,
-                                $this->queueConfig
-                            );
-                        }
+                        $this->queueConfig = $this->loadQueueConfig($input->getOption('config'));
+                        $this->driverResolver = new QueueDriverResolver(
+                            $this->appContainer,
+                            $this->logger,
+                            $this->queueGenerator,
+                            $this->queueConfig
+                        );
                         
                         $driver = ($driver === "default") ? "database" : $driver;
             

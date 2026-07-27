@@ -520,7 +520,6 @@ HTML;
      */
     private static function displayError(\Throwable $exception): void
     {
-        // Deprecated - use renderException instead
         self::renderException($exception);
     }
 
@@ -551,6 +550,8 @@ HTML;
         if (self::$displayErrors) {
             // Development mode - show detailed error
             self::renderErrorPage($exception);
+        } else {
+            self::renderGenericErrorPage();
         }
     }
 
@@ -710,7 +711,7 @@ HTML;
 
         $primaryColor = '#E68A5E';
         $primaryDark = '#C4633A';
-        $bgColor = '#FCF7F0';
+        $bgColor = '#cccccc';
         $cardBg = '#FFFFFFDD';
         $textColor = '#2E2C2A';
         $subtleBorder = '#F2E5D8';
@@ -737,9 +738,9 @@ HTML;
             --text: {$textColor};
             --text-light: #6B5E53;
             --border: {$subtleBorder};
-            --shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.08);
-            --radius: 28px;
-            --radius-sm: 20px;
+            --shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.01);
+            --radius: 0;
+            --radius-sm: 0;
             --transition: all 0.2s ease;
         }
         
@@ -755,7 +756,7 @@ HTML;
             color: var(--text);
             line-height: 1.5;
             min-height: 100vh;
-            padding: 2rem 1.5rem;
+            padding: 2rem 8rem;
             position: relative;
         }
         
@@ -820,7 +821,6 @@ HTML;
             background: #FDE8E8;
             color: var(--danger);
             padding: 0.5rem 1.2rem;
-            border-radius: 60px;
             font-weight: 600;
             font-size: 0.85rem;
             border: 1px solid #F5C6C6;
@@ -1050,7 +1050,6 @@ HTML;
         .btn {
             padding: 0.6rem 1.2rem;
             border: none;
-            border-radius: 60px;
             font-weight: 500;
             cursor: pointer;
             display: inline-flex;
@@ -1140,29 +1139,29 @@ HTML;
     <div class="error-wrapper">
         <div class="error-header">
             <div class="app-info">
-                <h1><i class="fas fa-desktop"></i> {$appName} <span style="font-size:0.8rem;">v{$appVersion}</span></h1>
+                <h1>{$appName} <span style="font-size:0.8rem;">v{$appVersion}</span></h1>
                 <div>
                     <span class="environment">{$environment}</span>
                     <span class="environment" style="background: #FDE8E8; color: var(--danger);">Error #{$errorCode}</span>
                 </div>
             </div>
             <div class="error-badge">
-                <i class="fas fa-puzzle-piece"></i> {$errorClass}
+                {$errorClass}
             </div>
         </div>
         
         <div class="error-container">
             <div class="main-error">
                 <div class="error-section">
-                    <h2 class="section-title"><i class="fas fa-feather-alt"></i> Oops! Something went wrong</h2>
+                    <h2 class="section-title">Oops! Something went wrong</h2>
                     
                     <div class="error-message">
-                        <h3><i class="fas fa-exclamation-triangle"></i> {$errorMessage}</h3>
+                        <h3>{$errorMessage}</h3>
                         <p>Exception thrown in <code>{$errorClass}</code></p>
                     </div>
                     
                     <div class="error-location">
-                        <i class="fas fa-map-marker-alt"></i> {$errorFile} <strong>on line {$errorLine}</strong>
+                        {$errorFile} <strong>on line {$errorLine}</strong>
                     </div>
                     
                     {$codeSnippet}
@@ -1172,7 +1171,7 @@ HTML;
         if ($showTrace && !empty($errorTrace)) {
             echo <<<HTML
                     <div>
-                        <h2 class="section-title"><i class="fas fa-list-ul"></i> Stack Trace</h2>
+                        <h2 class="section-title">Stack Trace</h2>
                         <div class="tabs">
                             <button class="tab-button active" onclick="switchTraceTab('trace-full')">Full Trace</button>
                             <button class="tab-button" onclick="switchTraceTab('trace-simple')">Simple</button>
@@ -1195,7 +1194,7 @@ HTML;
                                     <strong>#{$index}</strong> {$class}{$type}{$function}({$args})
                                 </div>
                                 <div class="trace-file">
-                                    <i class="far fa-file"></i> {$file}:{$line}
+                                    {$file}:{$line}
                                 </div>
                             </div>
 HTML;
@@ -1232,7 +1231,7 @@ HTML;
         if ($showEnvironment) {
             echo <<<HTML
                     <div>
-                        <h2 class="section-title"><i class="fas fa-cogs"></i> Cozy Debug Info</h2>
+                        <h2 class="section-title">Debug Info</h2>
                         <div class="tabs">
                             <button class="tab-button active" onclick="switchDebugTab('debug-request')">Request</button>
                             <button class="tab-button" onclick="switchDebugTab('debug-session')">Session</button>
@@ -1280,7 +1279,7 @@ HTML;
             
             <div class="sidebar">
                 <div class="info-card">
-                    <h3 class="section-title"><i class="fas fa-info-circle"></i> Error Details</h3>
+                    <h3 class="section-title">Error Details</h3>
                     <div class="info-item">
                         <div class="info-label">Error Code</div>
                         <div class="info-value">#{$errorCode}</div>
@@ -1308,7 +1307,7 @@ HTML;
                 </div>
                 
                 <div class="info-card">
-                    <h3 class="section-title"><i class="fas fa-globe"></i> Request</h3>
+                    <h3 class="section-title">Request</h3>
                     <div class="info-item">
                         <div class="info-label">URL</div>
                         <div class="info-value">{$_SERVER['REQUEST_URI']}</div>
@@ -1333,7 +1332,7 @@ HTML;
                 </div>
                 
                 <div class="info-card">
-                    <h3 class="section-title"><i class="fas fa-lightbulb"></i> Quick Actions</h3>
+                    <h3 class="section-title">Quick Actions</h3>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
                         <button class="btn btn-secondary" style="font-size: 0.7rem;" onclick="clearCache()">
                             <i class="fas fa-broom"></i> Clear Cache
@@ -1770,7 +1769,6 @@ HTML;
             width: 65%;
             height: 65%;
             background: radial-gradient(circle at 70% 60%, rgba(196, 99, 58, 0.06), transparent 75%);
-            border-radius: 50%;
             z-index: 0;
             pointer-events: none;
         }
@@ -1781,8 +1779,7 @@ HTML;
             width: 100%;
             background: rgba(255, 253, 250, 0.96);
             backdrop-filter: blur(4px);
-            border-radius: 48px;
-            box-shadow: 0 25px 45px -12px rgba(0, 0, 0, 0.15), 0 2px 0 0 rgba(255, 255, 255, 0.6) inset;
+            box-shadow: 0 25px 45px -12px rgba(0, 0, 0, 0.5), 0 2px 0 0 rgba(255, 255, 255, 0.6) inset;
             border: 1px solid rgba(242, 229, 216, 0.8);
             overflow: hidden;
             position: relative;
@@ -1870,7 +1867,6 @@ HTML;
         /* error ID panel - modern card */
         .ref-panel {
             background: #FEF6EF;
-            border-radius: 80px;
             padding: 0.65rem 1rem 0.65rem 1.5rem;
             display: flex;
             align-items: center;
@@ -1909,7 +1905,6 @@ HTML;
             background: white;
             border: none;
             padding: 0.4rem 1rem;
-            border-radius: 40px;
             font-size: 0.75rem;
             font-weight: 500;
             display: inline-flex;
@@ -1944,7 +1939,6 @@ HTML;
 
         .btn {
             padding: 0.7rem 1.6rem;
-            border-radius: 60px;
             font-weight: 600;
             font-size: 0.9rem;
             display: inline-flex;
@@ -2025,7 +2019,6 @@ HTML;
             background: #2E2C2A;
             color: #FCF3EA;
             padding: 0.6rem 1.2rem;
-            border-radius: 60px;
             font-size: 0.8rem;
             font-weight: 500;
             opacity: 0;
@@ -2081,11 +2074,6 @@ HTML;
 <body>
 <div class="error-container">
     <div class="error-card">
-        <div class="icon-wrap">
-            <div class="icon-badge">
-                <i class="fas fa-mug-hot cozy-icon"></i>
-            </div>
-        </div>
         <h1>Oops, Something went wrong</h1>
         <div class="message-block">
             <div class="main-message">

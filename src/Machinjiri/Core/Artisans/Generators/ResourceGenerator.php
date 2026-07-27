@@ -8,16 +8,10 @@ class ResourceGenerator
 {
     private $basePath;
     
-    public function __construct() 
+    public function __construct(Container $container) 
     {
         // Base path for all generated files
-        $path = Container::$appBasePath . '/../app/';
-        
-        if (!is_dir($path)) {
-            // try terminal path
-            $path = Container::$terminalBase . 'app/';
-        }
-        $this->basePath = $path;
+        $this->basePath = $container->getRootPath() . '/app/';
     }
     
     public function create(string $className, string $type = "controller"): bool 

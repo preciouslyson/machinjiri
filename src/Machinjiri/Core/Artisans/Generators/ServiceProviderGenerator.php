@@ -2,8 +2,9 @@
 
 namespace Mlangeni\Machinjiri\Core\Artisans\Generators;
 
+use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\{Logger, LoggerFactory};
 
 class ServiceProviderGenerator
 {
@@ -36,18 +37,18 @@ class ServiceProviderGenerator
     private string $providersPath;
 
     /**
-     * @var LoggerFactory 
+     * @var Logger
      */
-    private LoggerFactory $loggerFactory;
+    private Logger $loggerFactory;
 
     /**
      * Constructor
      *
      * @param string $appBasePath Application base path
      */
-    public function __construct(string $appBasePath)
+    public function __construct(Container $container)
     {
-        $this->appBasePath = rtrim($appBasePath, DIRECTORY_SEPARATOR);
+        $this->appBasePath = rtrim($container->getRootPath(), DIRECTORY_SEPARATOR);
         $this->srcPath = $this->appBasePath . '/src/Machinjiri/';
         $this->configPath = $this->appBasePath . '/config/services/';
         $this->providersPath = $this->appBasePath . '/app/Providers/';
@@ -369,7 +370,7 @@ PHP;
         $this->ensureDirectoryExists($this->configPath);
         $name = str_replace('serviceprovider', '', $name);
         
-        $configFile = $this->configPath . 'services/' . $name . '.php';
+        $configFile = $this->configPath .  $name . '.php';
         
         // Check if config file already exists
         if (file_exists($configFile)) {

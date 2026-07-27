@@ -5,6 +5,7 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 
 trait CommandHelper
@@ -41,4 +42,42 @@ trait CommandHelper
             return Command::FAILURE;
         }
     }
+
+    protected function resolveArtisanBootstrapFile(): ?string
+    {
+        $cwd = getcwd();
+        $candidate = $cwd . '/bootstrap/artisan.php';
+        if (file_exists($candidate)) {
+            return $candidate;
+        }
+        
+        // Walk upwards from cwd
+        $dir = $cwd;
+        for ($i = 0; $i < 10; $i++) {
+            $candidate = $dir . '/bootstrap/artisan.php';
+            if (file_exists($candidate)) {
+                return $candidate;
+            }
+            $parent = dirname($dir);
+            if ($parent === $dir) break;
+            $dir = $parent;
+        }
+        
+        return null;
+    }
+
+    public function artisanContainer(): Container
+    {
+        $bootstrapFile = $this->resolveArtisanBootstrapFile();
+        if (!is_file($bootstrapFile) || $bootstrapFile === null) {
+            throw new MachinjiriException('Could not find artisan bootstrap file.', 1200);
+        }
+
+        $container = require $bootstrapFile;
+        if (!Container::instancePresent()) {
+            Container::setInstance($container);
+        }
+        return Container::getInstance();
+    }
+
 }

@@ -10,11 +10,25 @@ class DotEnv
   protected ?string $path = null;
   protected $overload;
   private $isArtisan;
+  private $customPath;
 
-  public function __construct(bool $isArtisan, bool $overload = false)
+  public function __construct(?Container $container = null, bool $overload = false, $customPath = null)
   {
-      $this->isArtisan = $isArtisan;
-      $this->overload = $overload;
+
+    $this->setPath($customPath ?? $this->resolveContainerPath($container));
+    $this->overload = $overload;
+    $this->customPath = $customPath;
+  }
+
+  private function resolveContainerPath(?Container $container = null): string
+  {
+      if ($container === null) {
+          if (Container::instancePresent()) {
+              $container = Container::getInstance();
+              return $container->getBasePath();
+          }
+      }
+      return $container->getRootPath();
   }
   
   public function setPath(string $path): self 
@@ -25,21 +39,13 @@ class DotEnv
 
   public function load(): self
   {
-      if ($this->path === null) {
-        $path = Container::$appBasePath . '/../';
-        if ($this->isArtisan) $path = getcwd()  . DIRECTORY_SEPARATOR;
-        $this->setPath($path);
-      }
       $filePath = $this->path . DIRECTORY_SEPARATOR . '.env';
       
-      $test = ($this->isArtisan) ? "Yes" : "No";
-      
       if (!is_file($filePath)) {
-          $filePath = str_replace("../", "", $filePath);
-          if (!is_file($filePath)) {
-            throw new MachinjiriException('Could not locate ENV in ' . $filePath . " isArtisan = " . $test);
-          }
-          
+        $filePath = $this->path . DIRECTORY_SEPARATOR . '../.env';
+        if (!is_file($filePath)) {
+            throw new MachinjiriException("Environment file not found: \n path: " . $filePath);
+        }
       }
       
       if (!is_readable($filePath)) {

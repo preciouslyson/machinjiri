@@ -108,7 +108,7 @@ class SignalManager
 }
 trait QueueCommandHelper
 {
-    use DatabaseQueueSetup;
+    use DatabaseQueueSetup, CommandHelper;
     
     protected Container $appContainer;
     protected Logger $logger;
@@ -118,7 +118,7 @@ trait QueueCommandHelper
     
     private function _init(): void 
     {
-        $this->appContainer = $this->getContainerInstance();
+        $this->appContainer = $this->artisanContainer();
         $this->logger = LoggerFactory::system(
             "queue-worker",
             'queue',
@@ -157,10 +157,7 @@ trait QueueCommandHelper
 
     private function getContainerInstance(): Container
     {
-        if (!Container::instancePresent()) {
-            new Container(getcwd());
-        }
-        return Container::getInstance();
+        return $this->artisanContainer();
     }
 
     private function loadQueueConfig(?string $configPath): array
@@ -1119,18 +1116,7 @@ class QueueWorkerCommand
                     return $this->executeSafely($input, $output, function () use ($input, $output) {
                         $ss = new SymfonyStyle($input, $output);
                         $this->bootstrapDependencies();
-                        
-                        $bootstrapPath = $this->findBootstrapFile();
-                        if ($bootstrapPath && file_exists($bootstrapPath)) {
-                            $app = require $bootstrapPath;
-                            if (!Container::instancePresent()) {
-                                Container::setInstance($app);
-                            }
-                            $this->appContainer = $app;
-                        } else {
-                            $ss->warning("Full bootstrap file not found at {$bootstrapPath}. Using minimal bootstrap - some features may be missing.");
-                            $this->bootstrapDependencies();
-                        }
+
                         $driver      = $input->getOption('driver');
                         $queue       = $input->getOption('queue');
                         $sleep       = (int) $input->getOption('sleep');
@@ -1260,39 +1246,6 @@ class QueueWorkerCommand
             
                         return Command::SUCCESS;
                     });
-                }
-                
-                private function findBootstrapFile(): ?string
-                {
-                    // Try relative to current working directory
-                    $cwd = getcwd();
-                    $candidate = $cwd . '/bootstrap/artisan.php';
-                    if (file_exists($candidate)) {
-                        return $candidate;
-                    }
-                    
-                    // Try relative to the project root (if we can determine it from container)
-                    if (isset($this->appContainer)) {
-                        $root = $this->appContainer->getBasePath(); // assume container has getBasePath()
-                        $candidate = $root . '/bootstrap/artisan.php';
-                        if (file_exists($candidate)) {
-                            return $candidate;
-                        }
-                    }
-                    
-                    // Walk upwards from cwd
-                    $dir = $cwd;
-                    for ($i = 0; $i < 10; $i++) {
-                        $candidate = $dir . '/bootstrap/artisan.php';
-                        if (file_exists($candidate)) {
-                            return $candidate;
-                        }
-                        $parent = dirname($dir);
-                        if ($parent === $dir) break;
-                        $dir = $parent;
-                    }
-                    
-                    return null;
                 }
                 
                 private function runWorkerWithHeartbeat(BaseWorker $worker, string $queue, array $options, BackgroundWorkerManager $manager, string $driver, string $queueName, int $instance, int $interval, int &$lastHeartbeat): void

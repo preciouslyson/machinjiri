@@ -12,6 +12,17 @@ use Symfony\Component\Console\Helper\Table;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Generators\ServiceProviderGenerator;
 
+trait spHelper 
+{
+    use CommandHelper;
+
+    public function serviceProvider(): ServiceProviderGenerator
+    {
+        return new ServiceProviderGenerator($this->artisanContainer());
+    }
+
+}
+
 class ServiceProviderCommand
 {
     public static function getCommands(): array
@@ -19,7 +30,7 @@ class ServiceProviderCommand
         return [
             // provider:make
             new class extends Command {
-                use CommandHelper;
+                use CommandHelper, spHelper;
 
                 public function __construct()
                 {
@@ -41,7 +52,7 @@ class ServiceProviderCommand
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'App Service Providers', function (SymfonyStyle $ss) use ($input) {
-                        $generator = new ServiceProviderGenerator(getcwd());
+                        $generator = $this->serviceProvider();
                         $service = $input->getArgument('service');
 
                         $options = [];
@@ -115,7 +126,7 @@ class ServiceProviderCommand
 
             // provider:remove
             new class extends Command {
-                use CommandHelper;
+                use CommandHelper, spHelper;
 
                 public function __construct()
                 {
@@ -133,7 +144,7 @@ class ServiceProviderCommand
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Service Providers', function (SymfonyStyle $ss) use ($input) {
-                        $generator = new ServiceProviderGenerator(getcwd());
+                        $generator = $this->serviceProvider();
                         $service = $input->getArgument('service');
 
                         if (!$input->getOption('force')) {
@@ -159,7 +170,7 @@ class ServiceProviderCommand
 
             // provider:list
             new class extends Command {
-                use CommandHelper;
+                use CommandHelper, spHelper;
 
                 public function __construct()
                 {
@@ -171,7 +182,7 @@ class ServiceProviderCommand
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Service Providers', function (SymfonyStyle $ss) use ($input, $output) {
-                        $generator = new ServiceProviderGenerator(getcwd());
+                        $generator = $this->serviceProvider();
                         $providers = $generator->listProviders();
 
                         if (empty($providers)) {
@@ -205,7 +216,7 @@ class ServiceProviderCommand
 
             // provider:init
             new class extends Command {
-                use CommandHelper;
+                use CommandHelper, spHelper;
 
                 public function __construct()
                 {
@@ -217,7 +228,7 @@ class ServiceProviderCommand
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Initialize Basic Service Providers', function (SymfonyStyle $ss) {
-                        $generator = new ServiceProviderGenerator(getcwd());
+                        $generator = $this->serviceProvider();
                         $result = $generator->generateAllBasic();
 
                         if (count($result) > 0) {
@@ -234,7 +245,7 @@ class ServiceProviderCommand
 
             // provider:stub
             new class extends Command {
-                use CommandHelper;
+                use CommandHelper, spHelper;
 
                 public function __construct()
                 {
@@ -252,7 +263,7 @@ class ServiceProviderCommand
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Create Service Provider from Stub', function (SymfonyStyle $ss) use ($input) {
-                        $generator = new ServiceProviderGenerator(getcwd());
+                        $generator = $this->serviceProvider();
                         $service = $input->getArgument('service');
                         $stubName = $input->getArgument('stub');
 
@@ -272,7 +283,7 @@ class ServiceProviderCommand
 
             // provider:register
             new class extends Command {
-                use CommandHelper;
+                use CommandHelper, spHelper;
 
                 public function __construct()
                 {
@@ -289,7 +300,7 @@ class ServiceProviderCommand
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Register Service Provider', function (SymfonyStyle $ss) use ($input) {
-                        $generator = new ServiceProviderGenerator(getcwd());
+                        $generator = $this->serviceProvider();
                         $service = $input->getArgument('service');
                         $service = $generator->normalizeName($service);
 
@@ -335,7 +346,7 @@ class ServiceProviderCommand
 
             // provider:unregister
             new class extends Command {
-                use CommandHelper;
+                use CommandHelper, spHelper;
 
                 public function __construct()
                 {
@@ -352,7 +363,7 @@ class ServiceProviderCommand
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Unregister Service Provider', function (SymfonyStyle $ss) use ($input) {
-                        $generator = new ServiceProviderGenerator(getcwd());
+                        $generator = $this->serviceProvider();
                         $service = $input->getArgument('service');
                         $service = $generator->normalizeName($service);
 
@@ -402,7 +413,7 @@ class ServiceProviderCommand
 
             // provider:info
             new class extends Command {
-                use CommandHelper;
+                use CommandHelper, spHelper;
 
                 public function __construct()
                 {
@@ -418,7 +429,7 @@ class ServiceProviderCommand
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Service Provider Information', function (SymfonyStyle $ss) use ($input, $output) {
-                        $generator = new ServiceProviderGenerator(getcwd());
+                        $generator = $this->serviceProvider();
                         $service = $input->getArgument('service');
                         $service = $generator->normalizeName($service);
 
@@ -495,7 +506,7 @@ class ServiceProviderCommand
 
             // provider:thirdparty-auth
             new class extends Command {
-                use CommandHelper;
+                use CommandHelper, spHelper;
 
                 public function __construct()
                 {
@@ -515,7 +526,7 @@ class ServiceProviderCommand
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Third-Party Authentication Setup', function (SymfonyStyle $ss) use ($input) {
-                        $generator = new ServiceProviderGenerator(getcwd());
+                        $generator = $this->serviceProvider();
 
                         $options = [
                             'deferred' => $input->getOption('deferred'),

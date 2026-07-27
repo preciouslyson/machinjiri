@@ -138,7 +138,7 @@ class WebhookCommand
 
                     $template = $this->getControllerTemplate($name, $controllerName);
                     if ($this->writeFile($controllerPath, $template)) {
-                        $io->text("✓ Created controller: app/Controllers/{$controllerName}.php");
+                        $io->text("Created controller: app/Controllers/{$controllerName}.php");
                         return true;
                     }
                     $io->error("Failed to create controller: {$controllerName}");
@@ -157,7 +157,7 @@ class WebhookCommand
 
                     $template = $this->getJobTemplate($name, $jobName);
                     if ($this->writeFile($jobPath, $template)) {
-                        $io->text("✓ Created job: app/Jobs/{$jobName}.php");
+                        $io->text("Created job: app/Jobs/{$jobName}.php");
                         return true;
                     }
                     $io->error("Failed to create job: {$jobName}");
@@ -199,9 +199,9 @@ class WebhookCommand
                     $config['providers'][$providerKey] = $newProvider;
 
                     // Write config file with pretty printed array
-                    $content = "<?php\n\nreturn " . $this->varExportPretty($config) . ";\n";
+                    $content = "<?php\n\nreturn [\n" . $this->varExportPretty($config, 1) . "\n];\n";
                     if ($this->writeFile($configFile, $content)) {
-                        $io->text("✓ Updated configuration: config/webhooks.php");
+                        $io->text("Updated configuration: config/webhooks.php");
                         $io->text("  - You may want to adjust 'event_resolver' and 'verify' settings for your provider.");
                         return true;
                     }
@@ -226,7 +226,7 @@ class WebhookCommand
 
                     $template = $this->getHandlerTemplate($name, $handlerName);
                     if ($this->writeFile($handlerPath, $template)) {
-                        $io->text("✓ Created handler: app/Webhooks/Handlers/{$handlerName}.php");
+                        $io->text("Created handler: app/Webhooks/Handlers/{$handlerName}.php");
                         return true;
                     }
                     $io->error("Failed to create handler: {$handlerName}");
@@ -236,9 +236,8 @@ class WebhookCommand
                 private function generateServiceProvider(string $name, SymfonyStyle $io): bool
                 {
                     $providerName = $name . 'WebhookServiceProvider';
-                    $basePath = $this->getBasePath();
 
-                    $generator = new ServiceProviderGenerator($basePath);
+                    $generator = new ServiceProviderGenerator($this->artisanContainer());
 
                     try {
                         $options = [
@@ -250,8 +249,8 @@ class WebhookCommand
                             'aliases' => [],
                         ];
                         $files = $generator->generate($providerName, $options);
-                        $io->text("✓ Created service provider: app/Providers/{$providerName}.php");
-                        $io->text("✓ Registered provider in config/providers.php");
+                        $io->text("Created service provider: app/Providers/{$providerName}.php");
+                        $io->text("Registered provider in config/providers.php");
                         return true;
                     } catch (\Exception $e) {
                         $io->error("Failed to create service provider: " . $e->getMessage());
@@ -283,11 +282,7 @@ class WebhookCommand
 
                 private function getConfigPath(): string
                 {
-                    $path = $this->getBasePath() . '/config/';
-                    if (!is_dir($path)) {
-                        $path = $this->getBasePath() . '/../config/';
-                    }
-                    return $path;
+                    return $this->getBasePath() . '/config/';
                 }
 
                 private function getWebhookHandlersPath(): string
@@ -306,13 +301,42 @@ class WebhookCommand
 
                 private function varExportPretty(array $expression, int $indent = 0): string
                 {
-                    $export = var_export($expression, true);
-                    $export = preg_replace('/^array \(/', '[', $export);
-                    $export = preg_replace('/\)$/', ']', $export);
-                    $export = preg_replace('/\s+=>\s+/', ' => ', $export);
-                    $export = preg_replace('/array \(\n/', "[\n", $export);
-                    $export = str_replace('  ', '    ', $export);
-                    return $export;
+                    $prefix = str_repeat('    ', $indent);
+                    $items = [];
+
+                    foreach ($expression as $key => $value) {
+                        $keyText = is_int($key) ? $key : "'" . addcslashes((string) $key, "\\'") . "'";
+                        $items[] = $prefix . '    ' . $keyText . ' => ' . $this->formatValue($value, $indent + 1);
+                    }
+
+                    return implode(",\n", $items);
+                }
+
+                private function formatValue($value, int $indent): string
+                {
+                    if (is_array($value)) {
+                        $body = $this->varExportPretty($value, $indent);
+                        if ($body === '') {
+                            return '[]';
+                        }
+
+                        $closingIndent = str_repeat('    ', $indent - 1);
+                        return "[\n" . $body . "\n" . $closingIndent . ']';
+                    }
+
+                    if (is_string($value)) {
+                        return var_export($value, true);
+                    }
+
+                    if (is_bool($value)) {
+                        return $value ? 'true' : 'false';
+                    }
+
+                    if ($value === null) {
+                        return 'null';
+                    }
+
+                    return (string) $value;
                 }
 
                 // -------------------------------------------------------------------------

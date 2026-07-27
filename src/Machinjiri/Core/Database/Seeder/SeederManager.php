@@ -23,8 +23,7 @@ class SeederManager
         // Get seeders path from container
         $reflection = new ReflectionClass($container);
         $seedersProperty = $reflection->getProperty('seeders');
-        $this->seedersPath = Container::$appBasePath . '/database/seeders/';
-        $this->seedersAltPath = Container::$appBasePath . '/../database/seeders/';  
+        $this->seedersPath = $this->container->getRootPath() . 'database/seeders/';  
     }
     
     /**
@@ -33,7 +32,7 @@ class SeederManager
     public function make(string $name, bool $overwrite = false): string
     {
         $filename = $this->getSeederFileName($name);
-        $dir = is_dir($this->seedersPath) ? $this->seedersPath : $this->seedersAltPath;
+        $dir = $this->seedersPath;
         $fullPath = $dir . $filename;
         
         // Check if file already exists
@@ -68,7 +67,7 @@ class SeederManager
      */
     public function run(string $name): array
     {
-        $fullPath = $this->seedersAltPath . $name;
+        $fullPath = $this->seedersPath . $name;
         
         if (!is_file($fullPath)) {
             throw new MachinjiriException("Seeder file not found: {$this->seedersPath}", 404);
@@ -123,7 +122,7 @@ class SeederManager
      */
     public function runAll(): array
     {
-        $files = glob($this->seedersAltPath . '*.php');
+        $files = glob($this->seedersPath . '*.php');
         
         $results = [];
         
@@ -206,7 +205,7 @@ class SeederManager
                 try {
                     $this->truncateTable($table);
                     $results['truncated'][] = $table;
-                } catch (\Exception $e) {
+                } catch (MachinjiriException $e) {
                     $results['truncate_errors'][] = [
                         'table' => $table,
                         'error' => $e->getMessage()
@@ -225,7 +224,7 @@ class SeederManager
             
             $results['seeders'] = $seedResults;
             
-        } catch (\Exception $e) {
+        } catch (MachinjiriException $e) {
             $this->enableForeignKeyConstraints();
             throw $e;
         }
@@ -278,6 +277,7 @@ class SeederManager
 namespace {{Namespace}};
 
 use Mlangeni\Machinjiri\Core\Database\Seeder\Seeder;
+use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
 
 class {{ClassName}} extends Seeder
 {
@@ -287,18 +287,12 @@ class {{ClassName}} extends Seeder
     public function run(): void
     {
         // Example: Insert data into {{TableName}} table
-        // $this->table('{{TableName}}')->insert([
+        // (new QueryBuilder('{{TableName}}'))->insert([
         //     'name' => 'Example',
         //     'created_at' => date('Y-m-d H:i:s'),
         //     'updated_at' => date('Y-m-d H:i:s'),
         // ])->execute();
         
-        // Or use factory:
-        // $factory = new \Mlangeni\Machinjiri\Core\Database\Factory\Factory();
-        // $factory::raw('{{TableName}}', [
-        //     'name' => 'Example',
-        //     'created_at' => date('Y-m-d H:i:s'),
-        // ]);
     }
 }
 EOD;

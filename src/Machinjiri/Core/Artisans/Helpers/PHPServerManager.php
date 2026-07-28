@@ -46,35 +46,15 @@ class PHPServerManager
             ];
         }
 
-        // Build the command
-        $command = sprintf(
-            'php -S %s -t %s > %s 2>&1 & echo $!',
-            escapeshellarg($this->address),
-            escapeshellarg($this->documentRoot),
-            escapeshellarg($this->logFile)
-        );
+        $result = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN'
+            ? $this->startOnWindows()
+            : $this->startOnUnix();
 
-        // Add router script if specified
-        if (isset($this->options['router'])) {
-            $command = sprintf(
-                'php -S %s %s > %s 2>&1 & echo $!',
-                escapeshellarg($this->address),
-                escapeshellarg($this->options['router']),
-                escapeshellarg($this->logFile)
-            );
+        if (!$result['success']) {
+            return $result;
         }
 
-        // Execute the command
-        exec($command, $output, $returnVar);
-
-        if (empty($output[0]) || !is_numeric($output[0])) {
-            return [
-                'success' => false,
-                'message' => 'Failed to start server'
-            ];
-        }
-
-        $this->pid = (int) $output[0];
+        $this->pid = $result['pid'];
         $this->storePid($this->pid);
 
         return [
@@ -84,6 +64,91 @@ class PHPServerManager
             'address' => $this->address,
             'document_root' => $this->documentRoot
         ];
+    }
+
+    private function startOnUnix(): array
+    {
+        $outputFile = $this->logFile;
+        $command = isset($this->options['router'])
+            ? sprintf(
+                'php -S %s %s > %s 2>&1 & echo $!',
+                escapeshellarg($this->address),
+                escapeshellarg($this->options['router']),
+                escapeshellarg($outputFile)
+            )
+            : sprintf(
+                'php -S %s -t %s > %s 2>&1 & echo $!',
+                escapeshellarg($this->address),
+                escapeshellarg($this->documentRoot),
+                escapeshellarg($outputFile)
+            );
+
+        exec($command, $output, $returnVar);
+
+        if ($returnVar !== 0 || empty($output[0]) || !is_numeric(trim($output[0]))) {
+            return [
+                'success' => false,
+                'message' => 'Failed to start server'
+            ];
+        }
+
+        return [
+            'success' => true,
+            'pid' => (int) trim($output[0])
+        ];
+    }
+
+    private function startOnWindows(): array
+    {
+        $outputFile = $this->logFile;
+        $argumentList = [];
+
+        if (isset($this->options['router'])) {
+            $argumentList = [
+                '-S',
+                $this->address,
+                $this->options['router']
+            ];
+        } else {
+            $argumentList = [
+                '-S',
+                $this->address,
+                '-t',
+                $this->documentRoot
+            ];
+        }
+
+        foreach ($argumentList as &$arg) {
+            $arg = $this->quoteForPowerShell($arg);
+        }
+        unset($arg);
+
+        $psCommand = sprintf(
+            'Start-Process php -ArgumentList %s -RedirectStandardOutput %s -RedirectStandardError %s -NoNewWindow -PassThru | Select-Object -ExpandProperty Id',
+            implode(',', $argumentList),
+            $this->quoteForPowerShell($outputFile),
+            $this->quoteForPowerShell($outputFile)
+        );
+
+        $command = sprintf('powershell.exe -NoProfile -Command "%s"', $psCommand);
+        exec($command, $output, $returnVar);
+
+        if ($returnVar !== 0 || empty($output[0]) || !is_numeric(trim($output[0]))) {
+            return [
+                'success' => false,
+                'message' => 'Failed to start server'
+            ];
+        }
+
+        return [
+            'success' => true,
+            'pid' => (int) trim($output[0])
+        ];
+    }
+
+    private function quoteForPowerShell(string $value): string
+    {
+        return "'" . str_replace("'", "''", $value) . "'";
     }
 
     /**
@@ -179,12 +244,16 @@ class PHPServerManager
             ];
         }
 
-        $logContent = [];
-        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-            exec(sprintf('tail -n %d "%s"', $lines, $this->logFile), $logContent);
-        } else {
-            exec(sprintf('tail -n %d %s', $lines, escapeshellarg($this->logFile)), $logContent);
+        $logContent = file($this->logFile, FILE_IGNORE_NEW_LINES);
+        if ($logContent === false) {
+            return [
+                'success' => false,
+                'message' => 'Unable to read log file'
+            ];
         }
+
+        $totalLines = count($logContent);
+        $logContent = array_slice($logContent, max(0, $totalLines - $lines));
 
         return [
             'success' => true,

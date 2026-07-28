@@ -135,6 +135,8 @@ final class Machinjiri extends Container
             // Initialize application resources and services
             $this->initialize();
 
+            $this->dbConnect();
+
             // Register service providers
             $this->providerLoader->register();
 

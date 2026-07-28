@@ -738,7 +738,7 @@ HTML;
             --text: {$textColor};
             --text-light: #6B5E53;
             --border: {$subtleBorder};
-            --shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.01);
+            --shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.4);
             --radius: 0;
             --radius-sm: 0;
             --transition: all 0.2s ease;
@@ -872,7 +872,7 @@ HTML;
         }
         
         .error-location {
-            background: #F5F0EA;
+            background: #f1f1f1;
             padding: 0.8rem 1rem;
             border-radius: var(--radius-sm);
             font-family: 'SF Mono', 'Fira Code', monospace;
@@ -1737,7 +1737,7 @@ HTML;
         }
 
         body {
-            background: linear-gradient(145deg, #FEF6E6 0%, #F9EDDD 100%);
+            background: #cccccc;
             font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, sans-serif;
             min-height: 100vh;
             display: flex;
@@ -2087,7 +2087,6 @@ HTML;
         <!-- error reference with copy action -->
         <div class="ref-panel">
             <div class="ref-id">
-                <i class="fas fa-fingerprint"></i>
                 <span id="errorIdDisplay">{$errorId}</span>
             </div>
             <button class="copy-btn" id="copyErrorBtn" aria-label="Copy error ID">

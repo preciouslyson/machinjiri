@@ -107,6 +107,11 @@ class Container
      * @var EventListener
      */
     protected EventListener $listener;
+
+    /**
+     * Log filename for framework
+     */
+    public const LOG_FILENAME = "machinjiri";
     
     /**
      * Container constructor.
@@ -121,13 +126,12 @@ class Container
         
         $this->appEnvironment = $appEnvironment;
 
-        $logFileName = "framework";
-
         // Prepare an event listener with a dedicated logger for event-related messages
-        $this->listener = new EventListener(self::systemLogger($logFileName, true));
+        $this->listener = new EventListener(self::systemLogger(self::LOG_FILENAME, true));
 
         // Create logger instance
-        $this->logger = self::systemLogger($logFileName);
+        $this->logger = self::systemLogger(self::LOG_FILENAME);
+
         
         // Initialize all array properties to empty arrays
         $this->bindings = [];
@@ -150,6 +154,10 @@ class Container
         }
         
         $this->isArtisan = $isArtisan ?? false;
+
+        $this->initialize();
+
+        $this->dbConnect();
     }
     
     /**
@@ -951,7 +959,7 @@ class Container
      *
      * @return void
      */
-    private function dbConnect(): void
+    protected function dbConnect(): void
     {
         $dbLogger = self::systemLogger('database');
         try {

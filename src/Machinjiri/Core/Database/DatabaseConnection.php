@@ -6,7 +6,6 @@ use \PDO;
 use \PDOStatement;
 use \PDOException;
 use MongoDB\Client;
-use MongoDB\Driver\Exception\Exception as MongoDBException;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Database\Grammars\Grammar;
 use Mlangeni\Machinjiri\Core\Database\Grammars\MySqlGrammar;
@@ -52,7 +51,7 @@ class DatabaseConnection
 
     public function __wakeup()
     {
-        throw new MachinjiriException("Database Error: Cannot unserialize a singleton.", 101);
+        throw new MachinjiriException("Database Error: Cannot unserialize a singleton.", 200);
     }
 
     /**
@@ -148,7 +147,7 @@ class DatabaseConnection
 
         throw new MachinjiriException(
             "Database Error: No free connection available after {$this->waitTimeout} seconds.",
-            119
+            201
         );
     }
 
@@ -207,7 +206,7 @@ class DatabaseConnection
                 $stmt->execute($params);
                 return $stmt;
             } catch (PDOException $e) {
-                throw new MachinjiriException("Database Error: Query execution failed: " . $e->getMessage(), 112);
+                throw new MachinjiriException("Database Error: Query execution failed: " . $e->getMessage(), 202);
             }
         });
     }
@@ -225,7 +224,7 @@ class DatabaseConnection
             self::$transactionConnection[spl_object_hash($conn)] = $conn;
         } catch (PDOException $e) {
             self::releaseConnection($conn);
-            throw new MachinjiriException("Database Error: Failed to begin transaction: " . $e->getMessage(), 114);
+            throw new MachinjiriException("Database Error: Failed to begin transaction: " . $e->getMessage(), 203);
         }
     }
 
@@ -238,7 +237,7 @@ class DatabaseConnection
         try {
             $conn->commit();
         } catch (PDOException $e) {
-            throw new MachinjiriException("Database Error: Failed to commit transaction: " . $e->getMessage(), 116);
+            throw new MachinjiriException("Database Error: Failed to commit transaction: " . $e->getMessage(), 204);
         } finally {
             self::releaseTransactionalConnection($conn);
         }
@@ -253,7 +252,7 @@ class DatabaseConnection
         try {
             $conn->rollBack();
         } catch (PDOException $e) {
-            throw new MachinjiriException("Database Error: Failed to rollback transaction: " . $e->getMessage(), 118);
+            throw new MachinjiriException("Database Error: Failed to rollback transaction: " . $e->getMessage(), 205);
         } finally {
             self::releaseTransactionalConnection($conn);
         }
@@ -298,11 +297,11 @@ class DatabaseConnection
     private static function getDriverOrFail(): string
     {
         if (self::$config === null) {
-            throw new MachinjiriException("Database Error: Database configuration not set. Call setConfig() first.", 102);
+            throw new MachinjiriException("Database Error: Database configuration not set. Call setConfig() first.", 206);
         }
         $driver = self::$config['driver'] ?? null;
         if (!$driver) {
-            throw new MachinjiriException("Database Error: Database configuration must specify a 'driver'.", 103);
+            throw new MachinjiriException("Database Error: Database configuration must specify a 'driver'.", 207);
         }
         return $driver;
     }
@@ -349,7 +348,7 @@ class DatabaseConnection
     private static function getTransactionalConnection(): PDO
     {
         if (empty(self::$transactionConnection)) {
-            throw new MachinjiriException("Database Error: No active transaction to commit/rollback.", 120);
+            throw new MachinjiriException("Database Error: No active transaction to commit/rollback.", 208);
         }
         return reset(self::$transactionConnection);
     }
@@ -363,11 +362,11 @@ class DatabaseConnection
         }
     }
 
-    private static function getMongoConnection(): Client
+    private static function getMongoConnection(): ?Client
     {
         if (self::$mongoConnection === null) {
             if (!class_exists(Client::class)) {
-                throw new MachinjiriException("Database Error: MongoDB PHP driver not installed.", 107);
+                throw new MachinjiriException("Database Error: MongoDB PHP driver not installed.", 209);
             }
 
             $host = self::$config['host'] ?? 'localhost';
@@ -388,8 +387,8 @@ class DatabaseConnection
                     self::$config['options'] ?? [],
                     self::$config['driverOptions'] ?? []
                 );
-            } catch (MongoDBException $e) {
-                throw new MachinjiriException("Database Error: MongoDB connection failed: " . $e->getMessage(), 108);
+            } catch (\Throwable $e) {
+                throw new MachinjiriException("Database Error: MongoDB connection failed: " . $e->getMessage(), 210);
             }
         }
         return self::$mongoConnection;
@@ -417,7 +416,7 @@ class DatabaseConnection
             $required = ['host', 'database', 'username', 'password'];
             foreach ($required as $key) {
                 if (!isset(self::$config[$key]) && $key !== 'password') {
-                    throw new MachinjiriException("Database Error: Missing required configuration: {$key}", 104);
+                    throw new MachinjiriException("Database Error: Missing required configuration: {$key}", 211);
                 }
             }
 
@@ -449,14 +448,14 @@ class DatabaseConnection
         try {
             return new PDO($dsn, $username ?? null, $password ?? null, $options);
         } catch (PDOException $e) {
-            throw new MachinjiriException("Database Error: Database connection failed: " . $e->getMessage(), 105);
+            throw new MachinjiriException("Database Error: Database connection failed: " . $e->getMessage(), 212);
         }
     }
 
     private static function createCustomPdoConnection(bool $persistent = false): PDO
     {
         if (empty(self::$config['dsn'])) {
-            throw new MachinjiriException("Database Error: Custom PDO driver requires 'dsn' configuration.", 109);
+            throw new MachinjiriException("Database Error: Custom PDO driver requires 'dsn' configuration.", 213);
         }
 
         $username = self::$config['username'] ?? null;
@@ -476,7 +475,7 @@ class DatabaseConnection
         try {
             return new PDO(self::$config['dsn'], $username, $password, $options);
         } catch (PDOException $e) {
-            throw new MachinjiriException("Database Error: PDO connection failed: " . $e->getMessage(), 110);
+            throw new MachinjiriException("Database Error: PDO connection failed: " . $e->getMessage(), 214);
         }
     }
 }

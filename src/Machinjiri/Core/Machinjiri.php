@@ -77,7 +77,7 @@ final class Machinjiri extends Container
     public static function getInstance(): self
     {
         if (self::$instance === null) {
-            throw new MachinjiriException("App not initialised. Call App() first!", 80001);
+            throw new MachinjiriException("App not initialised. Call App() first!", 150);
         }
         return self::$instance;
     }
@@ -213,7 +213,7 @@ final class Machinjiri extends Container
                 } catch (\Exception $e) {
                     throw new MachinjiriException(
                         "Unable to auto-resolve service: {$abstract}. Error: " . $e->getMessage(),
-                        40001
+                        151
                     );
                 }
             }
@@ -538,7 +538,7 @@ final class Machinjiri extends Container
             return parent::$method(...$parameters);
         }
         
-        throw new MachinjiriException("Method {$method} not found on application.", 40003);
+        throw new MachinjiriException("Method {$method} not found on application.", 152);
     }
     
     /**
@@ -564,7 +564,7 @@ final class Machinjiri extends Container
             return $this->paths[$name];
         }
         
-        throw new MachinjiriException("Property {$name} not found on application.", 40004);
+        throw new MachinjiriException("Property {$name} not found on application.", 153);
     }
     
     /**

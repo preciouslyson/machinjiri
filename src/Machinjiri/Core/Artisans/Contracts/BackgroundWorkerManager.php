@@ -3,7 +3,7 @@
 namespace Mlangeni\Machinjiri\Core\Artisans\Contracts;
 
 use Mlangeni\Machinjiri\Core\Container;
-use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\{LoggerFactory, Logger};
 use Symfony\Component\Process\Process;
 
 /**

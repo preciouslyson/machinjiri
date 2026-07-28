@@ -19,6 +19,7 @@
 
 namespace Mlangeni\Machinjiri\Core\Artisans\Generators;
 
+use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 
 class QueueJobGenerator
@@ -68,16 +69,15 @@ class QueueJobGenerator
     /**
      * Constructor
      *
-     * @param string $appBasePath Application base path
+     * @param Container $container
      */
-    public function __construct(string $appBasePath)
+    public function __construct(Container $container)
     {
-        $this->appBasePath = rtrim($appBasePath, DIRECTORY_SEPARATOR);
+        $this->appBasePath = rtrim($container->getRootPath(), DIRECTORY_SEPARATOR);
         $this->srcPath = $this->appBasePath . '/src/Machinjiri/';
         $this->jobsPath = $this->appBasePath . '/app/Jobs/';
         $this->queuesPath = $this->appBasePath . '/app/Queue/Drivers/';
-        $config = $this->appBasePath . '/config/';
-        $this->configPath = is_dir($config) ? $config : $this->appBasePath . '/../config/'; 
+        $this->configPath = $this->appBasePath . '/config/';
         $this->migrationsPath = $this->appBasePath . '/database/migrations/';
     }
 
@@ -224,14 +224,8 @@ class QueueJobGenerator
         switch ($type) {
             case 'email':
               return $this->generateMailJobTemplate($shortName, $queue, $maxAttempts, $timeout, $delay);
-            case 'notification':
-                return $this->generateNotificationJobTemplate($shortName, $queue, $maxAttempts, $timeout, $delay);
             case 'model':
                 return $this->generateModelJobTemplate($shortName, $queue, $maxAttempts, $timeout, $delay);
-            case 'report':
-                return $this->generateReportJobTemplate($shortName, $queue, $maxAttempts, $timeout, $delay);
-            case 'sync':
-                return $this->generateSyncJobTemplate($shortName);
             default:
                 return $this->generateStandardJobTemplate($shortName, $queue, $maxAttempts, $timeout, $delay);
         }
@@ -250,7 +244,8 @@ class QueueJobGenerator
 namespace Mlangeni\Machinjiri\App\Jobs;
 
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseJob;
-use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
+use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 
 /**
@@ -294,7 +289,7 @@ class {$name}Job extends BaseJob
         \$this->addMetadata('processed_at', date('Y-m-d H:i:s'));
         
         // Example: Trigger event
-        // \$this->app->resolve('events')->trigger('{$lowerName}.processed', \$data);
+        // \$this->app->resolve(EventListener::class)->trigger('{$lowerName}.processed', \$data);
     }
 
     /**
@@ -345,7 +340,7 @@ namespace Mlangeni\Machinjiri\App\Jobs;
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseJob;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
-use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 
 /**
  * {$name} Job
@@ -529,7 +524,7 @@ class {$name}Job extends BaseJob
         try {
             \$columns = \$this->app->resolve('database')->getColumns(\$this->tableName);
             return isset(\$columns['deleted_at']);
-        } catch (\Exception \$e) {
+        } catch (MachinjiriException \$e) {
             return false;
         }
     }
@@ -565,7 +560,7 @@ class {$name}Job extends BaseJob
         try {
             \$columns = \$this->app->resolve('database')->getColumns(\$this->tableName);
             return isset(\$columns['status']);
-        } catch (\Exception \$e) {
+        } catch (MachinjiriException \$e) {
             return false;
         }
     }
@@ -796,6 +791,7 @@ class {$name}Queue extends BaseQueue
         
         // Find and reserve a job
         \$job = \$this->queryBuilder
+            ->select()
             ->where('queue', '=', \$queue)
             ->where('available_at', '<=', \$now)
             ->where('reserved_at', '<=', 0)
@@ -916,7 +912,7 @@ class {$name}Queue extends BaseQueue
             // Test database connection
             \$this->queryBuilder->select(['1'])->first();
             return true;
-        } catch (\Exception \$e) {
+        } catch (MachinjiriException \$e) {
             return false;
         }
     }
@@ -1342,7 +1338,7 @@ class RedisQueue extends BaseQueue
     {
         try {
             return \$this->redis->ping() === 'PONG';
-        } catch (\Exception \$e) {
+        } catch (MachinjiriException \$e) {
             return false;
         }
     }
@@ -1574,7 +1570,7 @@ class {$name}Queue extends BaseQueue
                 'job_name' => \$job->getName(),
                 'queue' => \$queue,
             ]);
-        } catch (\Exception \$e) {
+        } catch (MachinjiriException \$e) {
             \$job->failed(new MachinjiriException(\$e->getMessage()));
             
             \$this->events->trigger('job.failed', [
@@ -3519,278 +3515,6 @@ PHP;
         $value = preg_replace('/(?<=\\w)(?=[A-Z])/', '_$1', $value);
         return strtolower($value);
     }
-    
-    /**
-     * Generate notification job template
-     */
-    private function generateNotificationJobTemplate(string $name, string $queue, int $maxAttempts, int $timeout, int $delay): string
-    {
-        $lowerName = strtolower($name);
-        
-        return <<<PHP
-<?php
-
-namespace Mlangeni\Machinjiri\App\Jobs;
-
-use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseJob;
-use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-
-/**
- * {$name} Job
- *
- * This job handles {$lowerName} notification sending tasks.
- */
-class {$name}Job extends BaseJob
-{
-    /**
-     * Create a new job instance
-     */
-    public function __construct(\Mlangeni\Machinjiri\Core\Container \$app, array \$payload = [], array \$options = [])
-    {
-        \$defaultOptions = [
-            'maxAttempts' => {$maxAttempts},
-            'queue' => '{$queue}',
-            'timeout' => {$timeout},
-            'delay' => {$delay},
-        ];
-        
-        parent::__construct(\$app, \$payload, array_merge(\$defaultOptions, \$options));
-    }
-
-    /**
-     * Execute the job
-     */
-    public function handle(): void
-    {
-        \$user = \$this->payload['user'] ?? null;
-        \$notificationType = \$this->payload['type'] ?? 'info';
-        \$message = \$this->payload['message'] ?? '';
-        \$data = \$this->payload['data'] ?? [];
-        
-        if (empty(\$message)) {
-            throw new MachinjiriException('Notification message is required');
-        }
-        
-        try {
-            // Get notifier from container
-            \$notifier = \$this->app->resolve('notifier');
-            
-            // Send notification
-            \$result = \$notifier->send(\$user, \$notificationType, \$message, \$data);
-            
-            if (!\$result) {
-                throw new MachinjiriException('Failed to send notification');
-            }
-            
-            \$this->addMetadata('sent_at', date('Y-m-d H:i:s'));
-            \$this->addMetadata('notification_type', \$notificationType);
-            
-        } catch (\Exception \$e) {
-            throw new MachinjiriException('Notification sending failed: ' . \$e->getMessage());
-        }
-    }
-
-    /**
-     * Handle job failure
-     */
-    public function failed(MachinjiriException \$exception): void
-    {
-        // Log failure
-        error_log('Notification job failed: ' . \$exception->getMessage());
-        
-        // Store failure in database if available
-        \$config = \$this->app->resolve('config');
-        \$logPath = \$config['notification']['log_path'] ?? '/var/log/notifications.log';
-        
-        file_put_contents(\$logPath, 
-            '[' . date('Y-m-d H:i:s') . '] Notification failed: ' . 
-            \$exception->getMessage() . PHP_EOL, 
-            FILE_APPEND
-        );
-    }
-}
-PHP;
-    }
-    
-    /**
-     * Generate report job template
-     */
-    private function generateReportJobTemplate(string $name, string $queue, int $maxAttempts, int $timeout, int $delay): string
-    {
-        $lowerName = strtolower($name);
-        
-        return <<<PHP
-<?php
-
-namespace Mlangeni\Machinjiri\App\Jobs;
-
-use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseJob;
-use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
-
-/**
- * {$name} Job
- *
- * This job handles {$lowerName} report generation tasks.
- */
-class {$name}Job extends BaseJob
-{
-    protected QueryBuilder \$queryBuilder;
-    protected string \$reportPath;
-
-    /**
-     * Create a new job instance
-     */
-    public function __construct(\Mlangeni\Machinjiri\Core\Container \$app, array \$payload = [], array \$options = [])
-    {
-        \$defaultOptions = [
-            'maxAttempts' => {$maxAttempts},
-            'queue' => '{$queue}',
-            'timeout' => {$timeout},
-            'delay' => \$delay,
-        ];
-        
-        parent::__construct(\$app, \$payload, array_merge(\$defaultOptions, \$options));
-        
-        \$this->queryBuilder = new QueryBuilder('');
-        \$config = \$this->app->resolve('config');
-        \$this->reportPath = \$config['reports']['path'] ?? __DIR__ . '/../storage/reports/';
-        
-        // Ensure report directory exists
-        if (!is_dir(\$this->reportPath)) {
-            mkdir(\$this->reportPath, 0755, true);
-        }
-    }
-
-    /**
-     * Execute the job
-     */
-    public function handle(): void
-    {
-        \$reportType = \$this->payload['type'] ?? 'daily';
-        \$startDate = \$this->payload['start_date'] ?? date('Y-m-d', strtotime('-1 day'));
-        \$endDate = \$this->payload['end_date'] ?? date('Y-m-d');
-        \$format = \$this->payload['format'] ?? 'csv';
-        
-        try {
-            // Generate report data
-            \$data = \$this->generateReportData(\$startDate, \$endDate);
-            
-            // Format and save report
-            \$filename = \$this->saveReport(\$data, \$reportType, \$format);
-            
-            \$this->addMetadata('report_file', \$filename);
-            \$this->addMetadata('generated_at', date('Y-m-d H:i:s'));
-            \$this->addMetadata('period', \$startDate . ' to ' . \$endDate);
-            
-        } catch (\Exception \$e) {
-            throw new MachinjiriException('Report generation failed: ' . \$e->getMessage());
-        }
-    }
-
-    /**
-     * Generate report data
-     */
-    protected function generateReportData(string \$startDate, string \$endDate): array
-    {
-        // TODO: Implement your report data generation logic
-        // Example: Query database for data within date range
-        
-        return [
-            'period' => \$startDate . ' - ' . \$endDate,
-            'generated_at' => date('Y-m-d H:i:s'),
-            'data' => [], // Your report data here
-        ];
-    }
-
-    /**
-     * Save report to file
-     */
-    protected function saveReport(array \$data, string \$reportType, string \$format): string
-    {
-        \$filename = 'report_' . \$reportType . '_' . date('Ymd_His') . '.' . \$format;
-        \$filepath = \$this->reportPath . \$filename;
-        
-        switch (\$format) {
-            case 'csv':
-                \$this->saveAsCsv(\$data, \$filepath);
-                break;
-            case 'json':
-                file_put_contents(\$filepath, json_encode(\$data, JSON_PRETTY_PRINT));
-                break;
-            case 'txt':
-                \$this->saveAsText(\$data, \$filepath);
-                break;
-            default:
-                throw new MachinjiriException('Unsupported report format: ' . \$format);
-        }
-        
-        return \$filename;
-    }
-
-    /**
-     * Save data as CSV
-     */
-    protected function saveAsCsv(array \$data, string \$filepath): void
-    {
-        \$handle = fopen(\$filepath, 'w');
-        
-        // Write headers if data is an array of arrays
-        if (!empty(\$data['data']) && is_array(\$data['data'])) {
-            \$firstRow = reset(\$data['data']);
-            if (is_array(\$firstRow)) {
-                fputcsv(\$handle, array_keys(\$firstRow));
-            }
-            
-            foreach (\$data['data'] as \$row) {
-                fputcsv(\$handle, \$row);
-            }
-        }
-        
-        fclose(\$handle);
-    }
-
-    /**
-     * Save data as text
-     */
-    protected function saveAsText(array \$data, string \$filepath): void
-    {
-        \$content = "Report generated at: " . date('Y-m-d H:i:s') . PHP_EOL;
-        \$content .= "Period: " . (\$data['period'] ?? 'N/A') . PHP_EOL;
-        \$content .= "----------------------------------------" . PHP_EOL;
-        
-        // Add your data formatting here
-        if (!empty(\$data['data'])) {
-            foreach (\$data['data'] as \$key => \$value) {
-                \$content .= \$key . ": " . \$value . PHP_EOL;
-            }
-        }
-        
-        file_put_contents(\$filepath, \$content);
-    }
-
-    /**
-     * Handle job failure
-     */
-    public function failed(MachinjiriException \$exception): void
-    {
-        // Log report generation failure
-        error_log('Report generation failed: ' . \$exception->getMessage());
-        
-        // Send alert to admin
-        \$adminEmail = \$this->app->resolve('config')['reports']['admin_email'] ?? null;
-        if (\$adminEmail) {
-            \$this->app->resolve('mailer')->send(
-                \$adminEmail,
-                'Report Generation Failed: {$name}',
-                'Error: ' . \$exception->getMessage() . PHP_EOL .
-                'Payload: ' . json_encode(\$this->getPayload())
-            );
-        }
-    }
-}
-PHP;
-    }
 
     /**
      * Generate sync job template (for immediate processing)
@@ -4179,6 +3903,7 @@ use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseJob;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Transport\Mail\MailMessage;
 use Mlangeni\Machinjiri\Core\Transport\Mail\MailManager;
+use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 
 /**
  * {$name} Job
@@ -4236,7 +3961,7 @@ class {$name}Job extends BaseJob
         parent::failed(\$exception);
         
         // Additional failure handling – e.g., log to a dead‑letter queue
-        resolve('events')->trigger('mail.job.failed', [
+        resolve(EventListener::class)->trigger('mail.job.failed', [
             'job_id' => \$this->getId(),
             'exception' => \$exception->getMessage(),
             'payload' => \$this->getPayload(),

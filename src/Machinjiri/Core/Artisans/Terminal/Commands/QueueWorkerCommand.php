@@ -3,21 +3,16 @@
 namespace Mlangeni\Machinjiri\Core\Artisans\Terminal\Commands;
 
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Input\InputArgument;
-use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Input\{InputOption, InputArgument, InputInterface};
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Symfony\Component\Console\Helper\Table;
-use Symfony\Component\Console\Helper\ProgressBar;
+use Symfony\Component\Console\Helper\{Table, ProgressBar};
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseWorker;
+use Mlangeni\Machinjiri\Core\Artisans\Contracts\{BaseWorker, BackgroundWorkerManager};
 use Mlangeni\Machinjiri\Core\Artisans\Generators\QueueJobGenerator;
 use Mlangeni\Machinjiri\Core\Container;
-use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
-use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\{Logger, LoggerFactory};
 use Mlangeni\Machinjiri\Core\Database\DatabaseConnection;
-use Mlangeni\Machinjiri\Core\Artisans\Contracts\BackgroundWorkerManager;
 
 class QueueDriverResolver
 {
@@ -124,7 +119,7 @@ trait QueueCommandHelper
             'queue',
             false
         );
-        $this->queueGenerator = new QueueJobGenerator(getcwd());
+        $this->queueGenerator = new QueueJobGenerator($this->artisanContainer());
         $rawConfig = $this->loadQueueConfig(null);
         $this->queueConfig = $this->validateQueueConfig($rawConfig);
         $this->driverResolver = new QueueDriverResolver(
@@ -143,10 +138,9 @@ trait QueueCommandHelper
     }
 
     private function loadEnvironmentVariables(): void
-    {
+    { 
         try {
-            $dotenv = new \Mlangeni\Machinjiri\Core\Artisans\Helpers\DotEnv(false, false);
-            $dotenv->setPath(getcwd());
+            $dotenv = new \Mlangeni\Machinjiri\Core\Artisans\Helpers\DotEnv($this->artisanContainer(), true);
             $dotenv->load();
         } catch (\Throwable $e) {
             $this->logger->debug("Could not load .env \n{file}\n{error}", [
@@ -1168,7 +1162,9 @@ class QueueWorkerCommand
                             'timeout'     => $timeout,
                             'maxTries'    => $tries,
                             'maxJobs'     => $maxJobs,
-                            'stopOnEmpty' => $stopOnEmpty,
+                            'stopOnEmpty' => ($stopOnEmpty === null) 
+                                                ? filter_var(getenv("QUEUE_WORKER_STOP_ON_EMPTY", false), FILTER_VALIDATE_BOOLEAN) 
+                                                : $stopOnEmpty,
                         ];
                         
                         $manager = new BackgroundWorkerManager($this->appContainer);
@@ -1590,7 +1586,7 @@ class QueueWorkerCommand
 
                 protected function configure(): void {
                     $this->addArgument('name', InputArgument::REQUIRED, 'The name of the job')
-                         ->addOption('type', null, InputOption::VALUE_OPTIONAL, 'Job type (standard, email, notification, model, report, sync)', 'standard')
+                         ->addOption('type', null, InputOption::VALUE_OPTIONAL, 'Job type (standard, email, model)', 'standard')
                          ->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name', 'default')
                          ->addOption('max-attempts', null, InputOption::VALUE_OPTIONAL, 'Maximum attempts', 3)
                          ->addOption('timeout', null, InputOption::VALUE_OPTIONAL, 'Timeout in seconds', 60)

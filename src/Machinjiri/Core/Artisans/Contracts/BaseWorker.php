@@ -103,7 +103,7 @@ class BaseWorker implements WorkerInterface
             'queue' => $queue,
             'options' => $this->options,
         ]);
-        
+         
         $this->run($queue, $this->options['maxJobs']);
     }
     

@@ -107,6 +107,11 @@ class Container
      * @var EventListener
      */
     protected EventListener $listener;
+
+    /**
+     * Log filename for framework
+     */
+    public const LOG_FILENAME = "machinjiri";
     
     /**
      * Container constructor.
@@ -121,13 +126,12 @@ class Container
         
         $this->appEnvironment = $appEnvironment;
 
-        $logFileName = "framework";
-
         // Prepare an event listener with a dedicated logger for event-related messages
-        $this->listener = new EventListener(self::systemLogger($logFileName, true));
+        $this->listener = new EventListener(self::systemLogger(self::LOG_FILENAME, true));
 
         // Create logger instance
-        $this->logger = self::systemLogger($logFileName);
+        $this->logger = self::systemLogger(self::LOG_FILENAME);
+
         
         // Initialize all array properties to empty arrays
         $this->bindings = [];
@@ -150,6 +154,10 @@ class Container
         }
         
         $this->isArtisan = $isArtisan ?? false;
+
+        $this->initialize();
+
+        $this->dbConnect();
     }
     
     /**
@@ -162,7 +170,7 @@ class Container
         if (self::$instance === null) {
             throw new MachinjiriException(
                 "Container not initialized. Create an instance first.",
-                10120
+                100
             );
         }
         
@@ -217,7 +225,7 @@ class Container
     protected function validateBasePath(): void
     {
         if (!is_dir(self::$appBasePath)) {
-            throw new MachinjiriException("Specify Application Base", 10100);
+            throw new MachinjiriException("Specify Application Base", 101);
         }
     }
     
@@ -314,7 +322,7 @@ class Container
         if ((!is_file($appConfig) || !is_readable($appConfig)) && !$envVars) {
             throw new MachinjiriException(
                 "App configuration error. Due to empty or unreadable environment file or no app configuration script in config folder.",
-                10110
+                102
             );
         }
         
@@ -322,7 +330,7 @@ class Container
         if ((!is_file($databaseConfig) || !is_readable($databaseConfig)) && !$envVars) {
             throw new MachinjiriException(
                 "Database configuration error. Due to empty or unreadable environment file or no database configuration script in config folder.",
-                10111
+                103
             );
         }
     }
@@ -365,11 +373,11 @@ class Container
         // If file exists include it, otherwise fallback to empty array
         $config = is_file($configPath) ? include $configPath : [];
         
-        if (!is_array($config)) throw new MachinjiriException("Database Error: Configuration 'database.php' not found in config folder", 10115);
-        if (empty($config['default'])) throw new MachinjiriException("Database Error: Default driver not specified", 10116);
-        if (empty($config['connections']) || count($config['connections']) == 0) throw new MachinjiriException("Database Error: no connections defined in config", 10117);
-        if (isset($config['default']) && !isset($config['connections'][$config['default']])) throw new MachinjiriException("Database Error: The configuration for default driver [{$config['default']}] does not match any in connection configuration", 10118);
-        if (count($config['connections'][$config['default']]) == 0) throw new MachinjiriException("Database Error: The configuration for default driver [{$config['default']}] is not set.", 10119);
+        if (!is_array($config)) throw new MachinjiriException("Database Error: Configuration 'database.php' not found in config folder", 104);
+        if (empty($config['default'])) throw new MachinjiriException("Database Error: Default driver not specified", 105);
+        if (empty($config['connections']) || count($config['connections']) == 0) throw new MachinjiriException("Database Error: no connections defined in config", 106);
+        if (isset($config['default']) && !isset($config['connections'][$config['default']])) throw new MachinjiriException("Database Error: The configuration for default driver [{$config['default']}] does not match any in connection configuration", 107);
+        if (count($config['connections'][$config['default']]) == 0) throw new MachinjiriException("Database Error: The configuration for default driver [{$config['default']}] is not set.", 108);
         
         $configuration = $config['connections'][$config['default']];
         if (isset($config['pool']) && count($config['pool']) > 0) {
@@ -404,7 +412,7 @@ class Container
     protected function loadRoutes(): void
     {
         $routes = $this->routes . "web.php";
-        if (!is_file($routes)) throw new MachinjiriException("Routing Error: web.php not found in routes/");
+        if (!is_file($routes)) throw new MachinjiriException("Routing Error: web.php not found in routes/", 109);
         require $routes;
     }
     
@@ -663,7 +671,7 @@ class Container
             return new $abstract(...$parameters);
         }
         
-        throw new MachinjiriException("Unable to resolve service: {$abstract}", 30102);
+        throw new MachinjiriException("Unable to resolve service: {$abstract}", 110);
     }
     
     /**
@@ -878,7 +886,7 @@ class Container
             return $this->configurations[$name];
         }
         
-        throw new MachinjiriException("Property {$name} not found on container.", 30103);
+        throw new MachinjiriException("Property {$name} not found on container.", 111);
     }
     
     /**
@@ -940,7 +948,47 @@ class Container
             }
         }
         
-        throw new MachinjiriException("Method {$method} not found on container.", 30104);
+        throw new MachinjiriException("Method {$method} not found on container.", 112);
+    }
+
+    /**
+     * Establish database connection using framework DatabaseConnection wrapper.
+     *
+     * This method sets the path and configuration for the DatabaseConnection and triggers
+     * an event indicating which driver was connected. On failure, an error is logged and presented.
+     *
+     * @return void
+     */
+    protected function dbConnect(): void
+    {
+        $dbLogger = self::systemLogger('database');
+        try {
+            DatabaseConnection::setPath($this->database);
+            
+            // Get database configuration
+            $dbConfig = $this->getConfigurations()['database'] ?? [];
+            
+            if (empty($dbConfig)) {
+                throw new MachinjiriException("Database configuration not found", 113);
+            }
+            
+            DatabaseConnection::setConfig($dbConfig);
+
+            // Notify listeners which DB driver is in use
+            $this->listener->trigger('db.connected.driver.' . DatabaseConnection::getDriver());
+        } catch (MachinjiriException $e) {
+            // Log a critical error with context and show the error
+            $dbLogger->critical("Connection failed \ndriver => {driver}\nerror => {message}", [
+                'driver' => DatabaseConnection::getDriver(),
+                'message' => $e->getMessage()
+            ]);
+            $e->show();
+        }
+    }
+
+    protected static function systemLogger(string $logFile, bool $event = false): Logger 
+    {
+        return LoggerFactory::system($logFile, "system", $event);
     }
 
     /**

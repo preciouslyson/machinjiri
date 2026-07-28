@@ -6,10 +6,13 @@ use \PDO;
 use \PDOStatement;
 use \PDOException;
 use MongoDB\Client;
+use Mlangeni\Machinjiri\Core\Artisans\Adapters\MongoDB\MongoAdapter;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-use Mlangeni\Machinjiri\Core\Database\Grammars\Grammar;
-use Mlangeni\Machinjiri\Core\Database\Grammars\MySqlGrammar;
-use Mlangeni\Machinjiri\Core\Database\Grammars\PostgresGrammar;
+use Mlangeni\Machinjiri\Core\Database\Grammars\{
+    Grammar,
+    MySqlGrammar,
+    PostgresGrammar
+};
 
 class DatabaseConnection
 {
@@ -365,31 +368,22 @@ class DatabaseConnection
     private static function getMongoConnection(): ?Client
     {
         if (self::$mongoConnection === null) {
-            if (!class_exists(Client::class)) {
-                throw new MachinjiriException("Database Error: MongoDB PHP driver not installed.", 209);
-            }
-
-            $host = self::$config['host'] ?? 'localhost';
-            $port = self::$config['port'] ?? 27017;
-            $username = self::$config['username'] ?? null;
-            $password = self::$config['password'] ?? null;
-
-            $auth = '';
-            if ($username && $password) {
-                $auth = rawurlencode($username) . ':' . rawurlencode($password) . '@';
-            }
-
-            $uri = "mongodb://{$auth}{$host}:{$port}";
-
             try {
-                self::$mongoConnection = new Client(
-                    $uri,
-                    self::$config['options'] ?? [],
-                    self::$config['driverOptions'] ?? []
-                );
-            } catch (\Throwable $e) {
-                throw new MachinjiriException("Database Error: MongoDB connection failed: " . $e->getMessage(), 210);
+                $mongoAdapter = new MongoAdapter([
+                    'host' => self::$config['host'] ?? 'localhost',
+                    'port' => self::$config['port'] ?? 27017,
+                    'username' => self::$config['username'] ?? null,
+                    'password' => self::$config['password'] ?? null,
+                    'database' => self::$config['database'] ?? null,
+                    'uri' => self::$config['uri'] ?? null,
+                    'options' => self::$config['options'] ?? [],
+                    'driverOptions' => self::$config['options'] ?? []
+                ]);
+                self::$mongoConnection = $mongoAdapter->connect();
+            } catch (MachinjiriException $e) {
+                $e->show();
             }
+
         }
         return self::$mongoConnection;
     }

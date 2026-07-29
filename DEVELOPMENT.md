@@ -143,27 +143,6 @@ public function process(string $data, int $timeout = 30): array
 }
 ```
 
-## Project Structure
-
-```
-machinjiri/
-├── src/                     # Framework source code
-│   ├── Components/          # UI components
-│   ├── Machinjiri/         # Core framework
-│   │   ├── Artisans/       # CLI commands
-│   │   ├── Database/       # Query builder, migrations, schema
-│   │   ├── Http/           # Request/Response handling
-│   │   ├── Kernel/         # Core kernel modules
-│   │   ├── Routing/        # Router and routing
-│   │   ├── Security/       # Encryption, hashing, tokens
-│   │   └── Views/          # View engine
-├── tests/                   # Test suite
-├── database/               # Migrations and seeds
-├── resources/              # Resources (views, translations)
-├── routes/                 # Route definitions
-├── storage/               # Logs, cache, uploads
-└── public/                # Web root
-```
 
 ## Configuration
 

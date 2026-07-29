@@ -156,14 +156,12 @@ class Container
         $this->isArtisan = $isArtisan ?? false;
 
         $this->initialize();
-
-        $this->dbConnect();
     }
     
     /**
      * Get the global container instance
      *
-     * @return static
+     * @return static 
      */
     public static function getInstance(): self
     {
@@ -219,7 +217,7 @@ class Container
     /**
      * Ensure the provided application base path is a directory.
      *
-     * @throws MachinjiriExc
+     * @throws MachinjiriException
      * eption
      */
     protected function validateBasePath(): void
@@ -970,46 +968,6 @@ class Container
             
             if (empty($dbConfig)) {
                 throw new MachinjiriException("Database configuration not found", 113);
-            }
-            
-            DatabaseConnection::setConfig($dbConfig);
-
-            // Notify listeners which DB driver is in use
-            $this->listener->trigger('db.connected.driver.' . DatabaseConnection::getDriver());
-        } catch (MachinjiriException $e) {
-            // Log a critical error with context and show the error
-            $dbLogger->critical("Connection failed \ndriver => {driver}\nerror => {message}", [
-                'driver' => DatabaseConnection::getDriver(),
-                'message' => $e->getMessage()
-            ]);
-            $e->show();
-        }
-    }
-
-    protected static function systemLogger(string $logFile, bool $event = false): Logger 
-    {
-        return LoggerFactory::system($logFile, "system", $event);
-    }
-
-    /**
-     * Establish database connection using framework DatabaseConnection wrapper.
-     *
-     * This method sets the path and configuration for the DatabaseConnection and triggers
-     * an event indicating which driver was connected. On failure, an error is logged and presented.
-     *
-     * @return void
-     */
-    private function dbConnect(): void
-    {
-        $dbLogger = self::systemLogger('database');
-        try {
-            DatabaseConnection::setPath($this->database);
-            
-            // Get database configuration
-            $dbConfig = $this->getConfigurations()['database'] ?? [];
-            
-            if (empty($dbConfig)) {
-                throw new MachinjiriException("Database configuration not found", 40002);
             }
             
             DatabaseConnection::setConfig($dbConfig);

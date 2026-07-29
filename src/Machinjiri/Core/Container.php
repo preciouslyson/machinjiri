@@ -156,14 +156,12 @@ class Container
         $this->isArtisan = $isArtisan ?? false;
 
         $this->initialize();
-
-        $this->dbConnect();
     }
     
     /**
      * Get the global container instance
      *
-     * @return static
+     * @return static 
      */
     public static function getInstance(): self
     {
@@ -219,7 +217,7 @@ class Container
     /**
      * Ensure the provided application base path is a directory.
      *
-     * @throws MachinjiriExc
+     * @throws MachinjiriException
      * eption
      */
     protected function validateBasePath(): void

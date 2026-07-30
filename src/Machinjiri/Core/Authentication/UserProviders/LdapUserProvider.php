@@ -93,7 +93,7 @@ class LdapUserProvider implements UserProvider
 
     public function retrieveByRememberToken(string $token): ?Authenticatable
     {
-        // Not implemented for LDAP; you could delegate to a local database.
+        // Not implemented for LDAP; could delegate to a local database.
         return null;
     }
 

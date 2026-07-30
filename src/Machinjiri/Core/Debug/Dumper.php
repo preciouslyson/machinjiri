@@ -170,20 +170,20 @@ class Dumper
         return <<<CSS
 <style>
 .machinjiri-dump.cozy-dump {
-    background: #FCF7F0;
+    background: #f3f3f3;
     color: #2E2C2A;
     font-family: 'SF Mono', Monaco, Menlo, Consolas, 'Courier New', monospace;
     font-size: 14px;
     line-height: 1.6;
     padding: 1rem 1.2rem;
     margin: 1rem 0;
-    border-radius: 28px;
     overflow-x: auto;
-    border-left: 5px solid #E68A5E;
+    border-left: 5px solid #CD7350;
     box-shadow: 0 6px 14px rgba(0, 0, 0, 0.04);
     backdrop-filter: blur(2px);
     border: 1px solid #F2E5D8;
     border-left-width: 5px;
+    border-left-color: #CD7350;
 }
 .machinjiri-dump.cozy-dump pre {
     margin: 0;
@@ -224,11 +224,7 @@ class Dumper
 }
 .dump-property {
     color: #9C7A5C;
-}
-/* optional subtle hover effect */
-.machinjiri-dump.cozy-dump:hover {
-    border-left-color: #CD7350;
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.06);
+}ox-shadow: 0 10px 20px rgba(0, 0, 0, 0.06);
 }
 </style>
 CSS;

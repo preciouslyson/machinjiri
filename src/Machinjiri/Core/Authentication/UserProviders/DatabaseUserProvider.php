@@ -7,6 +7,7 @@ use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 use Mlangeni\Machinjiri\Core\Artisans\Caching\CacheManager;
+use Mlangeni\Machinjiri\Core\Exceptions\AuthenticationException;
 use Mlangeni\Machinjiri\Core\Security\Hashing\Hasher;
 
 class DatabaseUserProvider implements UserProvider
@@ -60,7 +61,9 @@ class DatabaseUserProvider implements UserProvider
                 $query->select()->where($key, '=', $value);
             }
         }
-        return $this->hydrateModel($query->first());
+        $result = $query->first();
+        if ($result === null) throw new AuthenticationException("Authentication Error: User does not exist");
+        return $this->hydrateModel($result);
     }
 
     public function retrieveByRememberToken(string $token): ?Authenticatable
@@ -107,7 +110,6 @@ class DatabaseUserProvider implements UserProvider
                 ->execute();
         // Invalidate cache
         $this->cache->delete('user:' . $id);
-        
     }
 
     protected function hydrateModel(array $data): Authenticatable

@@ -194,7 +194,7 @@ class Vite
 
     protected function getPublicBuildPath(): string
     {
-        return $this->app->getPublicPath() . '/' . $this->buildDirectory;
+        return $this->app->routing . '/' . $this->buildDirectory;
     }
 
     protected function isSafePath(string $filePath, string $basePath): bool
@@ -223,7 +223,7 @@ class Vite
         return $body;
     }
 
-    public function serve(HttpRequest $request, HttpResponse $response): ?HttpResponse
+    public function serve(HttpRequest $request, HttpResponse $response): HttpResponse|string|null
     {
         $uri = $request->getPath();
 
@@ -273,7 +273,7 @@ class Vite
                 $response->setHeader('Content-Encoding', 'gzip');
             }
         }
-
+ 
         $response->setBody($content);
         $this->applySecurityHeaders($response);
         $response->send();

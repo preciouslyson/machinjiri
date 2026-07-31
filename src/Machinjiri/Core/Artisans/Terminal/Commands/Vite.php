@@ -126,7 +126,7 @@ HELP
                         $this->registerProviderInConfig($this->artisanContainer());
 
                         // 4. Create Vite project scaffold
-                        $appDir = $input->getOption('app-dir') ?: 'resources/frontend';
+                        $appDir = $input->getOption('app-dir') ?: 'resources/' . getenv("APP_NAME", "frontend");
                         $template = $input->getOption('template') ?: 'vanilla';
                         $packageManager = $input->getOption('package-manager') ?: 'npm';
                         $skipInstall = $input->getOption('skip-install');

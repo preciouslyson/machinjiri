@@ -13,8 +13,50 @@ use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Integrations\Vite\Vite as ViteIntegration;
 
+trait viteHelpers
+{
+
+    private function checkNodeEnvironment(SymfonyStyle $ss, ?string $packageManager): bool
+    {
+        $pm = $packageManager ?? 'npm';
+        $process = new Process([$pm, '--version']);
+        $process->run();
+        if (!$process->isSuccessful()) {
+            $ss->error("{$pm} is not installed or not in PATH.");
+            return false;
+        }
+        $process = new Process(['node', '--version']);
+        $process->run();
+        if (!$process->isSuccessful()) {
+            $ss->error("Node.js is not installed.");
+            return false;
+        }
+        return true;
+    }
+
+    private function detectPackageManager(string $appDir): string
+    {
+        if (file_exists($appDir . '/yarn.lock')) return 'yarn';
+        if (file_exists($appDir . '/pnpm-lock.yaml')) return 'pnpm';
+        if (file_exists($appDir . '/bun.lockb')) return 'bun';
+        return 'npm';
+    }
+
+    private function deleteDirectory(string $dir): void
+    {
+        if (!is_dir($dir)) return;
+        $files = array_diff(scandir($dir), ['.', '..']);
+        foreach ($files as $file) {
+            $path = $dir . DIRECTORY_SEPARATOR . $file;
+            is_dir($path) ? $this->deleteDirectory($path) : unlink($path);
+        }
+        rmdir($dir);
+    }
+    
+}
+
 /**
- * Production-ready Vite Integration Commands
+ * Vite Integration Commands
  */
 class Vite
 {
@@ -27,7 +69,7 @@ class Vite
     {
         return [
             new class extends Command {
-                use CommandHelper;
+                use CommandHelper, viteHelpers;
 
                 public function __construct()
                 {
@@ -57,9 +99,6 @@ HELP
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Vite Integration Initializer', function (SymfonyStyle $ss) use ($input) {
-                        $container = new Container(getcwd());
-                        $container->initialize();
-
                         // Check Node.js environment
                         if (!$this->checkNodeEnvironment($ss, $input->getOption('package-manager'))) {
                             return Command::FAILURE;
@@ -68,7 +107,7 @@ HELP
                         $created = [];
 
                         // 1. Create configuration file (merge if exists)
-                        $configPath = $this->createViteConfig($container, $input);
+                        $configPath = $this->createViteConfig($this->artisanContainer(), $input);
                         if ($configPath) {
                             $created[] = 'Configuration: ' . $configPath;
                         } elseif (!$input->getOption('force')) {
@@ -77,17 +116,17 @@ HELP
 
                         // 2. Create service provider
                         if (!$input->getOption('skip-provider')) {
-                            $providerPath = $this->createViteServiceProvider($container, $input);
+                            $providerPath = $this->createViteServiceProvider($this->artisanContainer(), $input);
                             if ($providerPath) {
                                 $created[] = 'Service Provider: ' . $providerPath;
                             }
                         }
 
                         // 3. Register provider in config/providers.php (idempotent)
-                        $this->registerProviderInConfig($container);
+                        $this->registerProviderInConfig($this->artisanContainer());
 
                         // 4. Create Vite project scaffold
-                        $appDir = $input->getOption('app-dir') ?: 'resources/frontend';
+                        $appDir = $input->getOption('app-dir') ?: 'resources/' . getenv("APP_NAME", "frontend");
                         $template = $input->getOption('template') ?: 'vanilla';
                         $packageManager = $input->getOption('package-manager') ?: 'npm';
                         $skipInstall = $input->getOption('skip-install');
@@ -96,7 +135,7 @@ HELP
                         if ($result) {
                             $created[] = "Vite frontend scaffold created in: {$appDir} (template: {$template})";
                             // Update build path in config
-                            $this->updateBuildPathInConfig($container, $appDir, $input->getOption('build-dir') ?: 'build');
+                            $this->updateBuildPathInConfig($this->artisanContainer(), $appDir, $input->getOption('build-dir') ?: 'build');
                         }
 
                         if (empty($created)) {
@@ -114,23 +153,7 @@ HELP
                     });
                 }
 
-                private function checkNodeEnvironment(SymfonyStyle $ss, ?string $packageManager): bool
-                {
-                    $pm = $packageManager ?? 'npm';
-                    $process = new Process([$pm, '--version']);
-                    $process->run();
-                    if (!$process->isSuccessful()) {
-                        $ss->error("{$pm} is not installed or not in PATH.");
-                        return false;
-                    }
-                    $process = new Process(['node', '--version']);
-                    $process->run();
-                    if (!$process->isSuccessful()) {
-                        $ss->error("Node.js is not installed.");
-                        return false;
-                    }
-                    return true;
-                }
+                
 
                 private function createViteConfig(Container $container, InputInterface $input): ?string
                 {
@@ -325,21 +348,10 @@ JS;
                     $content = "<?php\nreturn " . var_export($existing, true) . ";\n";
                     file_put_contents($configFile, $content);
                 }
-
-                private function deleteDirectory(string $dir): void
-                {
-                    if (!is_dir($dir)) return;
-                    $files = array_diff(scandir($dir), ['.', '..']);
-                    foreach ($files as $file) {
-                        $path = $dir . DIRECTORY_SEPARATOR . $file;
-                        is_dir($path) ? $this->deleteDirectory($path) : unlink($path);
-                    }
-                    rmdir($dir);
-                }
             },
 
             new class extends Command {
-                use CommandHelper;
+                use CommandHelper, viteHelpers;
 
                 public function __construct()
                 {
@@ -376,34 +388,91 @@ JS;
                     });
                 }
 
-                private function detectPackageManager(string $appDir): string
-                {
-                    if (file_exists($appDir . '/yarn.lock')) return 'yarn';
-                    if (file_exists($appDir . '/pnpm-lock.yaml')) return 'pnpm';
-                    if (file_exists($appDir . '/bun.lockb')) return 'bun';
-                    return 'npm';
-                }
-
-                private function checkNodeEnvironment(SymfonyStyle $ss, string $packageManager): bool
-                {
-                    $process = new Process([$packageManager, '--version']);
-                    $process->run();
-                    if (!$process->isSuccessful()) {
-                        $ss->error("{$packageManager} not found.");
-                        return false;
-                    }
-                    $process = new Process(['node', '--version']);
-                    $process->run();
-                    if (!$process->isSuccessful()) {
-                        $ss->error("Node.js not found.");
-                        return false;
-                    }
-                    return true;
-                }
             },
 
             new class extends Command {
-                use CommandHelper;
+                use CommandHelper, viteHelpers;
+
+                public function __construct()
+                {
+                    parent::__construct('vite:install-package');
+                    $this->setDescription('Install one or more frontend packages into the Vite project');
+                }
+
+                protected function configure(): void
+                {
+                    $this->addArgument('packages', InputArgument::IS_ARRAY | InputArgument::REQUIRED, 'Package(s) to install (space separated)');
+                    $this->addOption('app-dir', null, InputOption::VALUE_OPTIONAL, 'Vite frontend directory', 'resources/frontend');
+                    $this->addOption('package-manager', null, InputOption::VALUE_OPTIONAL, 'Package manager (npm, yarn, pnpm, bun)');
+                    $this->addOption('dev', null, InputOption::VALUE_NONE, 'Install package(s) as dev dependencies');
+                }
+
+                protected function execute(InputInterface $input, OutputInterface $output): int
+                {
+                    return $this->executeWithStyle($input, $output, 'Install Vite Package', function (SymfonyStyle $ss) use ($input) {
+                        $appDir = $input->getOption('app-dir');
+                        $packageManager = $input->getOption('package-manager') ?: $this->detectPackageManager($appDir);
+                        if (!$this->checkNodeEnvironment($ss, $packageManager)) {
+                            return Command::FAILURE;
+                        }
+
+                        $packages = $input->getArgument('packages');
+                        if (empty($packages)) {
+                            $ss->error('No package names were provided.');
+                            return Command::FAILURE;
+                        }
+
+                        $dev = $input->getOption('dev');
+                        switch ($packageManager) {
+                            case 'yarn':
+                                $command = ['yarn', 'add'];
+                                if ($dev) {
+                                    $command[] = '--dev';
+                                }
+                                break;
+                            case 'pnpm':
+                                $command = ['pnpm', 'add'];
+                                if ($dev) {
+                                    $command[] = '--save-dev';
+                                }
+                                break;
+                            case 'bun':
+                                $command = ['bun', 'add'];
+                                if ($dev) {
+                                    $command[] = '--dev';
+                                }
+                                break;
+                            case 'npm':
+                            default:
+                                $command = ['npm', 'install'];
+                                if ($dev) {
+                                    $command[] = '--save-dev';
+                                }
+                                break;
+                        }
+
+                        $command = array_merge($command, $packages);
+                        $ss->text('Running: ' . implode(' ', $command));
+                        $process = new Process($command, $appDir);
+                        $process->setTimeout(600);
+                        $process->run(function ($type, $buffer) use ($ss) {
+                            $ss->write($buffer);
+                        });
+
+                        if ($process->isSuccessful()) {
+                            $ss->success('Package(s) installed successfully.');
+                            return Command::SUCCESS;
+                        }
+
+                        $ss->error('Package installation failed: ' . $process->getErrorOutput());
+                        return Command::FAILURE;
+                    });
+                }
+
+            },
+
+            new class extends Command {
+                use CommandHelper, viteHelpers;
 
                 public function __construct()
                 {
@@ -423,7 +492,7 @@ JS;
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Vite Build', function (SymfonyStyle $ss) use ($input) {
-                        $container = new Container(getcwd());
+                        $container = $this->artisanContainer();
                         if ($container->getEnvironment() === 'production' && !$input->getOption('force')) {
                             $ss->error("vite:build is not allowed in production environment. Use --force to override.");
                             return Command::FAILURE;
@@ -462,34 +531,10 @@ JS;
                     });
                 }
 
-                private function detectPackageManager(string $appDir): string
-                {
-                    if (file_exists($appDir . '/yarn.lock')) return 'yarn';
-                    if (file_exists($appDir . '/pnpm-lock.yaml')) return 'pnpm';
-                    if (file_exists($appDir . '/bun.lockb')) return 'bun';
-                    return 'npm';
-                }
-
-                private function checkNodeEnvironment(SymfonyStyle $ss, string $packageManager): bool
-                {
-                    $process = new Process([$packageManager, '--version']);
-                    $process->run();
-                    if (!$process->isSuccessful()) {
-                        $ss->error("{$packageManager} not found.");
-                        return false;
-                    }
-                    $process = new Process(['node', '--version']);
-                    $process->run();
-                    if (!$process->isSuccessful()) {
-                        $ss->error("Node.js not found.");
-                        return false;
-                    }
-                    return true;
-                }
             },
 
             new class extends Command {
-                use CommandHelper;
+                use CommandHelper, viteHelpers;
 
                 public function __construct()
                 {
@@ -508,7 +553,7 @@ JS;
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Vite Dev Server', function (SymfonyStyle $ss) use ($input) {
-                        $container = new Container(getcwd());
+                        $container = $this->artisanContainer();
                         if ($container->getEnvironment() === 'production' && !$input->getOption('force')) {
                             $ss->error("vite:dev is not allowed in production. Use --force only in emergency.");
                             return Command::FAILURE;
@@ -536,34 +581,10 @@ JS;
                     });
                 }
 
-                private function detectPackageManager(string $appDir): string
-                {
-                    if (file_exists($appDir . '/yarn.lock')) return 'yarn';
-                    if (file_exists($appDir . '/pnpm-lock.yaml')) return 'pnpm';
-                    if (file_exists($appDir . '/bun.lockb')) return 'bun';
-                    return 'npm';
-                }
-
-                private function checkNodeEnvironment(SymfonyStyle $ss, string $packageManager): bool
-                {
-                    $process = new Process([$packageManager, '--version']);
-                    $process->run();
-                    if (!$process->isSuccessful()) {
-                        $ss->error("{$packageManager} not found.");
-                        return false;
-                    }
-                    $process = new Process(['node', '--version']);
-                    $process->run();
-                    if (!$process->isSuccessful()) {
-                        $ss->error("Node.js not found.");
-                        return false;
-                    }
-                    return true;
-                }
             },
 
             new class extends Command {
-                use CommandHelper;
+                use CommandHelper, viteHelpers;
 
                 public function __construct()
                 {
@@ -604,21 +625,10 @@ JS;
                         return Command::SUCCESS;
                     });
                 }
-
-                private function deleteDirectory(string $dir): void
-                {
-                    if (!is_dir($dir)) return;
-                    $files = array_diff(scandir($dir), ['.', '..']);
-                    foreach ($files as $file) {
-                        $path = $dir . DIRECTORY_SEPARATOR . $file;
-                        is_dir($path) ? $this->deleteDirectory($path) : unlink($path);
-                    }
-                    rmdir($dir);
-                }
             },
 
             new class extends Command {
-                use CommandHelper;
+                use CommandHelper, viteHelpers;
 
                 public function __construct()
                 {
@@ -666,7 +676,7 @@ JS;
             },
 
             new class extends Command {
-                use CommandHelper;
+                use CommandHelper, viteHelpers;
 
                 public function __construct()
                 {
@@ -714,7 +724,7 @@ JS;
             },
 
             new class extends Command {
-                use CommandHelper;
+                use CommandHelper, viteHelpers;
 
                 public function __construct()
                 {

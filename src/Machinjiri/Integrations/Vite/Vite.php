@@ -9,7 +9,7 @@ use Mlangeni\Machinjiri\Core\Http\HttpResponse;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 
-class Vite
+class Vite 
 {
     protected Container $app;
     protected string $devServerUrl = 'http://localhost:5173';
@@ -96,6 +96,7 @@ class Vite
         foreach ($this->entries as $entry) {
             $tags[] = sprintf('<script type="module" src="%s/%s"></script>', $this->devServerUrl, ltrim($entry, '/'));
         }
+
         return implode("\n", $tags);
     }
 
@@ -193,7 +194,7 @@ class Vite
 
     protected function getPublicBuildPath(): string
     {
-        return $this->app->getPublicPath() . '/' . $this->buildDirectory;
+        return $this->app->routing . '/' . $this->buildDirectory;
     }
 
     protected function isSafePath(string $filePath, string $basePath): bool
@@ -211,18 +212,21 @@ class Vite
         }
     }
 
-    protected function renderMaintenancePage(HttpResponse $response): void
+    protected function renderMaintenancePage(HttpResponse $response): string
     {
         $response->setStatusCode(503);
         $response->setHeader('Retry-After', '3600');
-        $response->setBody('<!DOCTYPE html><html><head><title>Maintenance</title></head><body><h1>503 Service Unavailable</h1><p>Vite application is being updated. Please try again later.</p></body></html>');
+        $body = "<!DOCTYPE html><html><head><title>Maintenance</title></head><body><h1>503 Service Unavailable</h1><p>Vite application is being updated. Please try again later.</p></body></html>";
+        $response->setBody($body);
         $this->applySecurityHeaders($response);
         $response->send();
+        return $body;
     }
 
-    public function serve(HttpRequest $request, HttpResponse $response): ?HttpResponse
+    public function serve(HttpRequest $request, HttpResponse $response): HttpResponse|string|null
     {
         $uri = $request->getPath();
+
         foreach ($this->excludedPaths as $excluded) {
             if (str_starts_with($uri, $excluded) || $uri === $excluded) {
                 return null;
@@ -269,36 +273,35 @@ class Vite
                 $response->setHeader('Content-Encoding', 'gzip');
             }
         }
-
+ 
         $response->setBody($content);
         $this->applySecurityHeaders($response);
         $response->send();
         return $response;
     }
 
-    protected function serveIndexFile(string $buildPath, HttpRequest $request, HttpResponse $response): HttpResponse
+    protected function serveIndexFile(string $buildPath, HttpRequest $request, HttpResponse $response): ?string
     {
         $indexPath = $buildPath . '/' . $this->indexFile;
         if (!file_exists($indexPath)) {
             $this->logger->critical('Vite index file missing', ['path' => $indexPath]);
             $this->renderMaintenancePage($response);
-            return $response;
         }
 
         if ($this->indexContent === null || filemtime($indexPath) !== $this->indexLastModified) {
             $this->indexContent = file_get_contents($indexPath);
             $this->indexLastModified = filemtime($indexPath);
         }
-
+        $body = $this->indexContent;
         $response->setHeader('Content-Type', 'text/html');
         $response->setHeader('Cache-Control', 'no-cache, must-revalidate');
-        $response->setBody($this->indexContent);
+        $response->setBody($body);
         $this->applySecurityHeaders($response);
         $response->send();
-        return $response;
+        return $body;
     }
 
-    public function proxyToDevServer(HttpRequest $request, HttpResponse $response): ?HttpResponse
+    public function proxyToDevServer(HttpRequest $request, HttpResponse $response): ?string
     {
         if (!$this->isHot) return null;
         if ($this->app->getEnvironment() === 'production') {
@@ -310,17 +313,15 @@ class Vite
 
         try {
             $client = $request->getClient();
-            $proxyResponse = $client->get($targetUrl, [], $request->getHeaders());
-            $response->setStatusCode($proxyResponse->getStatusCode())
-                     ->setBody($proxyResponse->getBody());
+            $proxyResponse = $client->toHttpResponse($client->get($targetUrl, $request->getHeaders()));
+
             foreach ($proxyResponse->getHeaders() as $name => $value) {
                 if (!in_array(strtolower($name), ['transfer-encoding', 'connection'])) {
                     $response->setHeader($name, $value);
                 }
             }
             $this->applySecurityHeaders($response);
-            $response->send();
-            return $response;
+            return $proxyResponse->getBody();
         } catch (\Exception $e) {
             $this->logger->error('Vite proxy failed', ['target' => $targetUrl, 'error' => $e->getMessage()]);
             $response->setStatusCode(502)->setBody('Bad Gateway: Unable to reach Vite dev server.')->send();

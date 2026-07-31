@@ -8,14 +8,17 @@ use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 use Mlangeni\Machinjiri\Facade\Authentication\Guard;
 use Mlangeni\Machinjiri\Facade\Authentication\Authenticatable;
-use Mlangeni\Machinjiri\Core\Authentication\UserProviders\DatabaseUserProvider;
-use Mlangeni\Machinjiri\Core\Authentication\UserProviders\OAuthUserProvider;
-use Mlangeni\Machinjiri\Core\Authentication\UserProviders\UserProvider;
-use Mlangeni\Machinjiri\Facade\Authentication\Guards\SessionGuard;
-use Mlangeni\Machinjiri\Facade\Authentication\Guards\TokenGuard;
-use Mlangeni\Machinjiri\Facade\Authentication\Guards\JwtGuard;
+use Mlangeni\Machinjiri\Core\Authentication\UserProviders\{DatabaseUserProvider, OAuthUserProvider, UserProvider};
+use Mlangeni\Machinjiri\Facade\Authentication\Guards\{SessionGuard, TokenGuard, JwtGuard};
 use Mlangeni\Machinjiri\Core\Security\Encryption\Bangwe;
+use Mlangeni\Machinjiri\Core\Security\Hashing\Hasher;
 use Mlangeni\Machinjiri\Core\Authentication\ThirdParty\ThirdPartyAuth;
+use Mlangeni\Machinjiri\Core\Authentication\{Session, Cookie};
+use Mlangeni\Machinjiri\Core\Artisans\Caching\CacheManager;
+use Mlangeni\Machinjiri\Facade\Authentication\Models\User;
+use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
+use Mlangeni\Machinjiri\Core\Authentication\UserProviders\LdapUserProvider;
+
 
 class AuthManager
 {
@@ -75,11 +78,11 @@ class AuthManager
 
     protected function createSessionGuard(array $config): SessionGuard
     {
-        $session = $this->container->resolve(\Mlangeni\Machinjiri\Core\Authentication\Session::class);
-        $cookie = $this->container->resolve(\Mlangeni\Machinjiri\Core\Authentication\Cookie::class);
-        $hasher = $config['hasher'] ?? $this->container->resolve(\Mlangeni\Machinjiri\Core\Security\Hashing\Hasher::class);
+        $session = $this->container->resolve(Session::class);
+        $cookie = $this->container->resolve(Cookie::class);
+        $hasher = $config['hasher'] ?? $this->container->resolve(Hasher::class);
         $userProvider = $this->createUserProvider($config);
-        $cache = $this->container->resolve(\Mlangeni\Machinjiri\Core\Artisans\Caching\CacheManager::class);
+        $cache = $this->container->resolve(CacheManager::class);
         $rememberExpiration = $config['remember_expiration'] ?? 30 * 24 * 60 * 60;
 
         return new SessionGuard(
@@ -114,19 +117,19 @@ class AuthManager
 
         switch (strtolower($driver)) {
             case 'database':
-                $model = $providerConfig['model'] ?? \Mlangeni\Machinjiri\Facade\Authentication\Models\User::class;
+                $model = $providerConfig['model'] ?? User::class;
                 return new DatabaseUserProvider(
-                    new \Mlangeni\Machinjiri\Core\Database\QueryBuilder('users'),
+                    new QueryBuilder('users'),
                     $model,
                     $this->events,
                     $this->logger,
-                    $this->container->resolve(\Mlangeni\Machinjiri\Core\Artisans\Caching\CacheManager::class)
+                    $this->container->resolve(CacheManager::class)
                 );
             case 'ldap':
                 // Uses supplied LDAP components
                 $ldapManager = $this->container->resolve('ldap.manager');
-                $model = $providerConfig['model'] ?? \Mlangeni\Machinjiri\Facade\Authentication\Models\User::class;
-                return new \Mlangeni\Machinjiri\Core\Authentication\UserProviders\LdapUserProvider(
+                $model = $providerConfig['model'] ?? User::class;
+                return new LdapUserProvider(
                     $ldapManager,
                     $model,
                     $providerConfig['sync_attributes'] ?? [],
@@ -134,7 +137,7 @@ class AuthManager
                 );
             case 'oauth':
                 $thirdPartyAuth = $this->container->resolve(ThirdPartyAuth::class);
-                $model = $guardConfig['provider']['model'] ?? \Mlangeni\Machinjiri\Facade\Authentication\Models\User::class;
+                $model = $guardConfig['provider']['model'] ?? User::class;
                 $logger = $this->container->resolve(Logger::class);
                 $events = $this->container->resolve(EventListener::class);
                 return new OAuthUserProvider($thirdPartyAuth, $model, $logger, $events);

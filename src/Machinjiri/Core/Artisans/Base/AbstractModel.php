@@ -192,7 +192,7 @@ abstract class AbstractModel
             'float', 'double' => (float) $value,
             'string' => (string) $value,
             'bool', 'boolean' => (bool) $value,
-            'array', 'json' => json_decode($value, true) ?? [],
+            'array', 'json' => json_decode($value ?? "", true) ?? [],
             'object' => json_decode($value),
             'datetime', 'date', 'timestamp' => $this->asDateTimeHandler($value), // handled in getAttribute
             default => $value,

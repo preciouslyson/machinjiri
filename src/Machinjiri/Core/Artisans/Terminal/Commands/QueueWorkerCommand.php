@@ -519,8 +519,6 @@ CREATE TABLE IF NOT EXISTS `job_batches` (
     `created_at` INT NOT NULL,
     `finished_at` INT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE INDEX idx_job_batches_name ON `job_batches` (`name`);
 CREATE INDEX idx_job_batches_finished_at ON `job_batches` (`finished_at`);
 
 -- Queue workers table

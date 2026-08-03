@@ -5,6 +5,8 @@ namespace Mlangeni\Machinjiri\Core\Artisans\Contracts;
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
+use Mlangeni\Machinjiri\Core\Artisans\Contracts\QueueInterface;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\{LoggerFactory, Logger};
 
 /**
  * Abstract Job Processor
@@ -13,6 +15,7 @@ abstract class BaseJobProcessor implements JobProcessorInterface
 {
     protected Container $app;
     protected EventListener $events;
+    protected Logger $logger;
     
     protected array $eventBuffer = [];
     protected int $maxEventBufferSize = 100;
@@ -24,7 +27,8 @@ abstract class BaseJobProcessor implements JobProcessorInterface
     public function __construct(Container $app)
     {
         $this->app = $app;
-        $this->events = new EventListener(new \Mlangeni\Machinjiri\Core\Artisans\Logging\Logger('queue-processor'));
+        $this->events = new EventListener(LoggerFactory::system('queue-processor', 'queue', true));
+        $this->logger = LoggerFactory::system('queue-processor', 'queue');
     }
     
     /**
@@ -56,7 +60,6 @@ abstract class BaseJobProcessor implements JobProcessorInterface
                 'job_name'       => $job->getName(),
                 'execution_time' => $executionTime,
             ]);
-            
             return $result;
         } catch (\Throwable $e) {
             throw new MachinjiriException("Job {$job->getName()} failed: {$e->getMessage()}", 60001, $e);
@@ -74,13 +77,16 @@ abstract class BaseJobProcessor implements JobProcessorInterface
             'exception' => $exception->getMessage(),
             'attempts' => $job->getAttempts(),
         ]);
-        
+
         if ($job->getAttempts() >= $job->getMaxAttempts()) {
+            // Mark as permanently failed
             $this->markAsFailed($job, $exception);
             $job->failed($exception);
-        } else {
-            $this->retry($job, $job->getRetryDelay());
+            return;
         }
+
+        // Retry the job with proper delay
+        $this->retry($job);
     }
     
     /**
@@ -96,6 +102,8 @@ abstract class BaseJobProcessor implements JobProcessorInterface
             'attempts' => $job->getAttempts(),
             'result' => $result,
         ]);
+
+        $this->logger->info("Job {$job->getId()} completed successfully after {$job->getAttempts()} attempts.");
     }
     
     /**
@@ -103,7 +111,13 @@ abstract class BaseJobProcessor implements JobProcessorInterface
      */
     public function retry(JobInterface $job, int $delay = 0): bool
     {
-        $actualDelay = $delay > 0 ? $delay : $job->getNextRetryDelay();
+        // Calculate delay: use provided delay, or job's retry delay, or default
+        $actualDelay = $delay > 0 ? $delay : $job->getRetryDelay();
+        
+        // Apply exponential backoff based on attempts
+        if ($job->getAttempts() > 1) {
+            $actualDelay = $job->calculateBackoffDelay($job->getAttempts());
+        }
 
         $this->events->trigger('job.retrying - id:{job_id}', [
             'job_id' => $job->getId(),
@@ -113,9 +127,22 @@ abstract class BaseJobProcessor implements JobProcessorInterface
         ]);
         
         try {
-            $queue = $this->app->getProviderLoader()->resolve('queue');
+            $queue = $this->getQueue();
             if ($queue) {
-                $queue->release($job, $job->getQueue(), $actualDelay);
+                // Delete the current job from the queue
+                $queue->delete($job, $job->getQueue());
+                
+                // Push it back with delay
+                $queue->push($job, $job->getQueue(), $actualDelay);
+                
+                $this->logger->info(sprintf(
+                    'Job %s scheduled for retry (attempt %d/%d) with %d second delay',
+                    $job->getId(),
+                    $job->getAttempts() + 1,
+                    $job->getMaxAttempts(),
+                    $actualDelay
+                ));
+                
                 return true;
             }
         } catch (\Throwable $e) {
@@ -123,8 +150,9 @@ abstract class BaseJobProcessor implements JobProcessorInterface
                 'job_id' => $job->getId(),
                 'exception' => $e->getMessage(),
             ]);
+            $this->logger->error("Failed to retry job {$job->getId()}: {$e->getMessage()}");
         }
-        
+
         return false;
     }
     
@@ -157,6 +185,7 @@ abstract class BaseJobProcessor implements JobProcessorInterface
             'job_id' => $job->getId(),
             'job_name' => $job->getName(),
         ]);
+        $this->logger->info("Job {$job->getId()} marked as completed.");
     }
     
     /**
@@ -164,11 +193,16 @@ abstract class BaseJobProcessor implements JobProcessorInterface
      */
     public function markAsFailed(JobInterface $job, MachinjiriException $exception): void
     {
+        $jobId = $job->getId();
+        $errorMessage = $exception->getMessage();
         $this->events->trigger('job.marked_failed', [
-            'job_id' => $job->getId(),
+            'job_id' => $jobId,
             'job_name' => $job->getName(),
-            'exception' => $exception->getMessage(),
+            'exception' => $errorMessage,
         ]);
+
+        $this->getQueue()->markAsFailed($jobId, $errorMessage);
+        LoggerFactory::system('queue-processor', 'queue')->error("Job $jobId marked as failed: $errorMessage");
     }
     
     private function triggerEvent(string $event, array $data): void
@@ -182,6 +216,14 @@ abstract class BaseJobProcessor implements JobProcessorInterface
         } else {
             $this->events->trigger($event, $data);
         }
+    }
+
+    private function getQueue(): ?QueueInterface
+    {
+        if (!$this->app->bound('queue')) {
+            throw new MachinjiriException("Queue service is not bound in the container.", 60002);
+        }
+        return $this->app->resolve('queue');
     }
     
 }

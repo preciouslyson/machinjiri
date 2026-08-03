@@ -200,31 +200,14 @@ trait QueueCommandHelper
         }
         return $config;
     }
-
-    private function createJobProcessor(): object
+ 
+    private function createJobProcessor(): ?object
     {
-        return new class($this->appContainer) implements \Mlangeni\Machinjiri\Core\Artisans\Contracts\JobProcessorInterface {
-            private $container;
-            public function __construct($container) { $this->container = $container; }
-            
-            public function process(\Mlangeni\Machinjiri\Core\Artisans\Contracts\JobInterface $job): mixed
-            {
-                if (method_exists($job, 'handle')) {
-                    return $job->handle($this->container);
-                }
-                throw new \RuntimeException('No job processor available');
-            }
-            
-            public function handleFailure(\Mlangeni\Machinjiri\Core\Artisans\Contracts\JobInterface $job, \Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException $exception): void
-            {
-                error_log(sprintf('Job %s failed: %s', $job->getName(), $exception->getMessage()));
-            }
-            
-            public function handleSuccess(\Mlangeni\Machinjiri\Core\Artisans\Contracts\JobInterface $job, mixed $result): void {}
-            public function markAsCompleted(\Mlangeni\Machinjiri\Core\Artisans\Contracts\JobInterface $job): void {}
-            public function markAsFailed(\Mlangeni\Machinjiri\Core\Artisans\Contracts\JobInterface $job, \Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException $exception): void {}
-            public function retry(\Mlangeni\Machinjiri\Core\Artisans\Contracts\JobInterface $job, int $delay = 0): bool { return false; }
-        };
+        $container = $this->artisanContainer();
+        if (!$container->bound('queue.processor')) {
+            throw new MachinjiriException("Queue processor is not registered in the container. Please ensure the QueueServiceProvider is loaded or run 'php artisan queue:init'.");
+        }
+        return $container->resolve('queue.processor');
     }
 
     protected function executeSafely(InputInterface $input, OutputInterface $output, callable $callback): int

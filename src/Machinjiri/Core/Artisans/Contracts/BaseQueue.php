@@ -189,4 +189,15 @@ abstract class BaseQueue implements QueueInterface
         return null;
     }
 
+    public function delete(JobInterface $job, string $queue = 'default'): bool
+    {
+        // This should be implemented by concrete queue drivers
+        $this->events->trigger('queue.delete', [
+            'queue' => $queue,
+            'job_id' => $job->getId(),
+        ]);
+        
+        return false;
+    }
+
 }

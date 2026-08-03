@@ -165,22 +165,32 @@ class BaseWorker implements WorkerInterface
     public function processNextJob(string $queue = 'default'): bool
     {
         if ($this->paused) return false;
-    
+
         $job = $this->queue->pop($queue);
+
         if (!$job) return false;
-    
+
+        // Increment attempts BEFORE processing
+        $job->incrementAttempts();
+
         try {
+            // Check if max attempts exceeded (after increment)
+            if ($job->getAttempts() > $job->getMaxAttempts()) {
+                $exception = new MachinjiriException("Job {$job->getId()} exceeded max attempts ({$job->getAttempts()}/{$job->getMaxAttempts()}).");
+                $this->processor->handleFailure($job, $exception);
+                $this->status['failed']++;
+                return false;
+            }
+            
             $result = $this->processor->process($job);
             $this->processor->handleSuccess($job, $result);
             $this->status['processed']++;
             $this->status['last_job_at'] = time();
             return true;
         } catch (\Throwable $e) {
-            $exception = $e instanceof MachinjiriException
-                ? $e
-                : new MachinjiriException($e->getMessage(), 60002, $e);
-            $this->processor->handleFailure($job, $exception);
+            $exception = $e instanceof MachinjiriException ? $e : new MachinjiriException($e->getMessage(), 60002, $e);
             $this->status['failed']++;
+            $this->processor->handleFailure($job, $exception);
             return false;
         }
     }
@@ -204,7 +214,7 @@ class BaseWorker implements WorkerInterface
             if ($emptyCycles > 0) {
                 $sleepTime = $this->calculateAdaptiveSleep($emptyCycles);
                 if ($sleepTime > 0) {
-                    sleep($sleepTime);
+                    @sleep($sleepTime);
                 }
             }
             

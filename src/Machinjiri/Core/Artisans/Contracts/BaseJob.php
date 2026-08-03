@@ -222,7 +222,7 @@ abstract class BaseJob implements JobInterface
             $payload = $payload['compressed'];
         }
 
-        return new static($app, $payload, [
+        $job = new static($app, $payload, [
             'id'              => $data['id'] ?? uniqid('job_', true),
             'name'            => $data['name'] ?? static::class,
             'maxAttempts'     => $data['maxAttempts'] ?? 3,
@@ -234,6 +234,17 @@ abstract class BaseJob implements JobInterface
             'compressPayload' => $compressPayload,
             'precompressed'   => true,
         ]);
+        
+        if (isset($data['attempts'])) {
+            $job->attempts = (int) $data['attempts'];
+        }
+        
+        return $job;
+    }
+
+    public function setAttempts(int $attempts): void
+    {
+        $this->attempts = $attempts;
     }
     
     protected function compressPayload(array $payload): string

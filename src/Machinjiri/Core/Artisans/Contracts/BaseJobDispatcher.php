@@ -81,7 +81,7 @@ class BaseJobDispatcher implements JobDispatcherInterface
             throw new MachinjiriException('Invalid job instance', 60011);
         }
         
-        $processor = resolve('queue.processor');
+        $processor = $this->app->resolve('queue.processor');
         if (!$processor) {
             throw new MachinjiriException('Job processor not configured', 60012);
         }

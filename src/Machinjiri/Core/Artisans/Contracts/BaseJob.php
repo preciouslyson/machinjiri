@@ -6,6 +6,7 @@ use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use \SensitiveParameter;  
 use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
+use Mlangeni\Machinjiri\Core\Components\UUID\ULID\UlidComponent;
 
 /**
  * Abstract Base Job
@@ -35,7 +36,7 @@ abstract class BaseJob implements JobInterface
         array $payload = [],
         array $options = []
     ) {
-        $this->id = $options['id'] ?? uniqid('job_', true);
+        $this->id = $options['id'] ?? $this->generateJobId();
         $this->name = $options['name'] ?? static::class;
         $this->payload = $payload;
 
@@ -53,6 +54,11 @@ abstract class BaseJob implements JobInterface
                 $this->payload = $this->compressPayload($payload);
             }
         }
+    }
+
+    private function generateJobId(): string
+    {
+        return 'job_' . strtolower(UlidComponent::generate());
     }
 
     protected function getApp(): Container
@@ -223,7 +229,7 @@ abstract class BaseJob implements JobInterface
         }
 
         $job = new static($app, $payload, [
-            'id'              => $data['id'] ?? uniqid('job_', true),
+            'id'              => $data['id'] ?? $this->generateJobId(),
             'name'            => $data['name'] ?? static::class,
             'maxAttempts'     => $data['maxAttempts'] ?? 3,
             'queue'           => $data['queue'] ?? 'default',

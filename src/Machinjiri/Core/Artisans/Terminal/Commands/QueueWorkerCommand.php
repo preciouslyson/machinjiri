@@ -466,6 +466,7 @@ CREATE TABLE IF NOT EXISTS `{$failedTable}` (
 CREATE TABLE IF NOT EXISTS `jobs` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     `queue` VARCHAR(255) NOT NULL,
+    `job_id` VARCHAR(255) NOT NULL UNIQUE,
     `payload` LONGTEXT NOT NULL,
     `attempts` TINYINT UNSIGNED NOT NULL DEFAULT 0,
     `reserved_at` INT UNSIGNED NULL DEFAULT NULL,
@@ -479,8 +480,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
 -- Failed jobs table
 CREATE TABLE IF NOT EXISTS `failed_jobs` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `uuid` CHAR(36) NOT NULL UNIQUE,
-    `connection` TEXT NOT NULL,
+    `job_id` VARCHAR(255) NOT NULL UNIQUE,
     `queue` TEXT NOT NULL,
     `payload` LONGTEXT NOT NULL,
     `exception` LONGTEXT NOT NULL,
@@ -604,6 +604,7 @@ CREATE INDEX idx_queue_events_created_at ON `queue_events` (`created_at`);
         return "
 CREATE TABLE IF NOT EXISTS \"{$jobsTable}\" (
     id BIGSERIAL PRIMARY KEY,
+    job_id VARCHAR(255) NOT NULL UNIQUE,
     queue VARCHAR(255) NOT NULL,
     payload TEXT NOT NULL,
     attempts SMALLINT NOT NULL DEFAULT 0,
@@ -617,7 +618,7 @@ CREATE INDEX IF NOT EXISTS idx_{$jobsTable}_available_at ON \"{$jobsTable}\" (av
 
 CREATE TABLE IF NOT EXISTS \"{$failedTable}\" (
     id BIGSERIAL PRIMARY KEY,
-    uuid UUID NOT NULL UNIQUE,
+    job_id VARCHAR(255) NOT NULL UNIQUE,
     connection TEXT NOT NULL,
     queue TEXT NOT NULL,
     payload TEXT NOT NULL,
@@ -635,6 +636,7 @@ CREATE INDEX IF NOT EXISTS idx_{$failedTable}_failed_at ON \"{$failedTable}\" (f
 -- Jobs table
 CREATE TABLE IF NOT EXISTS \"jobs\" (
     id BIGSERIAL PRIMARY KEY,
+    job_id VARCHAR(255) NOT NULL UNIQUE,
     queue VARCHAR(255) NOT NULL,
     payload TEXT NOT NULL,
     attempts SMALLINT NOT NULL DEFAULT 0,
@@ -649,7 +651,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_available_at ON jobs (available_at);
 -- Failed jobs table
 CREATE TABLE IF NOT EXISTS \"failed_jobs\" (
     id BIGSERIAL PRIMARY KEY,
-    uuid UUID NOT NULL UNIQUE,
+    job_id VARCHAR(255) NOT NULL UNIQUE,
     connection TEXT NOT NULL,
     queue TEXT NOT NULL,
     payload TEXT NOT NULL,
@@ -770,6 +772,7 @@ CREATE INDEX IF NOT EXISTS idx_queue_events_created_at ON queue_events (created_
         return "
 CREATE TABLE IF NOT EXISTS \"{$jobsTable}\" (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id VARCHAR(255) NOT NULL UNIQUE,
     queue VARCHAR(255) NOT NULL,
     payload TEXT NOT NULL,
     attempts INTEGER NOT NULL DEFAULT 0,
@@ -783,7 +786,7 @@ CREATE INDEX IF NOT EXISTS idx_{$jobsTable}_available_at ON \"{$jobsTable}\" (av
 
 CREATE TABLE IF NOT EXISTS \"{$failedTable}\" (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    uuid CHAR(36) NOT NULL UNIQUE,
+    job_id VARCHAR(255) NOT NULL UNIQUE,
     connection TEXT NOT NULL,
     queue TEXT NOT NULL,
     payload TEXT NOT NULL,
@@ -815,7 +818,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_available_at ON jobs (available_at);
 -- Failed jobs table
 CREATE TABLE IF NOT EXISTS \"failed_jobs\" (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    uuid CHAR(36) NOT NULL UNIQUE,
+    job_id VARCHAR(255) NOT NULL UNIQUE,
     connection TEXT NOT NULL,
     queue TEXT NOT NULL,
     payload TEXT NOT NULL,

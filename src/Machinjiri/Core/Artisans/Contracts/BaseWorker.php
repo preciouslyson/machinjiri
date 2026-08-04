@@ -175,7 +175,7 @@ class BaseWorker implements WorkerInterface
 
         try {
             // Check if max attempts exceeded (after increment)
-            if ($job->getAttempts() > $job->getMaxAttempts()) {
+            if ($job->getAttempts() >= $job->getMaxAttempts()) {
                 $exception = new MachinjiriException("Job {$job->getId()} exceeded max attempts ({$job->getAttempts()}/{$job->getMaxAttempts()}).");
                 $this->processor->handleFailure($job, $exception);
                 $this->status['failed']++;

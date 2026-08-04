@@ -36,7 +36,7 @@ final class UlidComponent
      * @return string
      * @throws MachinjiriException
      */
-    public static function generate(?DateTimeHandler $timestamp = null):           string
+    public static function generate(?DateTimeHandler $timestamp = null): string
     {
         $timestampMs = self::getCurrentTimestampMs($timestamp);
         [$randHigh, $randLow] = self::generateRandomnessSplit();

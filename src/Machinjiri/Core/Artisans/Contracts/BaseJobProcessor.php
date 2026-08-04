@@ -70,7 +70,7 @@ abstract class BaseJobProcessor implements JobProcessorInterface
      * Handle job failure
      */
     public function handleFailure(JobInterface $job, MachinjiriException $exception): void
-    {
+    {   
         $this->events->trigger('job.failed - id:{job_id}', [
             'job_id' => $job->getId(),
             'job_name' => $job->getName(),
@@ -78,15 +78,15 @@ abstract class BaseJobProcessor implements JobProcessorInterface
             'attempts' => $job->getAttempts(),
         ]);
 
-        if ($job->getAttempts() >= $job->getMaxAttempts()) {
+        if ($job->getAttempts() > $job->getMaxAttempts()) {
             // Mark as permanently failed
             $this->markAsFailed($job, $exception);
-            $job->failed($exception);
             return;
+        } else {
+            // Retry the job with proper delay
+            $this->retry($job);
         }
-
-        // Retry the job with proper delay
-        $this->retry($job);
+        
     }
     
     /**
@@ -113,11 +113,6 @@ abstract class BaseJobProcessor implements JobProcessorInterface
     {
         // Calculate delay: use provided delay, or job's retry delay, or default
         $actualDelay = $delay > 0 ? $delay : $job->getRetryDelay();
-        
-        // Apply exponential backoff based on attempts
-        if ($job->getAttempts() > 1) {
-            $actualDelay = $job->calculateBackoffDelay($job->getAttempts());
-        }
 
         $this->events->trigger('job.retrying - id:{job_id}', [
             'job_id' => $job->getId(),
@@ -138,22 +133,25 @@ abstract class BaseJobProcessor implements JobProcessorInterface
                 $this->logger->info(sprintf(
                     'Job %s scheduled for retry (attempt %d/%d) with %d second delay',
                     $job->getId(),
-                    $job->getAttempts() + 1,
+                    $job->getAttempts(),
                     $job->getMaxAttempts(),
                     $actualDelay
                 ));
                 
                 return true;
             }
-        } catch (\Throwable $e) {
+
+        } catch (\Throwable $exception) {
             $this->events->trigger('job.retry_failed - id:{job_id}', [
                 'job_id' => $job->getId(),
                 'exception' => $e->getMessage(),
             ]);
+            $this->markAsFailed($job, $exception);
             $this->logger->error("Failed to retry job {$job->getId()}: {$e->getMessage()}");
+            return false;
         }
 
-        return false;
+        
     }
     
     protected function triggerBuffered(string $event, array $data): void
@@ -201,8 +199,19 @@ abstract class BaseJobProcessor implements JobProcessorInterface
             'exception' => $errorMessage,
         ]);
 
-        $this->getQueue()->markAsFailed($jobId, $errorMessage);
-        LoggerFactory::system('queue-processor', 'queue')->error("Job $jobId marked as failed: $errorMessage");
+        if (!method_exists($this->getQueue(), 'markAsFailed')) {
+            throw new MachinjiriException("Method markAsFailed not found in {$this->getQueue()}");
+        }
+
+        $this->getQueue()->markAsFailed($job->getId(), $exception->getMessage());
+
+        if (!method_exists($this->getQueue(), 'failed')) {
+            throw new MachinjiriException("Method failed not found in {$this->getQueue()}");
+        }
+
+        $job->failed($exception);
+
+        $this->logger->error("Job {$job->getId()} marked as failed: {$exception->getMessage()}");
     }
     
     private function triggerEvent(string $event, array $data): void

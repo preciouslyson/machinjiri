@@ -191,10 +191,12 @@ abstract class BaseJobProcessor implements JobProcessorInterface
      */
     public function markAsFailed(JobInterface $job, MachinjiriException $exception): void
     {
+        $jobId = $job->getId();
+        $errorMessage = $exception->getMessage();
         $this->events->trigger('job.marked_failed', [
-            'job_id' => $job->getId(),
+            'job_id' => $jobId,
             'job_name' => $job->getName(),
-            'exception' => $exception->getMessage(),
+            'exception' => $errorMessage,
         ]);
 
         if (!method_exists($this->getQueue(), 'markAsFailed')) {

@@ -3632,8 +3632,6 @@ PHP;
             );
         }
         
-        // Also update the QueueWorkerCommand class
-        $this->updateQueueWorkerCommand($driverName, $name);
     }
 
     /**
@@ -3657,7 +3655,7 @@ PHP;
             $config['jobs'][$jobKey] = [
                 'class' => "Mlangeni\\Machinjiri\\App\\Jobs\\{$name}",
                 'queue' => $queue,
-                'command' => "job:{$jobKey}",
+                'command' => "queue:job {$jobKey}",
                 'enabled' => true,
             ];
         }
@@ -3694,31 +3692,6 @@ return [
     */
     'queue' => [
         'drivers' => [
-            'sync' => [
-                'class' => 'Mlangeni\Machinjiri\App\Queue\Drivers\SyncQueue',
-                'type' => 'sync',
-                'enabled' => true,
-            ],
-            'database' => [
-                'class' => 'Mlangeni\Machinjiri\App\Queue\Drivers\DatabaseQueue',
-                'type' => 'database',
-                'enabled' => true,
-            ],
-            'redis' => [
-                'class' => 'Mlangeni\Machinjiri\App\Queue\Drivers\RedisQueue',
-                'type' => 'redis',
-                'enabled' => true,
-            ],
-            'file' => [
-                'class' => 'Mlangeni\Machinjiri\App\Queue\Drivers\FileQueue',
-                'type' => 'file',
-                'enabled' => true,
-            ],
-            'memory' => [
-                'class' => 'Mlangeni\Machinjiri\App\Queue\Drivers\MemoryQueue',
-                'type' => 'memory',
-                'enabled' => true,
-            ],
         ],
         'worker_options' => [
             'sleep' => 3,
@@ -3741,21 +3714,6 @@ return [
     'jobs' => [
         // Job commands will be registered here automatically
     ],
-    
-    /*
-    |--------------------------------------------------------------------------
-    | Command Aliases
-    |--------------------------------------------------------------------------
-    |
-    | Aliases for commonly used commands.
-    |
-    */
-    'aliases' => [
-        'queue:work' => 'queue:process',
-        'queue:listen' => 'queue:work',
-        'job:make' => 'make:job',
-        'queue:make' => 'make:queue',
-    ],
 ];
 PHP;
 
@@ -3765,61 +3723,6 @@ PHP;
                 91022
             );
         }
-    }
-
-    /**
-     * Update QueueWorkerCommand class to include new driver
-     */
-    private function updateQueueWorkerCommand(string $driverKey, string $driverClass): void
-    {
-        $commandFile = $this->appBasePath . '/src/Machinjiri/Core/Artisans/Terminal/Commands/QueueWorkerCommand.php';
-        
-        if (!file_exists($commandFile)) {
-            // Command file doesn't exist yet, create it
-            $this->createQueueWorkerCommandFile();
-            return;
-        }
-        
-        // Read current command file
-        $content = file_get_contents($commandFile);
-        
-        // Look for the switch statement or driver configuration in the execute method
-        $pattern = '/case\s+\'([^\']+)\'\s*:/';
-        
-        if (preg_match($pattern, $content)) {
-            // Already has switch cases, add new case if not present
-            $caseStatement = "case '{$driverKey}':";
-            
-            if (strpos($content, $caseStatement) === false) {
-                // Find where to insert new case (before default case)
-                $insertPosition = strpos($content, "default:");
-                
-                if ($insertPosition !== false) {
-                    $newCase = <<<PHP
-            case '{$driverKey}':
-                \$driver = new \\Mlangeni\\Machinjiri\\App\\Queue\\Drivers\\{$driverClass}(\$container, '{$driverKey}', \$driverConfig);
-                break;
-
-PHP;
-                    
-                    $content = substr_replace($content, $newCase, $insertPosition, 0);
-                    
-                    file_put_contents($commandFile, $content);
-                }
-            }
-        }
-    }
-
-    /**
-     * Create QueueWorkerCommand file if it doesn't exist
-     */
-    private function createQueueWorkerCommandFile(): void
-    {
-        $commandDir = dirname($this->appBasePath . '/src/Machinjiri/Core/Artisans/Terminal/Commands/QueueWorkerCommand.php');
-        $this->ensureDirectoryExists($commandDir);
-        
-        // This method would create the full command file
-        // For now, we'll assume it's created elsewhere
     }
 
     /**

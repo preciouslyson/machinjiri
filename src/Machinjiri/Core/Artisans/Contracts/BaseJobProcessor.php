@@ -38,7 +38,7 @@ abstract class BaseJobProcessor implements JobProcessorInterface
     {
         $job->incrementAttempts();
         
-        $this->triggerEvent('job.processing - id:{job_id}', [
+        $this->triggerEvent('job.processing', [
             'job_id'   => $job->getId(),
             'job_name' => $job->getName(),
             'attempt'  => $job->getAttempts(),
@@ -55,7 +55,7 @@ abstract class BaseJobProcessor implements JobProcessorInterface
             $result = $job->handle();
             
             $executionTime = microtime(true) - $startTime;
-            $this->triggerEvent('job.handled - id:{job_id}', [
+            $this->triggerEvent('job.handled', [
                 'job_id'         => $job->getId(),
                 'job_name'       => $job->getName(),
                 'execution_time' => $executionTime,
@@ -71,7 +71,7 @@ abstract class BaseJobProcessor implements JobProcessorInterface
      */
     public function handleFailure(JobInterface $job, MachinjiriException $exception): void
     {   
-        $this->events->trigger('job.failed - id:{job_id}', [
+        $this->events->trigger('job.failed', [
             'job_id' => $job->getId(),
             'job_name' => $job->getName(),
             'exception' => $exception->getMessage(),
@@ -81,7 +81,6 @@ abstract class BaseJobProcessor implements JobProcessorInterface
         if ($job->getAttempts() > $job->getMaxAttempts()) {
             // Mark as permanently failed
             $this->markAsFailed($job, $exception);
-            return;
         } else {
             // Retry the job with proper delay
             $this->retry($job);
@@ -96,7 +95,7 @@ abstract class BaseJobProcessor implements JobProcessorInterface
     {
         $this->markAsCompleted($job);
         
-        $this->events->trigger('job.completed - id:{job_id}', [
+        $this->events->trigger('job.completed', [
             'job_id' => $job->getId(),
             'job_name' => $job->getName(),
             'attempts' => $job->getAttempts(),
@@ -114,7 +113,7 @@ abstract class BaseJobProcessor implements JobProcessorInterface
         // Calculate delay: use provided delay, or job's retry delay, or default
         $actualDelay = $delay > 0 ? $delay : $job->getRetryDelay();
 
-        $this->events->trigger('job.retrying - id:{job_id}', [
+        $this->events->trigger('job.retrying', [
             'job_id' => $job->getId(),
             'job_name' => $job->getName(),
             'delay' => $actualDelay,
@@ -142,12 +141,12 @@ abstract class BaseJobProcessor implements JobProcessorInterface
             }
 
         } catch (\Throwable $exception) {
-            $this->events->trigger('job.retry_failed - id:{job_id}', [
+            $this->events->trigger('job.retry_failed', [
                 'job_id' => $job->getId(),
-                'exception' => $e->getMessage(),
+                'exception' => $exception->getMessage(),
             ]);
             $this->markAsFailed($job, $exception);
-            $this->logger->error("Failed to retry job {$job->getId()}: {$e->getMessage()}");
+            $this->logger->error("Failed to retry job {$job->getId()}: {$exception->getMessage()}");
             return false;
         }
 
@@ -179,10 +178,15 @@ abstract class BaseJobProcessor implements JobProcessorInterface
 
     public function markAsCompleted(JobInterface $job): void
     {
-        $this->events->trigger('job.marked_completed - id:{job_id}', [
+        $this->events->trigger('job.marked_completed', [
             'job_id' => $job->getId(),
             'job_name' => $job->getName(),
         ]);
+
+        if (!method_exists($this->getQueue(), 'markAsCompleted')) {
+            throw new MachinjiriException("Method markAsFailed not found in default Queue Driver");
+        }
+        
         $this->logger->info("Job {$job->getId()} marked as completed.");
     }
     
@@ -191,22 +195,20 @@ abstract class BaseJobProcessor implements JobProcessorInterface
      */
     public function markAsFailed(JobInterface $job, MachinjiriException $exception): void
     {
-        $jobId = $job->getId();
-        $errorMessage = $exception->getMessage();
         $this->events->trigger('job.marked_failed', [
-            'job_id' => $jobId,
+            'job_id' => $job->getId(),
             'job_name' => $job->getName(),
-            'exception' => $errorMessage,
+            'exception' => $exception->getMessage(),
         ]);
 
         if (!method_exists($this->getQueue(), 'markAsFailed')) {
-            throw new MachinjiriException("Method markAsFailed not found in {$this->getQueue()}");
+            throw new MachinjiriException("Method markAsFailed not found in default Queue Driver");
         }
 
         $this->getQueue()->markAsFailed($job->getId(), $exception->getMessage());
 
-        if (!method_exists($this->getQueue(), 'failed')) {
-            throw new MachinjiriException("Method failed not found in {$this->getQueue()}");
+        if (!method_exists($job, 'failed')) {
+            throw new MachinjiriException("Method failed not found in default Queue Driver");
         }
 
         $job->failed($exception);

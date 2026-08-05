@@ -6,7 +6,8 @@ use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
-
+use Mlangeni\Machinjiri\Core\Artisans\Contracts\JobInterface;
+    
 /**
  * Abstract Queue Driver
  */
@@ -198,6 +199,23 @@ abstract class BaseQueue implements QueueInterface
         ]);
         
         return false;
+    }
+
+    public function markAsFailed(string $jobId, string $errorMessage): void
+    {
+        $this->events->trigger('queue.marked_failed', [
+            'job_id' => $jobId,
+            'error' => $errorMessage,
+        ]);
+        return;
+    }
+
+    public function markAsCompleted(string $jobId): void
+    {
+        $this->events->trigger('queue.marked_completed', [
+            'job_id' => $jobId,
+        ]);
+        return;
     }
 
 }

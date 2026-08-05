@@ -86,7 +86,7 @@ class BaseWorker implements WorkerInterface
     /**
      * Start the worker
      */
-    public function start(string $queue = 'default', array $options = []): void
+    public function start(string $queue, array $options = []): void
     {
         $this->shouldStop = false;
         $this->paused = false;
@@ -162,7 +162,7 @@ class BaseWorker implements WorkerInterface
     /**
      * Process a single job
      */
-    public function processNextJob(string $queue = 'default'): bool
+    public function processNextJob(string $queue): bool
     {
         if ($this->paused) return false;
 
@@ -170,14 +170,13 @@ class BaseWorker implements WorkerInterface
 
         if (!$job) return false;
 
-        // Increment attempts BEFORE processing
-        $job->incrementAttempts();
-
         try {
             // Check if max attempts exceeded (after increment)
             if ($job->getAttempts() >= $job->getMaxAttempts()) {
-                $exception = new MachinjiriException("Job {$job->getId()} exceeded max attempts ({$job->getAttempts()}/{$job->getMaxAttempts()}).");
-                $this->processor->handleFailure($job, $exception);
+                $this->processor->handleFailure(
+                    $job, 
+                    new MachinjiriException("Job {$job->getId()} has reached max attempts of {$job->getMaxAttempts()}.")
+                );
                 $this->status['failed']++;
                 return false;
             }
@@ -191,14 +190,14 @@ class BaseWorker implements WorkerInterface
             $exception = $e instanceof MachinjiriException ? $e : new MachinjiriException($e->getMessage(), 60002, $e);
             $this->status['failed']++;
             $this->processor->handleFailure($job, $exception);
-            return false;
         }
+        return false;
     }
     
     /**
      * Process jobs until empty or stopped
      */
-    public function run(string $queue = 'default', ?int $maxJobs = null): int
+    public function run(string $queue, ?int $maxJobs = null): int
     {
         $processed = 0;
         $emptyCycles = 0;

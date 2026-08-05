@@ -9,85 +9,13 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Helper\{Table, ProgressBar};
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\{BaseWorker, BackgroundWorkerManager};
+use Mlangeni\Machinjiri\Core\Artisans\Contracts\Schema\DatabaseQueueSchema;
 use Mlangeni\Machinjiri\Core\Artisans\Generators\QueueJobGenerator;
-use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\{Logger, LoggerFactory};
 use Mlangeni\Machinjiri\Core\Database\DatabaseConnection;
+use Mlangeni\Machinjiri\Core\Artisans\Helpers\DotEnv;
+use Mlangeni\Machinjiri\Core\Container;
 
-class QueueDriverResolver
-{
-    private $container;
-    private $logger;
-    private $generator;
-    private $config;
-
-    public function __construct(Container $container, Logger $logger, QueueJobGenerator $generator, array $config)
-    {
-        $this->container = $container;
-        $this->logger    = $logger;
-        $this->generator = $generator;
-        $this->config    = $config;
-    }
-
-    public function ensureAllDriversInitialized(): void
-    {
-        $types = ['database', 'redis', 'file', 'memory', 'sync'];
-        $this->generator->createDefaultQueueConfig();
-        foreach ($types as $type) {
-            try {
-                $this->generator->generateQueueDriverIfNotExists($type, [
-                    'type'     => $type,
-                    'config'   => false,
-                    'register' => false,
-                    'command'  => false,
-                ]);
-            } catch (\Throwable $e) {
-                $this->logger->warning("Could not initialise driver {$type}: " . $e->getMessage());
-            }
-        }
-    }
-
-    public function resolve(string $driver): ?object
-    {
-        $this->ensureAllDriversInitialized();
-
-        $driverConfig = $this->config['drivers'][$driver] ?? null;
-        if (!$driverConfig) {
-            foreach ($this->config['drivers'] as $key => $cfg) {
-                if (($cfg['class'] ?? '') === $driver) {
-                    $driver = $key;
-                    $driverConfig = $cfg;
-                    break;
-                }
-            }
-        }
-
-        if (!$driverConfig) {
-            $this->logger->warning("No configuration found for driver: {$driver}");
-            return null;
-        }
-
-        $driverClass = $driverConfig['class'] ?? $this->resolveClassName($driver);
-        if (!class_exists($driverClass)) {
-            $this->logger->error("Queue driver class not found: {$driverClass}");
-            return null;
-        }
-
-        return new $driverClass($this->container, $driver, $driverConfig);
-    }
-
-    private function resolveClassName(string $driver): string
-    {
-        $map = [
-            'database' => 'Mlangeni\\Machinjiri\\App\\Queue\\Drivers\\DatabaseQueue',
-            'redis'    => 'Mlangeni\\Machinjiri\\App\\Queue\\Drivers\\RedisQueue',
-            'sync'     => 'Mlangeni\\Machinjiri\\App\\Queue\\Drivers\\SyncQueue',
-            'file'     => 'Mlangeni\\Machinjiri\\App\\Queue\\Drivers\\FileQueue',
-            'memory'   => 'Mlangeni\\Machinjiri\\App\\Queue\\Drivers\\MemoryQueue',
-        ];
-        return $map[$driver] ?? 'Mlangeni\\Machinjiri\\App\\Queue\\Drivers\\' . ucfirst($driver) . 'Queue';
-    }
-}
 class SignalManager
 {
     public function register(callable $handler, array $signals): void
@@ -103,44 +31,19 @@ class SignalManager
 }
 trait QueueCommandHelper
 {
-    use DatabaseQueueSetup, CommandHelper;
+    use CommandHelper;
     
     protected Container $appContainer;
-    protected Logger $logger;
-    protected QueueJobGenerator $queueGenerator;
-    protected QueueDriverResolver $driverResolver;
-    protected array $queueConfig;
-    
-    private function _init(): void 
-    {
-        $this->appContainer = $this->artisanContainer();
-        $this->logger = LoggerFactory::system(
-            "queue-worker",
-            'queue',
-            false
-        );
-        $this->queueGenerator = new QueueJobGenerator($this->artisanContainer());
-        $rawConfig = $this->loadQueueConfig(null);
-        $this->queueConfig = $this->validateQueueConfig($rawConfig);
-        $this->driverResolver = new QueueDriverResolver(
-            $this->appContainer,
-            $this->logger,
-            $this->queueGenerator,
-            $this->queueConfig
-        );
-    }
 
-    private function bootstrapDependencies(): void
+    private function queueGenerator(): QueueJobGenerator
     {
-        $this->_init();
-        $this->loadEnvironmentVariables();
-        $this->bootstrapDatabaseConnection();
+        return new QueueJobGenerator($this->artisanContainer());
     }
 
     private function loadEnvironmentVariables(): void
     { 
         try {
-            $dotenv = new \Mlangeni\Machinjiri\Core\Artisans\Helpers\DotEnv($this->artisanContainer(), true);
+            $dotenv = new DotEnv($this->artisanContainer(), true);
             $dotenv->load();
         } catch (\Throwable $e) {
             $this->logger->debug("Could not load .env \n{file}\n{error}", [
@@ -154,25 +57,15 @@ trait QueueCommandHelper
         return $this->artisanContainer();
     }
 
-    private function loadQueueConfig(?string $configPath): array
+    private function driverName(): string 
     {
-        $basePath = getcwd();
-        if ($configPath) {
-            if (!file_exists($configPath)) {
-                throw new MachinjiriException("Configuration file not found: {$configPath}");
-            }
-            return require $configPath;
-        }
-        $defaultPaths = [
-            $basePath . '/config/queue.php',
-            $basePath . '/../config/queue.php',
-            __DIR__ . '/../../../../../config/queue.php',
-        ];
-        foreach ($defaultPaths as $path) {
-            if (file_exists($path)) {
-                return require $path;
-            }
-        }
+        return $this->loadQueueConfig()['default'] ?? getenv("QUEUE_DRIVER", "sync");
+    }
+
+    private function loadQueueConfig(): array
+    {
+        $config = $this->artisanContainer()->configurations['queue'] ?? null;
+        if ($config !== null) return $config;
         
         return [
             'default' => 'database',
@@ -200,6 +93,24 @@ trait QueueCommandHelper
         }
         return $config;
     }
+
+    private function createBaseWorker(): ?object
+    {
+        $container = $this->artisanContainer();
+        if (!$container->bound('queue.worker')) {
+            throw new MachinjiriException("Queue Worker is not bound in container. Please ensure the QueueServiceProvider is loaded or run 'php artisan queue:init'.");
+        }
+        return $container->resolve('queue.worker');
+    }
+
+    private function getQueueDriver(): ?object 
+    {
+        $container = $this->artisanContainer();
+        if (!$container->bound('queue')) {
+            throw new MachinjiriException("Queue is not bound in Container. Please ensure the QueueServiceProvider is loaded or run 'php artisan queue:init'");
+        }
+        return $container->resolve('queue');
+    }
  
     private function createJobProcessor(): ?object
     {
@@ -221,7 +132,6 @@ trait QueueCommandHelper
             if ($output->isVerbose()) {
                 $io->writeln("<error>{$e->getTraceAsString()}</error>");
             }
-            $this->logger->error($e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return Command::FAILURE;
         }
     }
@@ -229,20 +139,8 @@ trait QueueCommandHelper
     
     private function loadDatabaseConfig(): array
     {
-        $basePath = getcwd();
-        $configPaths = [
-            $basePath . '/config/database.php',
-            $basePath . '/../config/database.php',
-            __DIR__ . '/../../../../../config/database.php',
-        ];
-        foreach ($configPaths as $path) {
-            if (file_exists($path)) {
-                $config = require $path;
-                if (isset($config['driver'])) {
-                    return $config;
-                }
-            }
-        }
+        $config = $this->artisanContainer()->configurations['database'] ?? null;
+        if ($config !== null && isset($config['driver'])) return $config;
 
         $driver = getenv('DB_CONNECTION') ?: 'mysql';
         $config = ['driver' => $driver];
@@ -283,18 +181,11 @@ trait QueueCommandHelper
     private function bootstrapDatabaseConnection(): void
     {
         $dbConfig = $this->loadDatabaseConfig();
-        \Mlangeni\Machinjiri\Core\Database\DatabaseConnection::setConfig($dbConfig);
+        DatabaseConnection::setConfig($dbConfig);
 
         if (($dbConfig['driver'] ?? '') === 'sqlite' && isset($dbConfig['path'])) {
-            \Mlangeni\Machinjiri\Core\Database\DatabaseConnection::setPath(dirname($dbConfig['path']));
+            DatabaseConnection::setPath(dirname($dbConfig['path']));
         }
-    }
-
-    protected function getQueueDriverOrInit(string $driverName, Container $container, array $config): ?object
-    {
-        $resolver = new QueueDriverResolver($container, $this->logger, $this->queueGenerator, $config);
-        $resolver->ensureAllDriversInitialized();
-        return $resolver->resolve($driverName);
     }
     
     private function ensureDatabaseQueueTables(): void
@@ -314,7 +205,7 @@ trait QueueCommandHelper
             $pdo = $queueDriver->getConnection();
             $table = $this->queueConfig['drivers']['database']['table'] ?? 'queue_jobs';
             $failedTable = $this->queueConfig['drivers']['database']['failed_table'] ?? 'queue_failed_jobs';
-            $this->ensureQueueTablesExist($pdo, $table, $failedTable);
+            $this->ensureQueueTablesExist($table, $failedTable);
             $this->logger->info('Queue tables verified/created successfully');
         } catch (\Throwable $e) {
             $this->logger->warning('Failed to create queue tables: ' . $e->getMessage());
@@ -332,15 +223,27 @@ trait QueueCommandHelper
             exit(Command::FAILURE);
         }
     }
-}
 
-trait DatabaseQueueSetup
-{
-    private function ensureQueueTablesExist(\PDO $connection, string $table, string $failedTable): void
+    private function testDatabaseConnection(): bool 
+    {
+        return $this->getDatabaseConnection() instanceof \PDO;    
+    }
+
+    private function getDatabaseConnection(): ?\PDO 
+    {
+        $container = $this->artisanContainer();
+        if (!$container->bound("db.kernel.connection")) {
+            throw new MachinjiriException("Database not bound in container");
+        }
+        return $container->resolve("db.kernel.connection");
+    }
+    
+    private function ensureQueueTablesExist(string $table, string $failedTable): void
     {
         $logger = LoggerFactory::system('queue-setup', 'queue');
         $driverName = $connection->getAttribute(\PDO::ATTR_DRIVER_NAME);
         $driver = $this->normalizeDriver($driverName);
+        $connection = $this->getDatabaseConnection();
         
         $tableExists = function (string $tableName) use ($connection, $driverName): bool {
             try {
@@ -383,11 +286,11 @@ trait DatabaseQueueSetup
         $logger->info('Essential queue tables created successfully');
     }
     
-    private function createFullSchema(\PDO $connection): void
+    private function createFullSchema(): void
     {
         $logger = LoggerFactory::system('queue-setup', 'queue');
-        $driverName = $connection->getAttribute(\PDO::ATTR_DRIVER_NAME);
-        if (strpos($driverName, 'mongodb') !== false) {
+        $driverName = $this->loadDatabaseConfig()['default'] ?? "mysql";
+        if (strtolower($driverName) == "mongodb") {
             $logger->info('MongoDB detected – no relational tables to create.');
             return;
         }
@@ -395,7 +298,7 @@ trait DatabaseQueueSetup
         
         $logger->info("Creating full queue schema for driver: {$driver}");
         $schema = $this->getFullSchema($driver);
-        $this->executeStatements($connection, $schema);
+        $this->executeStatements($schema);
         $logger->info('Full queue schema created successfully');
     }
     
@@ -412,539 +315,35 @@ trait DatabaseQueueSetup
     private function getEssentialSchema(string $driver, string $jobsTable, string $failedTable): string
     {
         return match ($driver) {
-            'mysql' => $this->getMySqlEssentialSchema($jobsTable, $failedTable),
-            'pgsql' => $this->getPgsqlEssentialSchema($jobsTable, $failedTable),
-            'sqlite' => $this->getSqliteEssentialSchema($jobsTable, $failedTable),
-            default => $this->getMySqlEssentialSchema($jobsTable, $failedTable),
+            'mysql' => DatabaseQueueSchema::getMySqlEssentialSchema($jobsTable, $failedTable),
+            'pgsql' => DatabaseQueueSchema::getPgsqlEssentialSchema($jobsTable, $failedTable),
+            'sqlite' => DatabaseQueueSchema::getSqliteEssentialSchema($jobsTable, $failedTable),
+            default => DatabaseQueueSchema::getMySqlEssentialSchema($jobsTable, $failedTable),
         };
     }
     
     private function getFullSchema(string $driver): string
     {
         return match ($driver) {
-            'mysql' => $this->getMySqlFullSchema(),
-            'pgsql' => $this->getPgsqlFullSchema(),
-            'sqlite' => $this->getSqliteFullSchema(),
-            default => $this->getMySqlFullSchema(),
+            'mysql' => DatabaseQueueSchema::getMySqlFullSchema(),
+            'pgsql' => DatabaseQueueSchema::getPgsqlFullSchema(),
+            'sqlite' => DatabaseQueueSchema::getSqliteFullSchema(),
+            default => DatabaseQueueSchema::getMySqlFullSchema(),
         };
     }
     
-    private function getMySqlEssentialSchema(string $jobsTable, string $failedTable): string
-    {
-        return "
-CREATE TABLE IF NOT EXISTS `{$jobsTable}` (
-    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `queue` VARCHAR(255) NOT NULL,
-    `payload` LONGTEXT NOT NULL,
-    `attempts` TINYINT UNSIGNED NOT NULL DEFAULT 0,
-    `reserved_at` INT UNSIGNED NULL DEFAULT NULL,
-    `available_at` INT UNSIGNED NOT NULL,
-    `created_at` INT UNSIGNED NOT NULL,
-    INDEX idx_queue (`queue`),
-    INDEX idx_reserved_at (`reserved_at`),
-    INDEX idx_available_at (`available_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS `{$failedTable}` (
-    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `uuid` CHAR(36) NOT NULL UNIQUE,
-    `connection` TEXT NOT NULL,
-    `queue` TEXT NOT NULL,
-    `payload` LONGTEXT NOT NULL,
-    `exception` LONGTEXT NOT NULL,
-    `failed_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_queue (`queue`(255)),
-    INDEX idx_failed_at (`failed_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-";
-    }
-    
-    private function getMySqlFullSchema(): string
-    {
-        return "
--- Jobs table
-CREATE TABLE IF NOT EXISTS `jobs` (
-    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `queue` VARCHAR(255) NOT NULL,
-    `job_id` VARCHAR(255) NOT NULL UNIQUE,
-    `payload` LONGTEXT NOT NULL,
-    `attempts` TINYINT UNSIGNED NOT NULL DEFAULT 0,
-    `reserved_at` INT UNSIGNED NULL DEFAULT NULL,
-    `available_at` INT UNSIGNED NOT NULL,
-    `created_at` INT UNSIGNED NOT NULL,
-    INDEX idx_queue (`queue`),
-    INDEX idx_reserved_at (`reserved_at`),
-    INDEX idx_available_at (`available_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Failed jobs table
-CREATE TABLE IF NOT EXISTS `failed_jobs` (
-    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `job_id` VARCHAR(255) NOT NULL UNIQUE,
-    `queue` TEXT NOT NULL,
-    `payload` LONGTEXT NOT NULL,
-    `exception` LONGTEXT NOT NULL,
-    `failed_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_queue (`queue`(255)),
-    INDEX idx_failed_at (`failed_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Job batches table
-CREATE TABLE IF NOT EXISTS `job_batches` (
-    `id` VARCHAR(255) NOT NULL PRIMARY KEY,
-    `name` VARCHAR(255) NOT NULL,
-    `total_jobs` INT NOT NULL,
-    `pending_jobs` INT NOT NULL,
-    `failed_jobs` INT NOT NULL DEFAULT 0,
-    `failed_job_ids` TEXT NULL,
-    `options` TEXT NULL,
-    `cancelled_at` INT NULL,
-    `created_at` INT NOT NULL,
-    `finished_at` INT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-CREATE INDEX idx_job_batches_finished_at ON `job_batches` (`finished_at`);
-
--- Queue workers table
-CREATE TABLE IF NOT EXISTS `queue_workers` (
-    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `name` VARCHAR(255) NOT NULL UNIQUE,
-    `queue` VARCHAR(255) NOT NULL DEFAULT 'default',
-    `status` VARCHAR(50) NOT NULL DEFAULT 'idle',
-    `process_id` INT NULL,
-    `jobs_processed` INT NOT NULL DEFAULT 0,
-    `jobs_failed` INT NOT NULL DEFAULT 0,
-    `memory_usage` INT NULL,
-    `last_heartbeat` INT NULL,
-    `started_at` INT NOT NULL,
-    `stopped_at` INT NULL,
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE INDEX idx_queue_workers_status ON `queue_workers` (`status`);
-CREATE INDEX idx_queue_workers_queue ON `queue_workers` (`queue`);
-CREATE INDEX idx_queue_workers_last_heartbeat ON `queue_workers` (`last_heartbeat`);
-
--- Queue connections table
-CREATE TABLE IF NOT EXISTS `queue_connections` (
-    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `name` VARCHAR(255) NOT NULL UNIQUE,
-    `driver` VARCHAR(100) NOT NULL,
-    `host` VARCHAR(255) NULL,
-    `port` INT NULL,
-    `database` VARCHAR(255) NULL,
-    `username` VARCHAR(255) NULL,
-    `password` TEXT NULL,
-    `prefix` VARCHAR(50) NULL,
-    `options` TEXT NULL,
-    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
-    `last_connected_at` INT NULL,
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE INDEX idx_queue_connections_driver ON `queue_connections` (`driver`);
-CREATE INDEX idx_queue_connections_is_active ON `queue_connections` (`is_active`);
-
--- Job attempts table
-CREATE TABLE IF NOT EXISTS `job_attempts` (
-    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `job_id` INT UNSIGNED NOT NULL,
-    `attempt_number` INT NOT NULL,
-    `status` VARCHAR(50) NOT NULL DEFAULT 'pending',
-    `started_at` INT NULL,
-    `completed_at` INT NULL,
-    `duration` INT NULL,
-    `error_message` TEXT NULL,
-    `exception_trace` TEXT NULL,
-    `worker_name` VARCHAR(255) NULL,
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE INDEX idx_job_attempts_job_id ON `job_attempts` (`job_id`);
-CREATE INDEX idx_job_attempts_status ON `job_attempts` (`status`);
-CREATE INDEX idx_job_attempts_started_at ON `job_attempts` (`started_at`);
-
--- Job logs table
-CREATE TABLE IF NOT EXISTS `job_logs` (
-    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `job_id` INT UNSIGNED NOT NULL,
-    `level` VARCHAR(50) NOT NULL DEFAULT 'info',
-    `message` TEXT NOT NULL,
-    `context` TEXT NULL,
-    `extra` TEXT NULL,
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE INDEX idx_job_logs_job_id ON `job_logs` (`job_id`);
-CREATE INDEX idx_job_logs_level ON `job_logs` (`level`);
-CREATE INDEX idx_job_logs_created_at ON `job_logs` (`created_at`);
-
--- Queue events table
-CREATE TABLE IF NOT EXISTS `queue_events` (
-    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `event_type` VARCHAR(100) NOT NULL,
-    `job_id` INT UNSIGNED NULL,
-    `worker_name` VARCHAR(255) NULL,
-    `queue_name` VARCHAR(255) NULL,
-    `payload` TEXT NULL,
-    `metadata` TEXT NULL,
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE INDEX idx_queue_events_event_type ON `queue_events` (`event_type`);
-CREATE INDEX idx_queue_events_job_id ON `queue_events` (`job_id`);
-CREATE INDEX idx_queue_events_worker_name ON `queue_events` (`worker_name`);
-CREATE INDEX idx_queue_events_created_at ON `queue_events` (`created_at`);
-";
-    }
-    
-    private function getPgsqlEssentialSchema(string $jobsTable, string $failedTable): string
-    {
-        return "
-CREATE TABLE IF NOT EXISTS \"{$jobsTable}\" (
-    id BIGSERIAL PRIMARY KEY,
-    job_id VARCHAR(255) NOT NULL UNIQUE,
-    queue VARCHAR(255) NOT NULL,
-    payload TEXT NOT NULL,
-    attempts SMALLINT NOT NULL DEFAULT 0,
-    reserved_at INTEGER NULL,
-    available_at INTEGER NOT NULL,
-    created_at INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_{$jobsTable}_queue ON \"{$jobsTable}\" (queue);
-CREATE INDEX IF NOT EXISTS idx_{$jobsTable}_reserved_at ON \"{$jobsTable}\" (reserved_at);
-CREATE INDEX IF NOT EXISTS idx_{$jobsTable}_available_at ON \"{$jobsTable}\" (available_at);
-
-CREATE TABLE IF NOT EXISTS \"{$failedTable}\" (
-    id BIGSERIAL PRIMARY KEY,
-    job_id VARCHAR(255) NOT NULL UNIQUE,
-    connection TEXT NOT NULL,
-    queue TEXT NOT NULL,
-    payload TEXT NOT NULL,
-    exception TEXT NOT NULL,
-    failed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_{$failedTable}_queue ON \"{$failedTable}\" (queue);
-CREATE INDEX IF NOT EXISTS idx_{$failedTable}_failed_at ON \"{$failedTable}\" (failed_at);
-";
-    }
-    
-    private function getPgsqlFullSchema(): string
-    {
-        return "
--- Jobs table
-CREATE TABLE IF NOT EXISTS \"jobs\" (
-    id BIGSERIAL PRIMARY KEY,
-    job_id VARCHAR(255) NOT NULL UNIQUE,
-    queue VARCHAR(255) NOT NULL,
-    payload TEXT NOT NULL,
-    attempts SMALLINT NOT NULL DEFAULT 0,
-    reserved_at INTEGER NULL,
-    available_at INTEGER NOT NULL,
-    created_at INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_jobs_queue ON jobs (queue);
-CREATE INDEX IF NOT EXISTS idx_jobs_reserved_at ON jobs (reserved_at);
-CREATE INDEX IF NOT EXISTS idx_jobs_available_at ON jobs (available_at);
-
--- Failed jobs table
-CREATE TABLE IF NOT EXISTS \"failed_jobs\" (
-    id BIGSERIAL PRIMARY KEY,
-    job_id VARCHAR(255) NOT NULL UNIQUE,
-    connection TEXT NOT NULL,
-    queue TEXT NOT NULL,
-    payload TEXT NOT NULL,
-    exception TEXT NOT NULL,
-    failed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_failed_jobs_queue ON failed_jobs (queue);
-CREATE INDEX IF NOT EXISTS idx_failed_jobs_failed_at ON failed_jobs (failed_at);
-
--- Job batches table
-CREATE TABLE IF NOT EXISTS \"job_batches\" (
-    id VARCHAR(255) PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    total_jobs INTEGER NOT NULL,
-    pending_jobs INTEGER NOT NULL,
-    failed_jobs INTEGER NOT NULL DEFAULT 0,
-    failed_job_ids TEXT NULL,
-    options TEXT NULL,
-    cancelled_at INTEGER NULL,
-    created_at INTEGER NOT NULL,
-    finished_at INTEGER NULL
-);
-CREATE INDEX IF NOT EXISTS idx_job_batches_name ON job_batches (name);
-CREATE INDEX IF NOT EXISTS idx_job_batches_finished_at ON job_batches (finished_at);
-
--- Queue workers table
-CREATE TABLE IF NOT EXISTS \"queue_workers\" (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL UNIQUE,
-    queue VARCHAR(255) NOT NULL DEFAULT 'default',
-    status VARCHAR(50) NOT NULL DEFAULT 'idle',
-    process_id INTEGER NULL,
-    jobs_processed INTEGER NOT NULL DEFAULT 0,
-    jobs_failed INTEGER NOT NULL DEFAULT 0,
-    memory_usage INTEGER NULL,
-    last_heartbeat INTEGER NULL,
-    started_at INTEGER NOT NULL,
-    stopped_at INTEGER NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_queue_workers_status ON queue_workers (status);
-CREATE INDEX IF NOT EXISTS idx_queue_workers_queue ON queue_workers (queue);
-CREATE INDEX IF NOT EXISTS idx_queue_workers_last_heartbeat ON queue_workers (last_heartbeat);
-
--- Queue connections table
-CREATE TABLE IF NOT EXISTS \"queue_connections\" (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL UNIQUE,
-    driver VARCHAR(100) NOT NULL,
-    host VARCHAR(255) NULL,
-    port INTEGER NULL,
-    database VARCHAR(255) NULL,
-    username VARCHAR(255) NULL,
-    password TEXT NULL,
-    prefix VARCHAR(50) NULL,
-    options TEXT NULL,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    last_connected_at INTEGER NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_queue_connections_driver ON queue_connections (driver);
-CREATE INDEX IF NOT EXISTS idx_queue_connections_is_active ON queue_connections (is_active);
-
--- Job attempts table
-CREATE TABLE IF NOT EXISTS \"job_attempts\" (
-    id SERIAL PRIMARY KEY,
-    job_id INTEGER NOT NULL,
-    attempt_number INTEGER NOT NULL,
-    status VARCHAR(50) NOT NULL DEFAULT 'pending',
-    started_at INTEGER NULL,
-    completed_at INTEGER NULL,
-    duration INTEGER NULL,
-    error_message TEXT NULL,
-    exception_trace TEXT NULL,
-    worker_name VARCHAR(255) NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_job_attempts_job_id ON job_attempts (job_id);
-CREATE INDEX IF NOT EXISTS idx_job_attempts_status ON job_attempts (status);
-CREATE INDEX IF NOT EXISTS idx_job_attempts_started_at ON job_attempts (started_at);
-
--- Job logs table
-CREATE TABLE IF NOT EXISTS \"job_logs\" (
-    id SERIAL PRIMARY KEY,
-    job_id INTEGER NOT NULL,
-    level VARCHAR(50) NOT NULL DEFAULT 'info',
-    message TEXT NOT NULL,
-    context TEXT NULL,
-    extra TEXT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_job_logs_job_id ON job_logs (job_id);
-CREATE INDEX IF NOT EXISTS idx_job_logs_level ON job_logs (level);
-CREATE INDEX IF NOT EXISTS idx_job_logs_created_at ON job_logs (created_at);
-
--- Queue events table
-CREATE TABLE IF NOT EXISTS \"queue_events\" (
-    id SERIAL PRIMARY KEY,
-    event_type VARCHAR(100) NOT NULL,
-    job_id INTEGER NULL,
-    worker_name VARCHAR(255) NULL,
-    queue_name VARCHAR(255) NULL,
-    payload TEXT NULL,
-    metadata TEXT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_queue_events_event_type ON queue_events (event_type);
-CREATE INDEX IF NOT EXISTS idx_queue_events_job_id ON queue_events (job_id);
-CREATE INDEX IF NOT EXISTS idx_queue_events_worker_name ON queue_events (worker_name);
-CREATE INDEX IF NOT EXISTS idx_queue_events_created_at ON queue_events (created_at);
-";
-    }
-    
-    private function getSqliteEssentialSchema(string $jobsTable, string $failedTable): string
-    {
-        return "
-CREATE TABLE IF NOT EXISTS \"{$jobsTable}\" (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    job_id VARCHAR(255) NOT NULL UNIQUE,
-    queue VARCHAR(255) NOT NULL,
-    payload TEXT NOT NULL,
-    attempts INTEGER NOT NULL DEFAULT 0,
-    reserved_at INTEGER NULL,
-    available_at INTEGER NOT NULL,
-    created_at INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_{$jobsTable}_queue ON \"{$jobsTable}\" (queue);
-CREATE INDEX IF NOT EXISTS idx_{$jobsTable}_reserved_at ON \"{$jobsTable}\" (reserved_at);
-CREATE INDEX IF NOT EXISTS idx_{$jobsTable}_available_at ON \"{$jobsTable}\" (available_at);
-
-CREATE TABLE IF NOT EXISTS \"{$failedTable}\" (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    job_id VARCHAR(255) NOT NULL UNIQUE,
-    connection TEXT NOT NULL,
-    queue TEXT NOT NULL,
-    payload TEXT NOT NULL,
-    exception TEXT NOT NULL,
-    failed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_{$failedTable}_queue ON \"{$failedTable}\" (queue);
-CREATE INDEX IF NOT EXISTS idx_{$failedTable}_failed_at ON \"{$failedTable}\" (failed_at);
-";
-    }
-    
-    private function getSqliteFullSchema(): string
-    {
-        return "
--- Jobs table
-CREATE TABLE IF NOT EXISTS \"jobs\" (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    queue VARCHAR(255) NOT NULL,
-    payload TEXT NOT NULL,
-    attempts INTEGER NOT NULL DEFAULT 0,
-    reserved_at INTEGER NULL,
-    available_at INTEGER NOT NULL,
-    created_at INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_jobs_queue ON jobs (queue);
-CREATE INDEX IF NOT EXISTS idx_jobs_reserved_at ON jobs (reserved_at);
-CREATE INDEX IF NOT EXISTS idx_jobs_available_at ON jobs (available_at);
-
--- Failed jobs table
-CREATE TABLE IF NOT EXISTS \"failed_jobs\" (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    job_id VARCHAR(255) NOT NULL UNIQUE,
-    connection TEXT NOT NULL,
-    queue TEXT NOT NULL,
-    payload TEXT NOT NULL,
-    exception TEXT NOT NULL,
-    failed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_failed_jobs_queue ON failed_jobs (queue);
-CREATE INDEX IF NOT EXISTS idx_failed_jobs_failed_at ON failed_jobs (failed_at);
-
--- Job batches table
-CREATE TABLE IF NOT EXISTS \"job_batches\" (
-    id VARCHAR(255) PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    total_jobs INTEGER NOT NULL,
-    pending_jobs INTEGER NOT NULL,
-    failed_jobs INTEGER NOT NULL DEFAULT 0,
-    failed_job_ids TEXT NULL,
-    options TEXT NULL,
-    cancelled_at INTEGER NULL,
-    created_at INTEGER NOT NULL,
-    finished_at INTEGER NULL
-);
-CREATE INDEX IF NOT EXISTS idx_job_batches_name ON job_batches (name);
-CREATE INDEX IF NOT EXISTS idx_job_batches_finished_at ON job_batches (finished_at);
-
--- Queue workers table
-CREATE TABLE IF NOT EXISTS \"queue_workers\" (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name VARCHAR(255) NOT NULL UNIQUE,
-    queue VARCHAR(255) NOT NULL DEFAULT 'default',
-    status VARCHAR(50) NOT NULL DEFAULT 'idle',
-    process_id INTEGER NULL,
-    jobs_processed INTEGER NOT NULL DEFAULT 0,
-    jobs_failed INTEGER NOT NULL DEFAULT 0,
-    memory_usage INTEGER NULL,
-    last_heartbeat INTEGER NULL,
-    started_at INTEGER NOT NULL,
-    stopped_at INTEGER NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_queue_workers_status ON queue_workers (status);
-CREATE INDEX IF NOT EXISTS idx_queue_workers_queue ON queue_workers (queue);
-CREATE INDEX IF NOT EXISTS idx_queue_workers_last_heartbeat ON queue_workers (last_heartbeat);
-
--- Queue connections table
-CREATE TABLE IF NOT EXISTS \"queue_connections\" (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name VARCHAR(255) NOT NULL UNIQUE,
-    driver VARCHAR(100) NOT NULL,
-    host VARCHAR(255) NULL,
-    port INTEGER NULL,
-    database VARCHAR(255) NULL,
-    username VARCHAR(255) NULL,
-    password TEXT NULL,
-    prefix VARCHAR(50) NULL,
-    options TEXT NULL,
-    is_active INTEGER NOT NULL DEFAULT 1,
-    last_connected_at INTEGER NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_queue_connections_driver ON queue_connections (driver);
-CREATE INDEX IF NOT EXISTS idx_queue_connections_is_active ON queue_connections (is_active);
-
--- Job attempts table
-CREATE TABLE IF NOT EXISTS \"job_attempts\" (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    job_id INTEGER NOT NULL,
-    attempt_number INTEGER NOT NULL,
-    status VARCHAR(50) NOT NULL DEFAULT 'pending',
-    started_at INTEGER NULL,
-    completed_at INTEGER NULL,
-    duration INTEGER NULL,
-    error_message TEXT NULL,
-    exception_trace TEXT NULL,
-    worker_name VARCHAR(255) NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_job_attempts_job_id ON job_attempts (job_id);
-CREATE INDEX IF NOT EXISTS idx_job_attempts_status ON job_attempts (status);
-CREATE INDEX IF NOT EXISTS idx_job_attempts_started_at ON job_attempts (started_at);
-
--- Job logs table
-CREATE TABLE IF NOT EXISTS \"job_logs\" (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    job_id INTEGER NOT NULL,
-    level VARCHAR(50) NOT NULL DEFAULT 'info',
-    message TEXT NOT NULL,
-    context TEXT NULL,
-    extra TEXT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_job_logs_job_id ON job_logs (job_id);
-CREATE INDEX IF NOT EXISTS idx_job_logs_level ON job_logs (level);
-CREATE INDEX IF NOT EXISTS idx_job_logs_created_at ON job_logs (created_at);
-
--- Queue events table
-CREATE TABLE IF NOT EXISTS \"queue_events\" (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    event_type VARCHAR(100) NOT NULL,
-    job_id INTEGER NULL,
-    worker_name VARCHAR(255) NULL,
-    queue_name VARCHAR(255) NULL,
-    payload TEXT NULL,
-    metadata TEXT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_queue_events_event_type ON queue_events (event_type);
-CREATE INDEX IF NOT EXISTS idx_queue_events_job_id ON queue_events (job_id);
-CREATE INDEX IF NOT EXISTS idx_queue_events_worker_name ON queue_events (worker_name);
-CREATE INDEX IF NOT EXISTS idx_queue_events_created_at ON queue_events (created_at);
-";
-    }
-    
-    private function executeStatements(\PDO $connection, string $sql): void
+    private function executeStatements(string $sql): void
     {
         $statements = array_filter(array_map('trim', explode(';', $sql)));
         foreach ($statements as $statement) {
             if (empty($statement)) {
                 continue;
             }
-            $connection->exec($statement);
+            $this->getDatabaseConnection()->exec($statement);
         }
     }
 }
+
 trait QueueWorkerValidationTrait
 {
     private function validateQueue(string $queue, string $driver, SymfonyStyle $ss, bool $checkDriverExists = true): bool
@@ -960,6 +359,118 @@ trait QueueWorkerValidationTrait
         return true;
     }
 }
+
+class ArtisanBackgroundWorker {
+    use CommandHelper, QueueCommandHelper;
+    
+    public function __construct(
+        private Container $container,
+        private $queueDriver, 
+        private $processor, 
+        private SymfonyStyle $ss,
+    ) {}
+
+    public function work ($queue, $sleep, $memory, $timeout, $maxJobs, $tries, $stopOnEmpty, $daemon, $force, $instance, $pidFile): bool 
+    {
+        
+        if (!$force && file_exists($this->container->config . 'framework/down')) {
+            $this->ss->error('Application is in maintenance mode. Use --force to override.');
+            return false;
+        }
+
+        $workerOptions = [
+            'sleep'       => $sleep,
+            'memory'      => $memory,
+            'timeout'     => $timeout,
+            'maxTries'    => $tries,
+            'maxJobs'     => $maxJobs,
+            'stopOnEmpty' => ($stopOnEmpty === null) 
+                                ? filter_var(getenv("QUEUE_WORKER_STOP_ON_EMPTY", false), FILTER_VALIDATE_BOOLEAN) 
+                                : $stopOnEmpty,
+        ];
+
+        $manager = new BackgroundWorkerManager($this->container);
+        $heartbeatInterval = (int) getenv('QUEUE_WORKER_HEARTBEAT_INTERVAL', 60);
+        $lastHeartbeat = 0;
+
+        $this->ss->title("Queue Worker");
+        $this->ss->text([
+            "Queue: <info>{$queue}</info>",
+            "Sleep: <info>{$sleep}s</info>",
+            "Memory: <info>{$memory}MB</info>",
+            "Timeout: <info>{$timeout}s</info>",
+            "Max Tries: <info>{$tries}</info>",
+            $maxJobs ? "Max Jobs: <info>{$maxJobs}</info>" : "Max Jobs: <info>unlimited</info>",
+            $stopOnEmpty ? "Stop on Empty: <info>yes</info>" : "Stop on Empty: <info>no</info>",
+            $daemon ? "Mode: <info>daemon</info>" : "Mode: <info>single run</info>",
+        ]);
+
+        $signalManager = new SignalManager();
+        $worker = null;
+
+        if ($pidFile) {
+            file_put_contents($pidFile, getmypid());
+            register_shutdown_function(function() use ($pidFile) {
+                if (file_exists($pidFile)) unlink($pidFile);
+            });
+        }
+
+        do {
+            $worker = $this->createBaseWorker();
+            
+            if (extension_loaded('pcntl')) {
+                $signalManager->register(fn() => $worker->stop(), [SIGINT, SIGTERM]);
+            }
+
+            $this->ss->newLine();
+            $this->ss->writeln("Starting worker... Press Ctrl+C to stop.");
+
+            $startTime = time();
+            try {
+              $this->runWorkerWithHeartbeat($worker, $queue, $workerOptions, $manager, $this->driverName(), $queue, $instance, $heartbeatInterval, $lastHeartbeat);
+            } catch (\Throwable $e) {
+                $this->ss->error('Worker crashed due to: ' . $e->getMessage());
+                return false;
+            }
+            
+            $endTime = time();
+            $status  = $worker->getStatus();
+
+            $this->ss->newLine(2);
+            $this->ss->section("Worker Statistics");
+            $this->ss->text([
+                "Runtime: <info>" . ($endTime - $startTime) . "s</info>",
+                "Jobs Processed: <info>{$status['processed']}</info>",
+                "Jobs Failed: <info>{$status['failed']}</info>",
+                "Memory Peak: <info>" . round($status['memory_peak'] / 1024 / 1024, 2) . "MB</info>",
+                "Last Job: <info>" . ($status['last_job_at'] ? date('Y-m-d H:i:s', $status['last_job_at']) : 'Never') . "</info>",
+            ]);
+
+            if ($daemon && ($status['processed'] ?? 0) === 0) {
+                sleep(1);
+            }
+
+            if ($daemon && $status['memory_peak'] > $memory * 1024 * 1024) {
+                $this->ss->warning("Memory limit exceeded, restarting worker...");
+                unset($worker);
+            }
+        } while ($daemon);
+
+        return true;
+    }
+
+    private function runWorkerWithHeartbeat(BaseWorker $worker, string $queue, array $options, BackgroundWorkerManager $manager, string $driver, string $queueName, int $instance, int $interval, int &$lastHeartbeat): void
+    {
+        if (method_exists($worker, 'setHeartbeatCallback')) {
+            $worker->setHeartbeatCallback(function() use ($manager, $driver, $queueName, $instance) {
+                $manager->updateHeartbeat($queueName, $driver, $instance);
+            });
+        }
+        $worker->start($queue, $options);
+    }
+    
+}
+
 class QueueWorkerCommand
 {
     public static function getCommands(): array
@@ -986,7 +497,6 @@ class QueueWorkerCommand
                 {
                     return $this->executeSafely($input, $output, function () use ($input, $output) {
                         $ss = new SymfonyStyle($input, $output);
-                        $this->bootstrapDependencies();
 
                         $name = $input->getArgument('name');
                         $options = [
@@ -996,15 +506,14 @@ class QueueWorkerCommand
                             'command'  => $input->getOption('command'),
                         ];
 
-                        $file = $this->queueGenerator->generateQueueDriver($name, $options);
+                        $file = $this->queueGenerator()->generateQueueDriver($name, $options);
                         $ss->success('Queue driver created successfully!');
                         $ss->text(['File: ' . $file, 'Type: ' . $options['type']]);
 
-                        $usage = $this->queueGenerator->generateCommandUsage($name, $options['type']);
+                        $usage = $this->queueGenerator()->generateCommandUsage($name, $options['type']);
                         $ss->section('Command Line Usage');
                         $ss->text(explode("\n", $usage));
 
-                        $this->logger->info('Queue driver created', ['name' => $name, 'type' => $options['type']]);
                         return Command::SUCCESS;
                     });
                 }
@@ -1023,42 +532,28 @@ class QueueWorkerCommand
                 {
                     return $this->executeSafely($input, $output, function () use ($input, $output) {
                         $ss = new SymfonyStyle($input, $output);
-                        $this->bootstrapDependencies();
 
-                        $types = ['database', 'redis', 'file', 'memory', 'sync'];
-                        $this->driverResolver->ensureAllDriversInitialized();
+                        $driverName = $this->driverName();
 
-                        $existing = [];
-                        foreach ($this->queueGenerator->listQueues() as $q) {
-                            if (in_array($q['name'], $types) && $q['exists']) {
-                                $existing[] = $q['name'];
-                            }
-                        }
-                        $initialized = array_diff($types, $existing);
-                        if (empty($initialized)) {
-                            $ss->success('All queue drivers are already present.');
-                        } else {
-                            $ss->success('Initialized: ' . implode(', ', $initialized));
-                        }
-                        if (!empty($existing)) {
-                            $ss->text('Already present: ' . implode(', ', $existing));
+                        $ss->text("Queue Driver : " . strtoupper($driverName));
+
+                        if (strtolower($driverName) !== "database") {
+                            $ss->success('Initialization successfull');
+                            return Command::SUCCESS;
                         }
                         
                         $ss->section('Database Setup');
                         try {
-                            $pdo = DatabaseConnection::getInstance();
-                            if (!$pdo instanceof \PDO) {
+                            if (!$this->testDatabaseConnection()) {
                                 throw new \RuntimeException('Database connection not available or not PDO');
                             }
-                            $this->createFullSchema($pdo);
+                            $this->createFullSchema();
                             $ss->success('Full queue database schema created successfully.');
                         } catch (\Throwable $e) {
                             $ss->error('Failed to create database schema: ' . $e->getMessage());
-                            $ss->writeln('Please check your database configuration in .env and ensure the connection works.');
+                            $ss->note('Please check your database configuration in .env and ensure the connection works.');
                             return Command::FAILURE;
                         }
-                        
-                        $this->logger->info('Queue init completed', ['initialized' => $initialized, 'present' => $existing]);
                         return Command::SUCCESS;
                     });
                 }
@@ -1066,7 +561,7 @@ class QueueWorkerCommand
 
             // queue:work
             new class extends Command {
-                use CommandHelper, QueueCommandHelper, DatabaseQueueSetup, QueueWorkerValidationTrait;
+                use CommandHelper, QueueCommandHelper, QueueWorkerValidationTrait;
             
                 public function __construct() {
                     parent::__construct('queue:work');
@@ -1074,15 +569,13 @@ class QueueWorkerCommand
                 }
             
                 protected function configure(): void {
-                    $this->addOption('driver', 'd', InputOption::VALUE_OPTIONAL, 'Queue driver to use', 'database')
-                         ->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name to process', 'default')
+                    $this->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name to process', 'default')
                          ->addOption('sleep', 's', InputOption::VALUE_OPTIONAL, 'Seconds to sleep when no jobs are available', 3)
                          ->addOption('memory', 'm', InputOption::VALUE_OPTIONAL, 'Memory limit in MB', 128)
                          ->addOption('timeout', 't', InputOption::VALUE_OPTIONAL, 'Job timeout in seconds', 60)
                          ->addOption('max-jobs', null, InputOption::VALUE_OPTIONAL, 'Maximum number of jobs to process before exiting')
                          ->addOption('stop-on-empty', null, InputOption::VALUE_NONE, 'Stop when the queue is empty')
                          ->addOption('tries', null, InputOption::VALUE_OPTIONAL, 'Number of times to attempt a job', 3)
-                         ->addOption('config', 'c', InputOption::VALUE_OPTIONAL, 'Path to queue configuration file')
                          ->addOption('daemon', null, InputOption::VALUE_NONE, 'Run the worker in daemon mode')
                          ->addOption('force', 'f', InputOption::VALUE_NONE, 'Force the worker to run even in maintenance mode')
                           ->addOption('pid-file', null, InputOption::VALUE_OPTIONAL, 'Write process ID to this file')
@@ -1092,10 +585,7 @@ class QueueWorkerCommand
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeSafely($input, $output, function () use ($input, $output) {
-                        $ss = new SymfonyStyle($input, $output);
-                        $this->bootstrapDependencies();
-
-                        $driver      = $input->getOption('driver');
+                        
                         $queue       = $input->getOption('queue');
                         $sleep       = (int) $input->getOption('sleep');
                         $memory      = (int) $input->getOption('memory');
@@ -1106,134 +596,22 @@ class QueueWorkerCommand
                         $daemon      = $input->getOption('daemon');
                         $force       = $input->getOption('force');
                         $instance    = (int) $input->getOption('instance');
-            
-                        if (!$force && file_exists(getcwd() . '/storage/framework/down')) {
-                            $ss->error('Application is in maintenance mode. Use --force to override.');
-                            return Command::FAILURE;
-                        }
-            
-                        $this->queueConfig = $this->loadQueueConfig($input->getOption('config'));
-                        $this->driverResolver = new QueueDriverResolver(
-                            $this->appContainer,
-                            $this->logger,
-                            $this->queueGenerator,
-                            $this->queueConfig
+                        $pidFile     = $input->getOption('pid-file');
+
+                        $artisanBackgroundWorker = new ArtisanBackgroundWorker(
+                            $this->artisanContainer(),
+                            $this->getQueueDriver(),
+                            $this->createJobProcessor(),
+                            new SymfonyStyle($input, $output)
                         );
-                        
-                        $driver = ($driver === "default") ? "database" : $driver;
+
+                        $result = $artisanBackgroundWorker->work(
+                            $queue, $sleep, $memory, $timeout, $maxJobs, $tries, $stopOnEmpty, $daemon, $force, $instance, $pidFile  
+                        );
+
+                        return ($result) ? Command::SUCCESS : Command::FAILURE;
             
-                        $queueDriver = $this->driverResolver->resolve($driver);
-                        if (!$queueDriver) {
-                            $ss->error("Queue driver '{$driver}' not found after initialization.");
-                            return Command::FAILURE;
-                        }
-            
-                        if ($driver === 'database') {
-                            $pdo = DatabaseConnection::getInstance();
-                            if (!$pdo instanceof \PDO) {
-                                $ss->error('Database connection not available. Check your .env and config.');
-                                return Command::FAILURE;
-                            }
-                            $table = $this->queueConfig['drivers']['database']['table'] ?? 'queue_jobs';
-                            $failedTable = $this->queueConfig['drivers']['database']['failed_table'] ?? 'queue_failed_jobs';
-                            $this->ensureQueueTablesExist($pdo, $table, $failedTable);
-                        }
-            
-                        $processor = $this->createJobProcessor();
-                        $workerOptions = [
-                            'sleep'       => $sleep,
-                            'memory'      => $memory,
-                            'timeout'     => $timeout,
-                            'maxTries'    => $tries,
-                            'maxJobs'     => $maxJobs,
-                            'stopOnEmpty' => ($stopOnEmpty === null) 
-                                                ? filter_var(getenv("QUEUE_WORKER_STOP_ON_EMPTY", false), FILTER_VALIDATE_BOOLEAN) 
-                                                : $stopOnEmpty,
-                        ];
-                        
-                        $manager = new BackgroundWorkerManager($this->appContainer);
-                        $heartbeatInterval = (int) getenv('QUEUE_WORKER_HEARTBEAT_INTERVAL', 60);
-                        $lastHeartbeat = 0;
-            
-                        $ss->title("Queue Worker");
-                        $ss->text([
-                            "Driver: <info>{$driver}</info>",
-                            "Queue: <info>{$queue}</info>",
-                            "Sleep: <info>{$sleep}s</info>",
-                            "Memory: <info>{$memory}MB</info>",
-                            "Timeout: <info>{$timeout}s</info>",
-                            "Max Tries: <info>{$tries}</info>",
-                            $maxJobs ? "Max Jobs: <info>{$maxJobs}</info>" : "Max Jobs: <info>unlimited</info>",
-                            $stopOnEmpty ? "Stop on Empty: <info>yes</info>" : "Stop on Empty: <info>no</info>",
-                            $daemon ? "Mode: <info>daemon</info>" : "Mode: <info>single run</info>",
-                        ]);
-            
-                        $signalManager = new SignalManager();
-                        $worker = null;
-                        
-                        $pidFile = $input->getOption('pid-file');
-                        if ($pidFile) {
-                            file_put_contents($pidFile, getmypid());
-                            register_shutdown_function(function() use ($pidFile) {
-                                if (file_exists($pidFile)) unlink($pidFile);
-                            });
-                        }
-            
-                        do {
-                            $worker = new BaseWorker($this->appContainer, $queueDriver, $processor);
-                            if (extension_loaded('pcntl')) {
-                                $signalManager->register(fn() => $worker->stop(), [SIGINT, SIGTERM]);
-                            }
-            
-                            $ss->newLine();
-                            $ss->writeln("Starting worker... Press Ctrl+C to stop.");
-                            $this->logger->info('Worker started', ['driver' => $driver, 'queue' => $queue]);
-            
-                            $startTime = time();
-                            try {
-                              $this->runWorkerWithHeartbeat($worker, $queue, $workerOptions, $manager, $driver, $queue, $instance, $heartbeatInterval, $lastHeartbeat);
-                            } catch (\Throwable $e) {
-                              $this->logger->error('Worker crashed: ' . $e->getMessage(), [
-                                    'error' => $e->getMessage(),
-                                    'trace' => $e->getTraceAsString(),
-                                ]);
-                            }
-                            $endTime = time();
-                            $status  = $worker->getStatus();
-                            $this->logger->info('Worker finished', array_merge($status, ['queue' => $queue]));
-            
-                            $ss->newLine(2);
-                            $ss->section("Worker Statistics");
-                            $ss->text([
-                                "Runtime: <info>" . ($endTime - $startTime) . "s</info>",
-                                "Jobs Processed: <info>{$status['processed']}</info>",
-                                "Jobs Failed: <info>{$status['failed']}</info>",
-                                "Memory Peak: <info>" . round($status['memory_peak'] / 1024 / 1024, 2) . "MB</info>",
-                                "Last Job: <info>" . ($status['last_job_at'] ? date('Y-m-d H:i:s', $status['last_job_at']) : 'Never') . "</info>",
-                            ]);
-            
-                            if ($daemon && ($status['processed'] ?? 0) === 0) {
-                                sleep(1);
-                            }
-            
-                            if ($daemon && $status['memory_peak'] > $memory * 1024 * 1024) {
-                                $ss->warning("Memory limit exceeded, restarting worker...");
-                                unset($worker);
-                            }
-                        } while ($daemon);
-            
-                        return Command::SUCCESS;
                     });
-                }
-                
-                private function runWorkerWithHeartbeat(BaseWorker $worker, string $queue, array $options, BackgroundWorkerManager $manager, string $driver, string $queueName, int $instance, int $interval, int &$lastHeartbeat): void
-                {
-                    if (method_exists($worker, 'setHeartbeatCallback')) {
-                        $worker->setHeartbeatCallback(function() use ($manager, $driver, $queueName, $instance) {
-                            $manager->updateHeartbeat($queueName, $driver, $instance);
-                        });
-                    }
-                    $worker->start($queue, $options);
                 }
             },
             // queue:supervisor
@@ -1246,8 +624,7 @@ class QueueWorkerCommand
                 }
                 
                 protected function configure(): void {
-                    $this->addOption('driver', 'd', InputOption::VALUE_OPTIONAL, 'Queue driver', 'database')
-                         ->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name', 'default')
+                    $this->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name', 'default')
                          ->addOption('concurrency', 'c', InputOption::VALUE_OPTIONAL, 'Number of worker instances', 1)
                          ->addOption('daemon', null, InputOption::VALUE_NONE, 'Run as a daemon (keep monitoring forever)');
                 }
@@ -1255,19 +632,14 @@ class QueueWorkerCommand
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeSafely($input, $output, function () use ($input, $output) {
-                        $this->bootstrapDependencies();
                         $ss = new SymfonyStyle($input, $output);
                         
-                        $driver      = $input->getOption('driver');
+                        $driver      = $this->driverName();
                         $queue       = $input->getOption('queue');
                         $concurrency = (int) $input->getOption('concurrency');
                         $daemon      = $input->getOption('daemon');
                         
-                        if (!$this->validateQueue($queue, $driver, $ss)) {
-                            return Command::FAILURE;
-                        }
-                        
-                        $manager = new BackgroundWorkerManager($this->appContainer);
+                        $manager = new BackgroundWorkerManager($this->artisanContainer());
                         
                         if ($daemon) {
                             $ss->note("Starting supervisor for {$driver}:{$queue} with {$concurrency} workers. Press Ctrl+C to stop.");
@@ -1303,26 +675,20 @@ class QueueWorkerCommand
                 }
                 
                 protected function configure(): void {
-                    $this->addOption('driver', 'd', InputOption::VALUE_OPTIONAL, 'Queue driver', 'database')
-                         ->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name', 'default')
+                    $this->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name', 'default')
                          ->addOption('concurrency', 'c', InputOption::VALUE_OPTIONAL, 'Number of worker instances to start', 1);
                 }
                 
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeSafely($input, $output, function () use ($input, $output) {
-                        $this->bootstrapDependencies();
                         $ss = new SymfonyStyle($input, $output);
                         
-                        $driver      = $input->getOption('driver');
+                        $driver      = $this->driverName();
                         $queue       = $input->getOption('queue');
                         $concurrency = (int) $input->getOption('concurrency');
                         
-                        if (!$this->validateQueue($queue, $driver, $ss)) {
-                            return Command::FAILURE;
-                        }
-                        
-                        $manager = new BackgroundWorkerManager($this->appContainer);
+                        $manager = new BackgroundWorkerManager($this->artisanContainer());
                         $started = $manager->startWorker($queue, $driver, $concurrency);
                         
                         if ($started > 0) {
@@ -1344,26 +710,20 @@ class QueueWorkerCommand
                 }
                 
                 protected function configure(): void {
-                    $this->addOption('driver', 'd', InputOption::VALUE_OPTIONAL, 'Queue driver', 'database')
-                         ->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name', 'default')
+                    $this->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name', 'default')
                          ->addOption('instance', null, InputOption::VALUE_OPTIONAL, 'Specific instance number (omit to stop all)');
                 }
                 
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeSafely($input, $output, function () use ($input, $output) {
-                        $this->bootstrapDependencies();
                         $ss = new SymfonyStyle($input, $output);
                         
-                        $driver   = $input->getOption('driver');
+                        $driver   = $this->driverName();
                         $queue    = $input->getOption('queue');
                         $instance = $input->getOption('instance') ? (int) $input->getOption('instance') : null;
                         
-                        if (!$this->validateQueue($queue, $driver, $ss)) {
-                            return Command::FAILURE;
-                        }
-                        
-                        $manager = new BackgroundWorkerManager($this->appContainer);
+                        $manager = new BackgroundWorkerManager($this->artisanContainer());
                         $stopped = $manager->stopWorker($queue, $driver, $instance);
                         
                         if ($stopped === 0) {
@@ -1386,8 +746,7 @@ class QueueWorkerCommand
                 }
                 
                 protected function configure(): void {
-                    $this->addOption('driver', 'd', InputOption::VALUE_OPTIONAL, 'Queue driver', 'database')
-                         ->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name', 'default')
+                    $this->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name', 'default')
                          ->addOption('concurrency', 'c', InputOption::VALUE_OPTIONAL, 'Number of workers to keep after restart', 1);
                 }
                 
@@ -1397,15 +756,11 @@ class QueueWorkerCommand
                         $this->bootstrapDependencies();
                         $ss = new SymfonyStyle($input, $output);
                         
-                        $driver      = $input->getOption('driver');
+                        $driver      = $this->driverName();
                         $queue       = $input->getOption('queue');
                         $concurrency = (int) $input->getOption('concurrency');
                         
-                        if (!$this->validateQueue($queue, $driver, $ss)) {
-                            return Command::FAILURE;
-                        }
-                        
-                        $manager = new BackgroundWorkerManager($this->appContainer);
+                        $manager = new BackgroundWorkerManager($this->artisanContainer());
                         $manager->stopWorker($queue, $driver);
                         $started = $manager->startWorker($queue, $driver, $concurrency);
                         
@@ -1424,35 +779,22 @@ class QueueWorkerCommand
                 }
                 
                 protected function configure(): void {
-                    $this->addOption('driver', 'd', InputOption::VALUE_OPTIONAL, 'Queue driver', 'database')
-                         ->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name', 'default')
-                         ->addOption('format', null, InputOption::VALUE_OPTIONAL, 'Output format (table, json)', 'table');
+                    $this->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name', 'default');
                 }
                 
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeSafely($input, $output, function () use ($input, $output) {
-                        $this->bootstrapDependencies();
                         $ss = new SymfonyStyle($input, $output);
                         
-                        $driver = $input->getOption('driver');
+                        $driver = $this->driverName();
                         $queue  = $input->getOption('queue');
-                        $format = $input->getOption('format');
                         
-                        if (!$this->validateQueue($queue, $driver, $ss, false)) {
-                            return Command::FAILURE;
-                        }
-                        
-                        $manager = new BackgroundWorkerManager($this->appContainer);
+                        $manager = new BackgroundWorkerManager($this->artisanContainer());
                         $statuses = $manager->workerStatus($queue, $driver);
                         
                         if (empty($statuses)) {
                             $ss->warning("No workers found for {$driver}:{$queue}");
-                            return Command::SUCCESS;
-                        }
-                        
-                        if ($format === 'json') {
-                            $ss->writeln(json_encode($statuses, JSON_PRETTY_PRINT));
                             return Command::SUCCESS;
                         }
                         
@@ -1486,75 +828,10 @@ class QueueWorkerCommand
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeSafely($input, $output, function () use ($input, $output) {
-                        $this->bootstrapDependencies();
                         $ss = new SymfonyStyle($input, $output);
-                        
-                        $manager = new BackgroundWorkerManager($this->appContainer);
+                        $manager = new BackgroundWorkerManager($this->artisanContainer());
                         $manager->cleanupOrphanedPids();
                         $ss->success("Orphaned PID files and stale heartbeats cleaned.");
-                        return Command::SUCCESS;
-                    });
-                }
-            },
-            // queue:list
-            new class extends Command {
-                use CommandHelper, QueueCommandHelper, QueueWorkerValidationTrait;
-
-                public function __construct() {
-                    parent::__construct('queue:list');
-                    $this->setDescription('List all available queue drivers and jobs');
-                }
-
-                protected function configure(): void {
-                    $this->addOption('type', null, InputOption::VALUE_OPTIONAL, 'Filter by type (drivers, jobs, all)', 'all')
-                         ->addOption('format', null, InputOption::VALUE_OPTIONAL, 'Output format (table, json, list)', 'table');
-                }
-
-                protected function execute(InputInterface $input, OutputInterface $output): int
-                {
-                    return $this->executeWithStyle($input, $output, 'Queue Driver', function (SymfonyStyle $ss) use ($input) {
-                        $this->bootstrapDependencies();
-                        $generator = $this->queueGenerator;
-                        $type   = $input->getOption('type');
-                        $format = $input->getOption('format');
-
-                        $data = [];
-                        if ($type === 'all' || $type === 'drivers') {
-                            $queues = $generator->listQueues();
-                            $data['drivers'] = $queues;
-                            if ($format === 'table' && $type === 'drivers') {
-                                $ss->title('Available Queue Drivers');
-                                $rows = array_map(fn($q) => [$q['name'], $q['file'], $q['exists'] ? 'Yes' : 'No', $q['path']], $queues);
-                                $ss->table(['Name', 'File', 'Loaded', 'Path'], $rows);
-                            }
-                        }
-
-                        if ($type === 'all' || $type === 'jobs') {
-                            $jobs = $generator->listJobs();
-                            $data['jobs'] = $jobs;
-                            if ($format === 'table' && $type === 'jobs') {
-                                $ss->title('Available Jobs');
-                                $rows = array_map(fn($j) => [$j['name'], $j['file'], $j['exists'] ? 'Yes' : 'No', $j['path']], $jobs);
-                                $ss->table(['Name', 'File', 'Loaded', 'Path'], $rows);
-                            }
-                        }
-
-                        if ($format === 'json') {
-                            $ss->writeln(json_encode($data, JSON_PRETTY_PRINT));
-                        } elseif ($format === 'list') {
-                            if ($type === 'all' || $type === 'drivers') {
-                                $ss->section('Queue Drivers');
-                                foreach ($data['drivers'] as $driver) {
-                                    $ss->writeln("  • {$driver['name']} ({$driver['file']})");
-                                }
-                            }
-                            if ($type === 'all' || $type === 'jobs') {
-                                $ss->section('Jobs');
-                                foreach ($data['jobs'] as $job) {
-                                    $ss->writeln("  • {$job['name']} ({$job['file']})");
-                                }
-                            }
-                        }
                         return Command::SUCCESS;
                     });
                 }
@@ -1581,10 +858,8 @@ class QueueWorkerCommand
 
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
-                    return $this->executeWithStyle($input, $output, 'Create Job', function (SymfonyStyle $ss) use ($input) {
-                        $this->bootstrapDependencies();
-                        $logger = $this->logger;
-                        $generator = $this->queueGenerator;
+                    return $this->executeWithStyle($input, $output, 'Create a Job', function (SymfonyStyle $ss) use ($input) {
+                        $generator = $this->queueGenerator();
 
                         $name    = $input->getArgument('name');
                         $options = [
@@ -1617,7 +892,6 @@ class QueueWorkerCommand
                             '  php artisan queue:work --queue=' . $options['queue'],
                         ]);
 
-                        $logger->info('Job class created', ['name' => $name, 'queue' => $options['queue']]);
                         return Command::SUCCESS;
                     });
                 }
@@ -1632,26 +906,16 @@ class QueueWorkerCommand
                 }
 
                 protected function configure(): void {
-                    $this->addOption('driver', 'd', InputOption::VALUE_OPTIONAL, 'Queue driver to use', 'database')
-                         ->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Specific queue to check', 'all')
-                         ->addOption('format', null, InputOption::VALUE_OPTIONAL, 'Output format (table, json)', 'table');
+                    $this->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Specific queue to check', 'all');
                 }
 
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeSafely($input, $output, function () use ($input, $output) {
-                        $this->bootstrapDependencies();
                         $ss = new SymfonyStyle($input, $output);
-
-                        $driverName = $input->getOption('driver');
-                        $queueDriver = $this->driverResolver->resolve($driverName);
-                        if (!$queueDriver) {
-                            $ss->error("Queue driver '{$driverName}' not found.");
-                            return Command::FAILURE;
-                        }
+                        $queueDriver = $this->getQueueDriver();
 
                         $specificQueue = $input->getOption('queue');
-                        $format        = $input->getOption('format');
 
                         if ($specificQueue === 'all') {
                             $queues = $queueDriver->getQueues();
@@ -1664,27 +928,23 @@ class QueueWorkerCommand
                             $stats[] = $queueDriver->getStats($queue);
                         }
 
-                        if ($format === 'json') {
-                            $ss->writeln(json_encode($stats, JSON_PRETTY_PRINT));
+                        if (empty($stats)) {
+                            $ss->warning('No queues found.');
                         } else {
-                            if (empty($stats)) {
-                                $ss->warning('No queues found.');
-                            } else {
-                                $table = new Table($output);
-                                $table->setHeaders(['Queue', 'Size', 'Driver', 'Health']);
-                                foreach ($stats as $stat) {
-                                    $table->addRow([
-                                        $stat['name'] ?? 'unknown',
-                                        $stat['size'] ?? 0,
-                                        $stat['driver'] ?? 'unknown',
-                                        $queueDriver->isHealthy() ? '<info>✓ Healthy</info>' : '<error>✗ Unhealthy</error>'
-                                    ]);
-                                }
-                                $table->render();
+                            $table = new Table($output);
+                            $table->setHeaders(['Pending', 'Reserved', 'Delayed', 'Total', 'Health']);
+                            foreach ($stats as $stat) {
+                                $table->addRow([
+                                    $stat['pending'] ?? 0,
+                                    $stat['reserved'] ?? 0,
+                                    $stat['delayed'] ?? 0,
+                                    $stat['total'] ?? $stat['pending'] + $stat['reserved'] + $stat['delayed'],
+                                    $queueDriver->isHealthy() ? '<info>Healthy</info>' : '<error>Unhealthy</error>'
+                                ]);
                             }
+                            $table->render();
                         }
 
-                        $this->logger->info('Queue status checked', ['driver' => $driverName, 'queues' => $queues ?? []]);
                         return Command::SUCCESS;
                     });
                 }
@@ -1699,22 +959,15 @@ class QueueWorkerCommand
                 }
 
                 protected function configure(): void {
-                    $this->addOption('driver', 'd', InputOption::VALUE_OPTIONAL, 'Queue driver to use', 'database')
-                         ->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name', 'default')
+                    $this->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name', 'default')
                          ->addOption('limit', 'l', InputOption::VALUE_OPTIONAL, 'Limit number of failed jobs to display', 50)
-                         ->addOption('offset', 'o', InputOption::VALUE_OPTIONAL, 'Offset for failed jobs', 0)
-                         ->addOption('format', null, InputOption::VALUE_OPTIONAL, 'Output format (table, json)', 'table');
+                         ->addOption('offset', 'o', InputOption::VALUE_OPTIONAL, 'Offset for failed jobs', 0);
                 }
 
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Failed Queue Jobs', function (SymfonyStyle $ss) use ($input, $output) {
-                        $this->bootstrapDependencies();
-                        $logger = $this->logger;
-                        $config    = $this->loadQueueConfig(null);
-                        $container = $this->getContainerInstance();
-                        $driverName = $input->getOption('driver');
-                        $queueDriver = $this->getQueueDriverOrInit($driverName, $container, $config);
+                        $queueDriver = $this->getQueueDriver();
 
                         if (!$queueDriver) {
                             $ss->error("Queue driver '{$driverName}' not found after initialization.");
@@ -1724,37 +977,31 @@ class QueueWorkerCommand
                         $queue  = $input->getOption('queue');
                         $limit  = (int) $input->getOption('limit');
                         $offset = (int) $input->getOption('offset');
-                        $format = $input->getOption('format');
 
                         $failedJobs = $queueDriver->getFailed($queue, $limit, $offset);
 
-                        if ($format === 'json') {
-                            $ss->writeln(json_encode($failedJobs, JSON_PRETTY_PRINT));
+                        if (empty($failedJobs)) {
+                            $ss->success('No failed jobs found.');
                         } else {
-                            if (empty($failedJobs)) {
-                                $ss->success('No failed jobs found.');
-                            } else {
-                                $table = new Table($output);
-                                $table->setHeaders(['ID', 'Job Name', 'Queue', 'Attempts', 'Failed At', 'Error']);
-                                $rows = [];
-                                foreach ($failedJobs as $job) {
-                                    $rows[] = [
-                                        $job['id'] ?? 'N/A',
-                                        $job['name'] ?? 'Unknown',
-                                        $job['queue'] ?? 'default',
-                                        $job['attempts'] ?? 0,
-                                        isset($job['failed_at']) ? date('Y-m-d H:i:s', $job['failed_at']) : 'N/A',
-                                        substr($job['error'] ?? 'No error message', 0, 50) . '...'
-                                    ];
-                                }
-                                $table->setRows($rows);
-                                $table->render();
-                                $ss->newLine();
-                                $ss->text("Total failed jobs: " . count($failedJobs));
+                            $table = new Table($output);
+                            $table->setHeaders(['No', 'Job ID', 'Queue', 'Failed At', 'Error']);
+                            $rows = [];$count = 0;
+                            foreach ($failedJobs as $job) {
+                                $count++;
+                                $rows[] = [
+                                    $count,
+                                    $job['job_id'] ?? 'N/A',
+                                    $job['queue'] ?? 'default',
+                                    isset($job['failed_at']) ? date('Y-m-d H:i:s', $job['failed_at']) : 'N/A',
+                                    substr($job['exception'] ?? 'No error message', 0, 15) . '...'
+                                ];
                             }
+                            $table->setRows($rows);
+                            $table->render();
+                            $ss->newLine();
+                            $ss->text("Total failed jobs: " . count($failedJobs));
                         }
 
-                        $logger->info('Listed failed jobs', ['queue' => $queue, 'count' => count($failedJobs)]);
                         return Command::SUCCESS;
                     });
                 }
@@ -1770,24 +1017,13 @@ class QueueWorkerCommand
 
                 protected function configure(): void {
                     $this->addArgument('id', InputArgument::OPTIONAL, 'The ID of the failed job (use "all" to retry all)')
-                         ->addOption('driver', 'd', InputOption::VALUE_OPTIONAL, 'Queue driver to use', 'database')
                          ->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name', 'default');
                 }
 
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Retry Failed Queue Job', function (SymfonyStyle $ss) use ($input, $output) {
-                        $this->bootstrapDependencies();
-                        $logger = $this->logger;
-                        $config    = $this->loadQueueConfig(null);
-                        $container = $this->getContainerInstance();
-                        $driverName = $input->getOption('driver');
-                        $queueDriver = $this->getQueueDriverOrInit($driverName, $container, $config);
-
-                        if (!$queueDriver) {
-                            $ss->error("Queue driver '{$driverName}' not found after initialization.");
-                            return Command::FAILURE;
-                        }
+                        $queueDriver = $this->getQueueDriver();
 
                         $jobId = $input->getArgument('id');
                         $queue = $input->getOption('queue');
@@ -1820,10 +1056,6 @@ class QueueWorkerCommand
                             $progressBar->finish();
                             $ss->newLine(2);
 
-                            $logger->info("Retried all failed jobs", [
-                                'queue' => $queue, 'total' => $totalCount, 'success' => $successCount
-                            ]);
-
                             if ($successCount === $totalCount) {
                                 $ss->success("All {$totalCount} jobs retried successfully.");
                             } else {
@@ -1832,10 +1064,8 @@ class QueueWorkerCommand
                         } else {
                             if ($queueDriver->retryFailed($jobId, $queue)) {
                                 $ss->success("Job {$jobId} retried successfully.");
-                                $logger->info('Failed job retried', ['job_id' => $jobId, 'queue' => $queue]);
                             } else {
                                 $ss->error("Failed to retry job {$jobId}.");
-                                $logger->warning('Failed to retry job', ['job_id' => $jobId]);
                                 return Command::FAILURE;
                             }
                         }
@@ -1855,31 +1085,19 @@ class QueueWorkerCommand
 
                 protected function configure(): void {
                     $this->addArgument('id', InputArgument::REQUIRED, 'The ID of the failed job')
-                         ->addOption('driver', 'd', InputOption::VALUE_OPTIONAL, 'Queue driver to use', 'database')
                          ->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name', 'default');
                 }
 
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Remove Failed Queue Job', function (SymfonyStyle $ss) use ($input) {
-                        $this->bootstrapDependencies();
-                        $logger = $this->logger;
-                        $config    = $this->loadQueueConfig(null);
-                        $container = $this->getContainerInstance();
-                        $driverName = $input->getOption('driver');
-                        $queueDriver = $this->getQueueDriverOrInit($driverName, $container, $config);
-
-                        if (!$queueDriver) {
-                            $ss->error("Queue driver '{$driverName}' not found after initialization.");
-                            return Command::FAILURE;
-                        }
+                        $queueDriver = $this->getQueueDriver();
 
                         $jobId = $input->getArgument('id');
                         $queue = $input->getOption('queue');
 
                         if ($queueDriver->forgetFailed($jobId, $queue)) {
                             $ss->success("Job {$jobId} removed from failed jobs list.");
-                            $logger->info('Forgot failed job', ['job_id' => $jobId]);
                         } else {
                             $ss->error("Failed to remove job {$jobId}.");
                             return Command::FAILURE;
@@ -1889,10 +1107,9 @@ class QueueWorkerCommand
                     });
                 }
             },
-
             // queue:flush
             new class extends Command {
-                use CommandHelper, QueueCommandHelper, QueueWorkerValidationTrait;
+                use CommandHelper, QueueCommandHelper;
 
                 public function __construct() {
                     parent::__construct('queue:flush');
@@ -1900,25 +1117,14 @@ class QueueWorkerCommand
                 }
 
                 protected function configure(): void {
-                    $this->addOption('driver', 'd', InputOption::VALUE_OPTIONAL, 'Queue driver to use', 'database')
-                         ->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name', 'default')
+                    $this->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name', 'default')
                          ->addOption('force', 'f', InputOption::VALUE_NONE, 'Force flush without confirmation');
                 }
 
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Flush Failed Queue Jobs', function (SymfonyStyle $ss) use ($input) {
-                        $this->bootstrapDependencies();
-                        $logger = $this->logger;
-                        $config    = $this->loadQueueConfig(null);
-                        $container = $this->getContainerInstance();
-                        $driverName = $input->getOption('driver');
-                        $queueDriver = $this->getQueueDriverOrInit($driverName, $container, $config);
-
-                        if (!$queueDriver) {
-                            $ss->error("Queue driver '{$driverName}' not found after initialization.");
-                            return Command::FAILURE;
-                        }
+                        $queueDriver = $this->getQueueDriver();
 
                         $queue = $input->getOption('queue');
                         $force = $input->getOption('force');
@@ -1934,10 +1140,9 @@ class QueueWorkerCommand
                             }
                         }
 
-                        $count = $queueDriver->flushFailed($queue);
+                        $count = $queueDriver->clearFailed($queue);
                         if ($count > 0) {
                             $ss->success("Flushed {$count} failed jobs.");
-                            $logger->info('Flushed failed jobs', ['queue' => $queue, 'count' => $count]);
                         } else {
                             $ss->info('No failed jobs to flush.');
                         }
@@ -1946,10 +1151,9 @@ class QueueWorkerCommand
                     });
                 }
             },
-
             // queue:clear
             new class extends Command {
-                use CommandHelper, QueueCommandHelper, QueueWorkerValidationTrait;
+                use CommandHelper, QueueCommandHelper;
 
                 public function __construct() {
                     parent::__construct('queue:clear');
@@ -1957,26 +1161,14 @@ class QueueWorkerCommand
                 }
 
                 protected function configure(): void {
-                    $this->addOption('driver', 'd', InputOption::VALUE_OPTIONAL, 'Queue driver to use', 'database')
-                         ->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name to clear', 'default')
+                    $this->addOption('queue', null, InputOption::VALUE_OPTIONAL, 'Queue name to clear', 'default')
                          ->addOption('force', 'f', InputOption::VALUE_NONE, 'Force clear without confirmation');
                 }
 
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Clear Queue', function (SymfonyStyle $ss) use ($input) {
-                        $this->bootstrapDependencies();
-                        $logger = $this->logger;
-                        $config    = $this->loadQueueConfig(null);
-                        $container = $this->getContainerInstance();
-                        $driverName = $input->getOption('driver');
-                        $queueDriver = $this->getQueueDriverOrInit($driverName, $container, $config);
-
-                        if (!$queueDriver) {
-                            $ss->error("Queue driver '{$driverName}' not found after initialization.");
-                            return Command::FAILURE;
-                        }
-
+                        $queueDriver = $this->getQueueDriver();
                         $queue = $input->getOption('queue');
                         $force = $input->getOption('force');
 
@@ -1999,16 +1191,14 @@ class QueueWorkerCommand
 
                         $clearedCount = $queueDriver->clear($queue);
                         $ss->success("Cleared {$clearedCount} jobs from queue '{$queue}'.");
-                        $logger->info('Queue cleared', ['queue' => $queue, 'cleared' => $clearedCount]);
 
                         return Command::SUCCESS;
                     });
                 }
             },
-
             // queue:health
             new class extends Command {
-                use CommandHelper, QueueCommandHelper, QueueWorkerValidationTrait;
+                use CommandHelper, QueueCommandHelper;
 
                 public function __construct() {
                     parent::__construct('queue:health');
@@ -2016,67 +1206,50 @@ class QueueWorkerCommand
                 }
 
                 protected function configure(): void {
-                    $this->addOption('driver', 'd', InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY, 'Specific drivers to check (default: all)')
-                         ->addOption('timeout', 't', InputOption::VALUE_OPTIONAL, 'Timeout for health check in seconds', 5);
+                    $this->addOption('timeout', 't', InputOption::VALUE_OPTIONAL, 'Timeout for health check in seconds', 5);
                 }
 
                 protected function execute(InputInterface $input, OutputInterface $output): int
                 {
                     return $this->executeWithStyle($input, $output, 'Queue Health Check', function (SymfonyStyle $ss) use ($input, $output) {
-                        $this->bootstrapDependencies();
-                        $logger = $this->logger;
-                        $config    = $this->loadQueueConfig(null);
-                        $container = $this->getContainerInstance();
-
-                        $driversToCheck = $input->getOption('driver');
                         $timeout        = (int) $input->getOption('timeout');
 
-                        if (empty($driversToCheck)) {
-                            $driversToCheck = array_keys($config['drivers'] ?? []);
-                        }
-
-                        if (empty($driversToCheck)) {
-                            $ss->warning('No queue drivers configured.');
-                            return Command::SUCCESS;
-                        }
-
                         $results = [];
-                        foreach ($driversToCheck as $driverName) {
-                            $queueDriver = $this->getQueueDriverOrInit($driverName, $container, $config);
-                            if (!$queueDriver) {
-                                $results[] = [
-                                    'driver'  => $driverName,
-                                    'status'  => 'NOT FOUND',
-                                    'message' => 'Driver not configured'
-                                ];
-                                continue;
-                            }
-
-                            $startTime = microtime(true);
-                            $isHealthy = false;
-                            $message   = '';
-
-                            try {
-                                if (function_exists('set_time_limit')) {
-                                    @set_time_limit($timeout);
-                                }
-                                $isHealthy = $queueDriver->isHealthy();
-                                $message   = $isHealthy ? 'Connection successfull' : 'Connection failed';
-                            } catch (\Exception $e) {
-                                $message = 'Error: ' . $e->getMessage();
-                            }
-
-                            $responseTime = round((microtime(true) - $startTime) * 1000, 2);
+                        $queueDriver = $this->getQueueDriver();
+                        if (!$queueDriver) {
                             $results[] = [
-                                'driver'        => $driverName,
-                                'status'        => $isHealthy ? 'HEALTHY' : 'UNHEALTHY',
-                                'response_time' => $responseTime . 'ms',
-                                'message'       => $message
+                                'driver'  => $driverName,
+                                'status'  => 'NOT FOUND',
+                                'message' => 'Driver not configured'
                             ];
+                            return Command::FAILURE;
                         }
+
+                        $startTime = microtime(true);
+                        $isHealthy = false;
+                        $message   = '';
+
+                        try {
+                            if (function_exists('set_time_limit')) {
+                                @set_time_limit($timeout);
+                            }
+                            $isHealthy = $queueDriver->isHealthy();
+                            $message   = $isHealthy ? 'Connection successfull' : 'Connection failed';
+                        } catch (\Exception $e) {
+                            $message = 'Error: ' . $e->getMessage();
+                        }
+
+                        $responseTime = round((microtime(true) - $startTime) * 1000, 2);
+                        $driverName = $this->driverName();
+                        $results[] = [
+                            'driver'        => $driverName,
+                            'status'        => $isHealthy ? 'HEALTHY' : 'UNHEALTHY',
+                            'response_time' => $responseTime . 'ms',
+                            'message'       => $message
+                        ];
 
                         $table = new Table($output);
-                        $table->setHeaders(['Driver', 'Status', 'Response Time', 'Message']);
+                        $table->setHeaders(['Driver name', 'Status', 'Response Time', 'Message']);
                         $rows = [];
                         foreach ($results as $result) {
                             $statusColor = $result['status'] === 'HEALTHY' ? 'info' : ($result['status'] === 'NOT FOUND' ? 'comment' : 'error');
@@ -2095,19 +1268,18 @@ class QueueWorkerCommand
 
                         $ss->newLine();
                         if ($healthyCount === $totalCount) {
-                            $ss->success("All {$totalCount} queue drivers are healthy.");
+                            $ss->success("{$driverName} queue driver is healthy.");
                         } else {
-                            $ss->warning("{$healthyCount} out of {$totalCount} queue drivers are healthy.");
+                            $ss->warning("{$driverName} queue driver is unhealthy.");
                         }
 
-                        $logger->info('Health check completed', ['healthy' => $healthyCount, 'total' => $totalCount]);
                         return Command::SUCCESS;
                     });
                 }
             },
             // queue:db:info
             new class extends Command {
-                use CommandHelper, QueueCommandHelper, QueueWorkerValidationTrait;
+                use CommandHelper, QueueCommandHelper;
             
                 public function __construct() {
                     parent::__construct('queue:db-info');
@@ -2230,6 +1402,99 @@ class QueueWorkerCommand
             
                         return Command::SUCCESS;
                     });
+                }
+            },
+            // queue:job 
+            new class extends Command {
+                use CommandHelper, QueueCommandHelper, QueueWorkerValidationTrait;
+            
+                public function __construct() {
+                    parent::__construct('queue:job');
+                    $this->setDescription('Process jobs of a specific type defined in the jobs configuration');
+                }
+            
+                protected function configure(): void {
+                    $this->addArgument('job', InputArgument::REQUIRED, 'The job command as defined commands.php')
+                         ->addOption('sleep', 's', InputOption::VALUE_OPTIONAL, 'Seconds to sleep when no jobs are available', 3)
+                         ->addOption('memory', 'm', InputOption::VALUE_OPTIONAL, 'Memory limit in MB', 128)
+                         ->addOption('timeout', 't', InputOption::VALUE_OPTIONAL, 'Job timeout in seconds', 60)
+                         ->addOption('max-jobs', null, InputOption::VALUE_OPTIONAL, 'Maximum number of jobs to process before exiting')
+                         ->addOption('stop-on-empty', null, InputOption::VALUE_NONE, 'Stop when the queue is empty')
+                         ->addOption('tries', null, InputOption::VALUE_OPTIONAL, 'Number of times to attempt a job', 3)
+                         ->addOption('daemon', null, InputOption::VALUE_NONE, 'Run the worker in daemon mode')
+                         ->addOption('force', 'f', InputOption::VALUE_NONE, 'Force the worker to run even in maintenance mode')
+                         ->addOption('pid-file', null, InputOption::VALUE_OPTIONAL, 'Write process ID to this file')
+                         ->addOption('instance', null, InputOption::VALUE_OPTIONAL, 'Worker instance number (when managed by supervisor)', 1);
+                }
+            
+                protected function execute(InputInterface $input, OutputInterface $output): int
+                {
+                    return $this->executeSafely($input, $output, function () use ($input, $output) {
+                        $ss = new SymfonyStyle($input, $output);
+
+                        $jobName     = strtolower($input->getArgument('job'));
+                        $sleep       = (int) $input->getOption('sleep');
+                        $memory      = (int) $input->getOption('memory');
+                        $timeout     = (int) $input->getOption('timeout');
+                        $maxJobs     = $input->getOption('max-jobs') ? (int) $input->getOption('max-jobs') : null;
+                        $tries       = (int) $input->getOption('tries');
+                        $stopOnEmpty = $input->getOption('stop-on-empty');
+                        $daemon      = $input->getOption('daemon');
+                        $force       = $input->getOption('force');
+                        $instance    = (int) $input->getOption('instance');
+                        $pidFile     = $input->getOption('pid-file');
+
+                        $jobs = $this->getJobCommands($ss);
+                        if (!$jobs) {
+                            return Command::FAILURE;
+                        }
+
+                        if (!isset($jobs[$jobName])) {
+                            $ss->error("Job '{$jobName}' not found in jobs configuration.");
+                            $ss->writeln("Available jobs: " . implode(', ', array_keys($jobs)));
+                            return Command::FAILURE;
+                        }
+
+                        $jobConfig = $jobs[$jobName];
+                        $enabled = $jobConfig['enabled'] ?? false;
+                        if (!$enabled) {
+                            $ss->error("Command '{$jobName}' is currently not enabled");
+                            return Command::FAILURE;
+                        }
+                        
+                        $queue = $jobConfig['queue'] ?? 'default';
+
+                        $artisanBackgroundWorker = new ArtisanBackgroundWorker(
+                            $this->artisanContainer(),
+                            $this->getQueueDriver(),
+                            $this->createJobProcessor(),
+                            $ss
+                        );
+
+                        $result = $artisanBackgroundWorker->work(
+                            $queue, $sleep, $memory, $timeout, $maxJobs, $tries, $stopOnEmpty, $daemon, $force, $instance, $pidFile  
+                        );
+
+                        return ($result) ? Command::SUCCESS : Command::FAILURE;
+            
+                    });
+                }
+
+                private function getJobCommands(SymfonyStyle $ss): array|false 
+                {
+                    $path = $this->artisanContainer()->config . 'commands.php';
+                    if (!is_file($path)) {
+                        $ss->error("Job Command configuration does not exists");
+                        return false;
+                    }
+                    
+                    $config = require $path;
+                    if (!is_array($config) || !isset($config['jobs'])) {
+                        $ss->error("Could not find commands in Command configurations");
+                        return false;
+                    }
+
+                    return $config['jobs'];
                 }
             },
         ];

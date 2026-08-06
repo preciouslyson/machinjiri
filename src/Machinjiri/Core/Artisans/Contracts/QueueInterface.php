@@ -25,7 +25,7 @@ interface QueueInterface
     /**
      * Pop the next job from the queue
      */
-    public function pop(string $queue = 'default'): ?JobInterface;
+    public function pop(string $queue): ?JobInterface;
     
     /**
      * Release a job back onto the queue

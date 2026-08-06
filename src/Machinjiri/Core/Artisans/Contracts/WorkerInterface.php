@@ -14,7 +14,7 @@ interface WorkerInterface
     /**
      * Start the worker
      */
-    public function start(string $queue = 'default', array $options = []): void;
+    public function start(string $queue, array $options = []): void;
     
     /**
      * Stop the worker
@@ -44,10 +44,10 @@ interface WorkerInterface
     /**
      * Process a single job
      */
-    public function processNextJob(string $queue = 'default'): bool;
+    public function processNextJob(string $queue): bool;
     
     /**
      * Process jobs until empty or stopped
      */
-    public function run(string $queue = 'default', ?int $maxJobs = null): int;
+    public function run(string $queue, ?int $maxJobs = null): int;
 }

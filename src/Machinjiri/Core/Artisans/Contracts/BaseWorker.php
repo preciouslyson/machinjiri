@@ -8,7 +8,7 @@ use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 
 /**
- * Abstract Worker – supports heartbeat callbacks for supervisor monitoring.
+ * Worker – supports heartbeat callbacks for supervisor monitoring.
  */
 class BaseWorker implements WorkerInterface
 {
@@ -182,9 +182,9 @@ class BaseWorker implements WorkerInterface
             }
             
             $result = $this->processor->process($job);
-            $this->processor->handleSuccess($job, $result);
             $this->status['processed']++;
             $this->status['last_job_at'] = time();
+            $this->processor->handleSuccess($job, $result);
             return true;
         } catch (\Throwable $e) {
             $exception = $e instanceof MachinjiriException ? $e : new MachinjiriException($e->getMessage(), 60002, $e);

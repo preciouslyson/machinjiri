@@ -16,6 +16,8 @@ class SyncQueue extends BaseQueue
 {
     protected array $jobs = [];
     protected array $processing = [];
+    protected array $failed = [];
+    protected array $processed = [];
 
     /**
      * Create a new queue instance
@@ -69,8 +71,18 @@ class SyncQueue extends BaseQueue
             'queue' => $queue,
         ]);
         
+        // Mark as processing
+        $this->processing[$job->getId()] = [
+            'job' => $job,
+            'queue' => $queue,
+            'started_at' => time(),
+        ];
+        
         try {
             $job->handle();
+            
+            // Move to processed on success
+            $this->markAsCompleted($job->getId(), ['status' => 'success']);
             
             $this->events->trigger('job.processed', [
                 'job_id' => $job->getId(),
@@ -79,6 +91,9 @@ class SyncQueue extends BaseQueue
             ]);
         } catch (MachinjiriException $e) {
             $job->failed(new MachinjiriException($e->getMessage()));
+            
+            // Move to failed
+            $this->markAsFailed($job->getId(), $e->getMessage());
             
             $this->events->trigger('job.failed', [
                 'job_id' => $job->getId(),
@@ -196,6 +211,119 @@ class SyncQueue extends BaseQueue
     }
 
     /**
+     * Get failed jobs
+     */
+    public function getFailed(string $queue = 'default', int $limit = 50, int $offset = 0): array
+    {
+        $failedInQueue = [];
+        
+        foreach ($this->failed as $jobId => $failedJob) {
+            if ($failedJob['queue'] === $queue) {
+                $failedInQueue[] = $failedJob;
+            }
+        }
+        
+        usort($failedInQueue, function($a, $b) {
+            return $b['failed_at'] <=> $a['failed_at'];
+        });
+        
+        return array_slice($failedInQueue, $offset, $limit);
+    }
+
+    /**
+     * Get processed (completed) jobs
+     */
+    public function getProcessed(string $queue = 'default', int $limit = 50, int $offset = 0): array
+    {
+        $processedInQueue = [];
+        
+        foreach ($this->processed as $jobId => $processedJob) {
+            if ($processedJob['queue'] === $queue) {
+                $processedInQueue[] = $processedJob;
+            }
+        }
+        
+        usort($processedInQueue, function($a, $b) {
+            return $b['processed_at'] <=> $a['processed_at'];
+        });
+        
+        return array_slice($processedInQueue, $offset, $limit);
+    }
+
+    /**
+     * Retry a failed job
+     */
+    public function retryFailed(string $jobId, string $queue = 'default'): bool
+    {
+        if (!isset($this->failed[$jobId])) {
+            return false;
+        }
+        
+        $failedJob = $this->failed[$jobId];
+        $job = $failedJob['job'];
+        
+        $job->addMetadata('retried_at', date('Y-m-d H:i:s'));
+        
+        // Push back to queue
+        $this->push($job, $queue, 0);
+        
+        // Remove from failed
+        unset($this->failed[$jobId]);
+        
+        return true;
+    }
+
+    /**
+     * Mark a job as failed
+     */
+    public function markAsFailed(string $jobId, string $error): void
+    {
+        if (isset($this->processing[$jobId])) {
+            $processing = $this->processing[$jobId];
+            
+            $this->failed[$jobId] = [
+                'job' => $processing['job'],
+                'queue' => $processing['queue'],
+                'failed_at' => time(),
+                'error' => $error,
+            ];
+            
+            unset($this->processing[$jobId]);
+            
+            $this->events->trigger('queue.marked_failed', [
+                'job_id' => $jobId,
+                'queue' => $processing['queue'],
+                'error' => $error,
+            ]);
+        }
+    }
+
+    /**
+     * Mark a job as completed
+     */
+    public function markAsCompleted(string $jobId, array $payload = []): void
+    {
+        if (isset($this->processing[$jobId])) {
+            $processing = $this->processing[$jobId];
+            
+            $this->processed[$jobId] = [
+                'job' => $processing['job'],
+                'queue' => $processing['queue'],
+                'processed_at' => time(),
+                'result_payload' => $payload,
+            ];
+            
+            unset($this->processing[$jobId]);
+            
+            $this->events->trigger('queue.marked_completed', [
+                'job_id' => $jobId,
+                'queue' => $processing['queue'],
+                'payload' => $payload,
+            ]);
+        }
+    }
+
+    /**
      * Get queue statistics
      */
     public function getStats(string $queue = 'default'): array
@@ -204,9 +332,11 @@ class SyncQueue extends BaseQueue
             'queued' => $this->size($queue),
             'processing' => 0,
             'delayed' => 0,
+            'failed' => 0,
+            'processed' => 0,
         ];
         
-        // Count processing jobs for this queue
+        // Count processing jobs
         foreach ($this->processing as $processing) {
             if ($processing['queue'] === $queue) {
                 $stats['processing']++;
@@ -220,6 +350,20 @@ class SyncQueue extends BaseQueue
                 if ($jobData['available_at'] > $now) {
                     $stats['delayed']++;
                 }
+            }
+        }
+        
+        // Count failed jobs
+        foreach ($this->failed as $failedJob) {
+            if ($failedJob['queue'] === $queue) {
+                $stats['failed']++;
+            }
+        }
+        
+        // Count processed jobs
+        foreach ($this->processed as $processedJob) {
+            if ($processedJob['queue'] === $queue) {
+                $stats['processed']++;
             }
         }
         

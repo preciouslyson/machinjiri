@@ -46,7 +46,7 @@ class FileQueue extends BaseQueue
         }
         
         // Create queue subdirectories
-        foreach (['pending', 'processing', 'failed'] as $subdir) {
+        foreach (['pending', 'processing', 'failed', 'processed'] as $subdir) {
             $path = $this->storagePath . $subdir . '/';
             if (!is_dir($path)) {
                 mkdir($path, 0755, true);
@@ -298,13 +298,17 @@ class FileQueue extends BaseQueue
         unlink($filepath);
     }
 
-    protected function moveToProcessed(string $filepath): void
+    /**
+     * Move a job file to the processed directory with completion data.
+     */
+    protected function moveToProcessed(string $filepath, array $payload = []): void
     {
         $processedPath = $this->storagePath . 'processed/' . basename($filepath);
         
         $data = json_decode(file_get_contents($filepath), true);
         if ($data) {
             $data['processed_at'] = time();
+            $data['result_payload'] = $payload; // optional result data
             file_put_contents($processedPath, json_encode($data));
         }
         
@@ -444,6 +448,9 @@ class FileQueue extends BaseQueue
         return $count;
     }
 
+    /**
+     * Mark a job as failed, moving it from processing to failed.
+     */
     public function markAsFailed(string $jobId, string $errorMessage): void 
     {
         $pattern = $this->storagePath . 'processing/*_' . $jobId . '.json';
@@ -456,15 +463,38 @@ class FileQueue extends BaseQueue
         $this->moveToFailed($files[0], $errorMessage);
     }
 
-    public function markAsCompleted(string $jobId): void 
+    /**
+     * Mark a job as completed, moving it from processing to processed.
+     *
+     * @param string $jobId
+     * @param array $payload Optional result payload to store with the completed job.
+     */
+    public function markAsCompleted(string $jobId, array $payload = []): void
     {
+        // Look for the job in the processing directory
         $pattern = $this->storagePath . 'processing/*_' . $jobId . '.json';
         $files = glob($pattern);
         
         if (empty($files)) {
-            return;
+            // If not found in processing, it might still be pending (shouldn't happen, but handle gracefully)
+            $pattern = $this->storagePath . 'pending/*_' . $jobId . '.json';
+            $files = glob($pattern);
+            if (empty($files)) {
+                // Job not found; log or ignore
+                $this->events->trigger('queue.marked_completed.failed', [
+                    'job_id' => $jobId,
+                    'error' => 'Job file not found in processing or pending',
+                ]);
+                return;
+            }
         }
         
-        $this->moveToProcessed($files[0]);
+        $filepath = $files[0];
+        $this->moveToProcessed($filepath, $payload);
+        
+        $this->events->trigger('queue.marked_completed', [
+            'job_id' => $jobId,
+            'payload' => $payload,
+        ]);
     }
 }

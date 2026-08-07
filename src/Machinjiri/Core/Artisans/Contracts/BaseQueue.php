@@ -210,7 +210,7 @@ abstract class BaseQueue implements QueueInterface
         return;
     }
 
-    public function markAsCompleted(string $jobId): void
+    public function markAsCompleted(string $jobId, array $payload = []): void
     {
         $this->events->trigger('queue.marked_completed', [
             'job_id' => $jobId,

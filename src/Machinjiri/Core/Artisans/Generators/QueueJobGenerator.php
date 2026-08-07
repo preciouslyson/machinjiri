@@ -710,9 +710,7 @@ PHP;
      */
     private function generateDatabaseQueueTemplate(string $name): string
     {
-        $lowerName = strtolower($name);
-        
-        return <<<PHP
+    return <<<PHP
 <?php
 
 namespace Mlangeni\Machinjiri\App\Queue\Drivers;
@@ -749,6 +747,7 @@ class {$name}Queue extends BaseQueue
             'connection' => 'default',
             'retry_after' => 90,
             'failed_table' => 'failed_jobs',
+            'processed_table' => 'processed_jobs',
         ], \$config);
         
         \$this->tableName = \$this->config['table'];
@@ -762,6 +761,7 @@ class {$name}Queue extends BaseQueue
     {
         \$data = [
             'queue' => \$queue,
+            'job_id' => \$job->getId(),
             'payload' => json_encode(\$job->serialize()),
             'attempts' => \$job->getAttempts(),
             'available_at' => time() + \$delay,
@@ -770,7 +770,7 @@ class {$name}Queue extends BaseQueue
         ];
         
         \$result = \$this->queryBuilder->insert(\$data)->execute();
-        \$jobId = \$result['lastInsertId'] ?? uniqid('job_', true);
+        \$jobId = \$job->getId();
         
         \$this->events->trigger('queue.job.pushed', [
             'job_id' => \$jobId,
@@ -789,12 +789,11 @@ class {$name}Queue extends BaseQueue
         \$now = time();
         \$retryAfter = \$this->config['retry_after'];
         
-        // Find and reserve a job
         \$job = \$this->queryBuilder
             ->select()
             ->where('queue', '=', \$queue)
             ->where('available_at', '<=', \$now)
-            ->where('reserved_at', '<=', 0)
+            ->where('reserved_at', '=', 0)
             ->orWhere('reserved_at', '<', \$now - \$retryAfter)
             ->orderBy('created_at', 'ASC')
             ->limit(1)
@@ -807,10 +806,9 @@ class {$name}Queue extends BaseQueue
         // Mark as reserved
         \$this->queryBuilder
             ->update(['reserved_at' => \$now])
-            ->where('id', '=', \$job['id'])
+            ->where('job_id', '=', \$job['job_id'])
             ->execute();
             
-        // Unserialize job
         \$jobData = json_decode(\$job['payload'], true);
         
         if (!\$jobData) {
@@ -820,8 +818,7 @@ class {$name}Queue extends BaseQueue
         \$jobClass = \$jobData['name'] ?? '';
         
         if (!class_exists(\$jobClass)) {
-            // Move to failed jobs
-            \$this->markAsFailed(\$job['id'], 'Job class not found: ' . \$jobClass);
+            \$this->markAsFailed(\$job['job_id'], 'Job class not found: ' . \$jobClass);
             return null;
         }
         
@@ -835,6 +832,17 @@ class {$name}Queue extends BaseQueue
     {
         \$serialized = json_encode(\$job->serialize());
         
+        // check if job is not already in queue
+        \$result = \$this->queryBuilder
+            ->select()
+            ->where('job_id', '=', \$job->getId())
+            ->where('queue', '=', \$queue)
+            ->first();
+            
+        if (\$result !== null) {
+            return false;
+        }
+        
         \$result = \$this->queryBuilder
             ->update([
                 'payload' => \$serialized,
@@ -842,7 +850,7 @@ class {$name}Queue extends BaseQueue
                 'available_at' => time() + \$delay,
                 'reserved_at' => 0,
             ])
-            ->where('payload', 'LIKE', '%"id":"' . \$job->getId() . '"%')
+            ->where('job_id', '=', \$job->getId())
             ->where('queue', '=', \$queue)
             ->execute();
             
@@ -856,7 +864,7 @@ class {$name}Queue extends BaseQueue
     {
         \$result = \$this->queryBuilder
             ->delete()
-            ->where('payload', 'LIKE', '%"id":"' . \$job->getId() . '"%')
+            ->where('job_id', '=', \$job->getId())
             ->where('queue', '=', \$queue)
             ->execute();
             
@@ -892,6 +900,19 @@ class {$name}Queue extends BaseQueue
     }
 
     /**
+     * Clear failed jobs for a queue
+     */
+    public function clearFailed(string \$queue = 'default'): int
+    {
+        \$result = (new QueryBuilder(\$this->config['failed_table']))
+            ->delete()
+            ->where('queue', '=', \$queue)
+            ->execute();
+            
+        return \$result['rowCount'] ?? 0;
+    }
+
+    /**
      * Get all available queues
      */
     public function getQueues(): array
@@ -909,7 +930,6 @@ class {$name}Queue extends BaseQueue
     public function isHealthy(): bool
     {
         try {
-            // Test database connection
             \$this->queryBuilder->select(['1'])->first();
             return true;
         } catch (MachinjiriException \$e) {
@@ -937,6 +957,25 @@ class {$name}Queue extends BaseQueue
     }
 
     /**
+     * Get processed (completed) jobs
+     */
+    public function getProcessed(string \$queue = 'default', int \$limit = 50, int \$offset = 0): array
+    {
+        \$processedTable = \$this->config['processed_table'] ?? 'processed_jobs';
+        \$query = new QueryBuilder(\$processedTable);
+        
+        \$result = \$query
+            ->select()
+            ->where('queue', '=', \$queue)
+            ->orderBy('processed_at', 'DESC')
+            ->limit(\$limit)
+            ->offset(\$offset)
+            ->execute();
+            
+        return \$result;
+    }
+
+    /**
      * Retry a failed job
      */
     public function retryFailed(string \$jobId, string \$queue = 'default'): bool
@@ -944,17 +983,15 @@ class {$name}Queue extends BaseQueue
         \$failedTable = \$this->config['failed_table'] ?? 'failed_jobs';
         \$failedQuery = new QueryBuilder(\$failedTable);
         
-        // Get failed job
         \$failedJob = \$failedQuery
             ->select()
-            ->where('id', '=', \$jobId)
+            ->where('job_id', '=', \$jobId)
             ->first();
             
         if (!\$failedJob) {
             return false;
         }
         
-        // Move back to jobs table
         \$jobData = json_decode(\$failedJob['payload'], true);
         
         if (!\$jobData) {
@@ -970,13 +1007,11 @@ class {$name}Queue extends BaseQueue
         \$job = \$jobClass::unserialize(\$jobData, \$this->app);
         \$job->addMetadata('retried_at', date('Y-m-d H:i:s'));
         
-        // Push back to queue
         \$this->push(\$job, \$queue, 0);
         
-        // Remove from failed jobs
         \$failedQuery
             ->delete()
-            ->where('id', '=', \$jobId)
+            ->where('job_id', '=', \$jobId)
             ->execute();
             
         return true;
@@ -985,36 +1020,74 @@ class {$name}Queue extends BaseQueue
     /**
      * Mark a job as failed
      */
-    protected function markAsFailed(string \$jobId, string \$error): void
+    public function markAsFailed(string \$jobId, string \$error): void
     {
-        // Get the job from jobs table
         \$job = \$this->queryBuilder
             ->select()
-            ->where('id', '=', \$jobId)
+            ->where('job_id', '=', \$jobId)
             ->first();
             
         if (!\$job) {
             return;
         }
         
-        // Move to failed jobs table
         \$failedTable = \$this->config['failed_table'] ?? 'failed_jobs';
         \$failedQuery = new QueryBuilder(\$failedTable);
         
-        \$failedData = [
-            'queue' => \$job['queue'],
-            'payload' => \$job['payload'],
-            'exception' => \$error,
-            'failed_at' => time(),
-        ];
+        // check if job already exists in failed
+        \$exists = \$failedQuery->select()->where('job_id', '=', \$job['job_id'])->first();
+        if (\$exists === null || !\$exists) {
+            \$result = \$failedQuery->insert([
+                'queue' => \$job['queue'],
+                'job_id' => \$job['job_id'],
+                'payload' => \$job['payload'],
+                'exception' => \$error,
+                'failed_at' => time(),
+            ])->execute();
+    
+            if (\$result['lastInsertId'] || \$result['lastInsertId'] > 0) {
+                \$this->queryBuilder
+                    ->delete()
+                    ->where('job_id', '=', \$jobId)
+                    ->execute();
+            }
+        }
+    }
+
+    /**
+     * Mark a job as completed
+     */
+    public function markAsCompleted(string \$jobId, array \$payload = []): void
+    {
+        \$job = \$this->queryBuilder
+            ->select()
+            ->where('job_id', '=', \$jobId)
+            ->first();
+            
+        if (!\$job) {
+            return;
+        }
         
-        \$failedQuery->insert(\$failedData)->execute();
+        \$processedTable = \$this->config['processed_table'] ?? 'processed_jobs';
+        \$processedQuery = new QueryBuilder(\$processedTable);
         
-        // Remove from jobs table
-        \$this->queryBuilder
-            ->delete()
-            ->where('id', '=', \$jobId)
-            ->execute();
+        // check if job already exists in processed
+        \$exists = \$processedQuery->select()->where('job_id', '=', \$job['job_id'])->first();
+        if (\$exists === null || !\$exists) {
+            \$result = \$processedQuery->insert([
+                'queue' => \$job['queue'],
+                'job_id' => \$job['job_id'],
+                'payload' => json_encode(\$payload, true),
+                'processed_at' => time(),
+            ])->execute();
+    
+            if (\$result['lastInsertId'] || \$result['lastInsertId'] > 0) {
+                \$this->queryBuilder
+                    ->delete()
+                    ->where('job_id', '=', \$jobId)
+                    ->execute();
+            }
+        }
     }
 
     /**
@@ -1056,26 +1129,44 @@ class {$name}Queue extends BaseQueue
             ->first();
         \$stats['delayed'] = \$delayedResult['count'] ?? 0;
         
+        // Processed jobs
+        \$processedTable = \$this->config['processed_table'] ?? 'processed_jobs';
+        \$processedQuery = new QueryBuilder(\$processedTable);
+        \$processedResult = \$processedQuery
+            ->select(['COUNT(*) as count'])
+            ->where('queue', '=', \$queue)
+            ->first();
+        \$stats['processed'] = \$processedResult['count'] ?? 0;
+        
+        // Failed jobs
+        \$failedTable = \$this->config['failed_table'] ?? 'failed_jobs';
+        \$failedQuery = new QueryBuilder(\$failedTable);
+        \$failedResult = \$failedQuery
+            ->select(['COUNT(*) as count'])
+            ->where('queue', '=', \$queue)
+            ->first();
+        \$stats['failed'] = \$failedResult['count'] ?? 0;
+        
         return \$stats;
     }
     
     /**
      * Get database connection
      */
-    public static function getConnection ()
+    public static function getConnection()
     {
-      return DatabaseConnection::getInstance();
+        return DatabaseConnection::getInstance();
     }
 }
 PHP;
-    }
+}
 
     /**
      * Generate Redis queue template
      */
     private function generateRedisQueueTemplate(string $name)
     {
-        return <<<PHP
+    return <<<PHP
 <?php
 
 namespace Mlangeni\Machinjiri\App\Queue\Drivers;
@@ -1151,16 +1242,13 @@ class RedisQueue extends BaseQueue
         \$serialized = json_encode(\$job->serialize());
         
         if (\$delay > 0) {
-            // Delayed queue
             \$delayedKey = \$this->getDelayedQueueKey(\$queue);
             \$score = time() + \$delay;
             \$this->redis->zadd(\$delayedKey, \$score, \$serialized);
         } else {
-            // Immediate queue
             \$this->redis->rpush(\$key, \$serialized);
         }
         
-        // Store job metadata
         \$metaKey = \$this->getJobMetaKey(\$jobId);
         \$this->redis->hmset(\$metaKey, [
             'queue' => \$queue,
@@ -1182,13 +1270,11 @@ class RedisQueue extends BaseQueue
      */
     public function pop(string \$queue = 'default'): ?JobInterface
     {
-        // Check delayed queue for ready jobs
         \$this->migrateDelayedJobs(\$queue);
         
         \$key = \$this->getQueueKey(\$queue);
         \$reservedKey = \$this->getReservedQueueKey(\$queue);
         
-        // Move job from queue to reserved
         \$serialized = \$this->redis->rpoplpush(\$key, \$reservedKey);
         
         if (!\$serialized) {
@@ -1210,11 +1296,9 @@ class RedisQueue extends BaseQueue
             return null;
         }
         
-        // Set reservation timeout
         \$jobId = \$jobData['id'] ?? '';
         if (\$jobId) {
             \$timeoutKey = \$this->getTimeoutKey(\$jobId);
-            \$timeout = time() + (\$this->config['retry_after'] ?? 90);
             \$this->redis->setex(\$timeoutKey, \$this->config['retry_after'], '1');
         }
         
@@ -1230,7 +1314,6 @@ class RedisQueue extends BaseQueue
         \$key = \$this->getQueueKey(\$queue);
         \$now = time();
         
-        // Get jobs whose delay has expired
         \$jobs = \$this->redis->zrangebyscore(\$delayedKey, 0, \$now);
         
         if (!empty(\$jobs)) {
@@ -1249,14 +1332,10 @@ class RedisQueue extends BaseQueue
         \$reservedKey = \$this->getReservedQueueKey(\$queue);
         \$serialized = json_encode(\$job->serialize());
         
-        // Remove from reserved
         \$this->redis->lrem(\$reservedKey, 1, \$serialized);
-        
-        // Clear timeout
         \$timeoutKey = \$this->getTimeoutKey(\$job->getId());
         \$this->redis->del(\$timeoutKey);
         
-        // Push back to queue
         return (bool) \$this->push(\$job, \$queue, \$delay);
     }
 
@@ -1268,13 +1347,9 @@ class RedisQueue extends BaseQueue
         \$reservedKey = \$this->getReservedQueueKey(\$queue);
         \$serialized = json_encode(\$job->serialize());
         
-        // Remove from reserved
         \$removed = \$this->redis->lrem(\$reservedKey, 1, \$serialized);
-        
-        // Clear timeout and metadata
         \$timeoutKey = \$this->getTimeoutKey(\$job->getId());
         \$this->redis->del(\$timeoutKey);
-        
         \$metaKey = \$this->getJobMetaKey(\$job->getId());
         \$this->redis->del(\$metaKey);
         
@@ -1296,19 +1371,12 @@ class RedisQueue extends BaseQueue
     public function clear(string \$queue = 'default'): int
     {
         \$count = 0;
-        
-        // Clear main queue
         \$key = \$this->getQueueKey(\$queue);
         \$count += \$this->redis->del(\$key);
-        
-        // Clear delayed queue
         \$delayedKey = \$this->getDelayedQueueKey(\$queue);
         \$count += \$this->redis->del(\$delayedKey);
-        
-        // Clear reserved queue
         \$reservedKey = \$this->getReservedQueueKey(\$queue);
         \$count += \$this->redis->del(\$reservedKey);
-        
         return \$count;
     }
 
@@ -1375,6 +1443,11 @@ class RedisQueue extends BaseQueue
     {
         return \$this->prefix . \$queue . ':failed';
     }
+    
+    protected function getProcessedKey(string \$queue): string
+    {
+        return \$this->prefix . \$queue . ':processed';
+    }
 
     /**
      * Move job to failed queue
@@ -1388,8 +1461,22 @@ class RedisQueue extends BaseQueue
             'failed_at' => time(),
             'queue' => \$queue,
         ];
-        
         \$this->redis->rpush(\$failedKey, json_encode(\$failedData));
+    }
+
+    /**
+     * Move job to processed queue
+     */
+    protected function moveToProcessed(string \$queue, string \$serialized, array \$payload = []): void
+    {
+        \$processedKey = \$this->getProcessedKey(\$queue);
+        \$processedData = [
+            'job' => \$serialized,
+            'result_payload' => \$payload,
+            'processed_at' => time(),
+            'queue' => \$queue,
+        ];
+        \$this->redis->rpush(\$processedKey, json_encode(\$processedData));
     }
 
     /**
@@ -1407,7 +1494,24 @@ class RedisQueue extends BaseQueue
                 \$result[] = \$data;
             }
         }
+        return \$result;
+    }
+
+    /**
+     * Get processed jobs
+     */
+    public function getProcessed(string \$queue = 'default', int \$limit = 50, int \$offset = 0): array
+    {
+        \$processedKey = \$this->getProcessedKey(\$queue);
+        \$jobs = \$this->redis->lrange(\$processedKey, \$offset, \$offset + \$limit - 1);
         
+        \$result = [];
+        foreach (\$jobs as \$job) {
+            \$data = json_decode(\$job, true);
+            if (\$data) {
+                \$result[] = \$data;
+            }
+        }
         return \$result;
     }
 
@@ -1432,10 +1536,8 @@ class RedisQueue extends BaseQueue
                 continue;
             }
             
-            // Remove from failed
             \$this->redis->lrem(\$failedKey, 1, \$job);
             
-            // Push back to queue
             \$jobClass = \$jobData['name'] ?? '';
             if (class_exists(\$jobClass)) {
                 \$jobInstance = \$jobClass::unserialize(\$jobData, \$this->app);
@@ -1449,27 +1551,108 @@ class RedisQueue extends BaseQueue
     }
 
     /**
+     * Mark a job as failed
+     */
+    public function markAsFailed(string \$jobId, string \$error): void
+    {
+        \$metaKey = \$this->getJobMetaKey(\$jobId);
+        \$meta = \$this->redis->hgetall(\$metaKey);
+        
+        if (empty(\$meta) || !isset(\$meta['queue'])) {
+            \$this->events->trigger('queue.warning', [
+                'message' => 'Cannot mark job as failed: metadata not found',
+                'job_id'  => \$jobId,
+            ]);
+            return;
+        }
+        
+        \$queue = \$meta['queue'];
+        \$reservedKey = \$this->getReservedQueueKey(\$queue);
+        \$reservedJobs = \$this->redis->lrange(\$reservedKey, 0, -1);
+        
+        foreach (\$reservedJobs as \$serialized) {
+            \$jobData = json_decode(\$serialized, true);
+            if (\$jobData && isset(\$jobData['id']) && \$jobData['id'] === \$jobId) {
+                \$this->redis->lrem(\$reservedKey, 1, \$serialized);
+                \$this->moveToFailed(\$queue, \$serialized, \$error);
+                \$timeoutKey = \$this->getTimeoutKey(\$jobId);
+                \$this->redis->del(\$timeoutKey);
+                \$this->redis->del(\$metaKey);
+                \$this->events->trigger('queue.marked_failed', [
+                    'job_id' => \$jobId,
+                    'queue'  => \$queue,
+                    'error'  => \$error,
+                ]);
+                return;
+            }
+        }
+        
+        \$this->events->trigger('queue.warning', [
+            'message' => 'Job not found in reserved queue for marking as failed',
+            'job_id'  => \$jobId,
+            'queue'   => \$queue,
+        ]);
+    }
+
+    /**
+     * Mark a job as completed
+     */
+    public function markAsCompleted(string \$jobId, array \$payload = []): void
+    {
+        \$metaKey = \$this->getJobMetaKey(\$jobId);
+        \$meta = \$this->redis->hgetall(\$metaKey);
+        
+        if (empty(\$meta) || !isset(\$meta['queue'])) {
+            \$this->events->trigger('queue.warning', [
+                'message' => 'Cannot mark job as completed: metadata not found',
+                'job_id'  => \$jobId,
+            ]);
+            return;
+        }
+        
+        \$queue = \$meta['queue'];
+        \$reservedKey = \$this->getReservedQueueKey(\$queue);
+        \$reservedJobs = \$this->redis->lrange(\$reservedKey, 0, -1);
+        
+        foreach (\$reservedJobs as \$serialized) {
+            \$jobData = json_decode(\$serialized, true);
+            if (\$jobData && isset(\$jobData['id']) && \$jobData['id'] === \$jobId) {
+                \$this->redis->lrem(\$reservedKey, 1, \$serialized);
+                \$this->moveToProcessed(\$queue, \$serialized, \$payload);
+                \$timeoutKey = \$this->getTimeoutKey(\$jobId);
+                \$this->redis->del(\$timeoutKey);
+                \$this->redis->del(\$metaKey);
+                \$this->events->trigger('queue.marked_completed', [
+                    'job_id' => \$jobId,
+                    'queue'  => \$queue,
+                    'payload' => \$payload,
+                ]);
+                return;
+            }
+        }
+        
+        \$this->events->trigger('queue.warning', [
+            'message' => 'Job not found in reserved queue for marking as completed',
+            'job_id'  => \$jobId,
+            'queue'   => \$queue,
+        ]);
+    }
+
+    /**
      * Get queue statistics
      */
     public function getStats(string \$queue = 'default'): array
     {
         \$stats = [];
-        
-        // Active queue size
-        \$stats['active'] = \$this->size(\$queue);
-        
-        // Delayed queue size
+        \$stats['pending'] = \$this->size(\$queue);
         \$delayedKey = \$this->getDelayedQueueKey(\$queue);
         \$stats['delayed'] = \$this->redis->zcard(\$delayedKey);
-        
-        // Reserved queue size
         \$reservedKey = \$this->getReservedQueueKey(\$queue);
         \$stats['reserved'] = \$this->redis->llen(\$reservedKey);
-        
-        // Failed queue size
         \$failedKey = \$this->getFailedKey(\$queue);
         \$stats['failed'] = \$this->redis->llen(\$failedKey);
-        
+        \$processedKey = \$this->getProcessedKey(\$queue);
+        \$stats['processed'] = \$this->redis->llen(\$processedKey);
         return \$stats;
     }
     
@@ -1484,14 +1667,14 @@ class RedisQueue extends BaseQueue
     }
 }
 PHP;
-    }
+}
 
     /**
      * Generate sync queue template (for immediate processing)
      */
     private function generateSyncQueueTemplate(string $name): string
-    {
-        return <<<PHP
+{
+    return <<<PHP
 <?php
 
 namespace Mlangeni\Machinjiri\App\Queue\Drivers;
@@ -1509,6 +1692,8 @@ class {$name}Queue extends BaseQueue
 {
     protected array \$jobs = [];
     protected array \$processing = [];
+    protected array \$failed = [];
+    protected array \$processed = [];
 
     /**
      * Create a new queue instance
@@ -1526,13 +1711,11 @@ class {$name}Queue extends BaseQueue
      */
     public function push(JobInterface \$job, string \$queue = 'default', int \$delay = 0): string
     {
-        // For sync queue, process immediately if no delay
         if (\$delay === 0) {
             \$this->processImmediately(\$job, \$queue);
             return \$job->getId();
         }
         
-        // Store for delayed processing (simulate with sleep in real usage)
         if (!isset(\$this->jobs[\$queue])) {
             \$this->jobs[\$queue] = [];
         }
@@ -1562,9 +1745,15 @@ class {$name}Queue extends BaseQueue
             'queue' => \$queue,
         ]);
         
+        \$this->processing[\$job->getId()] = [
+            'job' => \$job,
+            'queue' => \$queue,
+            'started_at' => time(),
+        ];
+        
         try {
             \$job->handle();
-            
+            \$this->markAsCompleted(\$job->getId(), ['status' => 'success']);
             \$this->events->trigger('job.processed', [
                 'job_id' => \$job->getId(),
                 'job_name' => \$job->getName(),
@@ -1572,7 +1761,7 @@ class {$name}Queue extends BaseQueue
             ]);
         } catch (MachinjiriException \$e) {
             \$job->failed(new MachinjiriException(\$e->getMessage()));
-            
+            \$this->markAsFailed(\$job->getId(), \$e->getMessage());
             \$this->events->trigger('job.failed', [
                 'job_id' => \$job->getId(),
                 'job_name' => \$job->getName(),
@@ -1596,18 +1785,14 @@ class {$name}Queue extends BaseQueue
             if (\$jobData['available_at'] <= \$now) {
                 \$job = \$jobData['job'];
                 unset(\$this->jobs[\$queue][\$index]);
-                
-                // Mark as processing
                 \$this->processing[\$job->getId()] = [
                     'job' => \$job,
                     'queue' => \$queue,
                     'started_at' => \$now,
                 ];
-                
                 return \$job;
             }
         }
-        
         return null;
     }
 
@@ -1616,19 +1801,14 @@ class {$name}Queue extends BaseQueue
      */
     public function release(JobInterface \$job, string \$queue = 'default', int \$delay = 0): bool
     {
-        // Remove from processing
         unset(\$this->processing[\$job->getId()]);
-        
-        // Add back to queue with delay
         if (!isset(\$this->jobs[\$queue])) {
             \$this->jobs[\$queue] = [];
         }
-        
         \$this->jobs[\$queue][] = [
             'job' => \$job,
             'available_at' => time() + \$delay,
         ];
-        
         return true;
     }
 
@@ -1637,10 +1817,7 @@ class {$name}Queue extends BaseQueue
      */
     public function delete(JobInterface \$job, string \$queue = 'default'): bool
     {
-        // Remove from processing
         unset(\$this->processing[\$job->getId()]);
-        
-        // Remove from jobs array
         if (isset(\$this->jobs[\$queue])) {
             foreach (\$this->jobs[\$queue] as \$index => \$jobData) {
                 if (\$jobData['job']->getId() === \$job->getId()) {
@@ -1649,7 +1826,6 @@ class {$name}Queue extends BaseQueue
                 }
             }
         }
-        
         return false;
     }
 
@@ -1684,8 +1860,101 @@ class {$name}Queue extends BaseQueue
      */
     public function isHealthy(): bool
     {
-        // Sync queue is always healthy
         return true;
+    }
+
+    /**
+     * Get failed jobs
+     */
+    public function getFailed(string \$queue = 'default', int \$limit = 50, int \$offset = 0): array
+    {
+        \$failedInQueue = [];
+        foreach (\$this->failed as \$jobId => \$failedJob) {
+            if (\$failedJob['queue'] === \$queue) {
+                \$failedInQueue[] = \$failedJob;
+            }
+        }
+        usort(\$failedInQueue, function(\$a, \$b) {
+            return \$b['failed_at'] <=> \$a['failed_at'];
+        });
+        return array_slice(\$failedInQueue, \$offset, \$limit);
+    }
+
+    /**
+     * Get processed jobs
+     */
+    public function getProcessed(string \$queue = 'default', int \$limit = 50, int \$offset = 0): array
+    {
+        \$processedInQueue = [];
+        foreach (\$this->processed as \$jobId => \$processedJob) {
+            if (\$processedJob['queue'] === \$queue) {
+                \$processedInQueue[] = \$processedJob;
+            }
+        }
+        usort(\$processedInQueue, function(\$a, \$b) {
+            return \$b['processed_at'] <=> \$a['processed_at'];
+        });
+        return array_slice(\$processedInQueue, \$offset, \$limit);
+    }
+
+    /**
+     * Retry a failed job
+     */
+    public function retryFailed(string \$jobId, string \$queue = 'default'): bool
+    {
+        if (!isset(\$this->failed[\$jobId])) {
+            return false;
+        }
+        \$failedJob = \$this->failed[\$jobId];
+        \$job = \$failedJob['job'];
+        \$job->addMetadata('retried_at', date('Y-m-d H:i:s'));
+        \$this->push(\$job, \$queue, 0);
+        unset(\$this->failed[\$jobId]);
+        return true;
+    }
+
+    /**
+     * Mark a job as failed
+     */
+    public function markAsFailed(string \$jobId, string \$error): void
+    {
+        if (isset(\$this->processing[\$jobId])) {
+            \$processing = \$this->processing[\$jobId];
+            \$this->failed[\$jobId] = [
+                'job' => \$processing['job'],
+                'queue' => \$processing['queue'],
+                'failed_at' => time(),
+                'error' => \$error,
+            ];
+            unset(\$this->processing[\$jobId]);
+            \$this->events->trigger('queue.marked_failed', [
+                'job_id' => \$jobId,
+                'queue' => \$processing['queue'],
+                'error' => \$error,
+            ]);
+        }
+    }
+
+    /**
+     * Mark a job as completed
+     */
+    public function markAsCompleted(string \$jobId, array \$payload = []): void
+    {
+        if (isset(\$this->processing[\$jobId])) {
+            \$processing = \$this->processing[\$jobId];
+            \$this->processed[\$jobId] = [
+                'job' => \$processing['job'],
+                'queue' => \$processing['queue'],
+                'processed_at' => time(),
+                'result_payload' => \$payload,
+            ];
+            unset(\$this->processing[\$jobId]);
+            \$this->events->trigger('queue.marked_completed', [
+                'job_id' => \$jobId,
+                'queue' => \$processing['queue'],
+                'payload' => \$payload,
+            ]);
+        }
     }
 
     /**
@@ -1697,16 +1966,16 @@ class {$name}Queue extends BaseQueue
             'queued' => \$this->size(\$queue),
             'processing' => 0,
             'delayed' => 0,
+            'failed' => 0,
+            'processed' => 0,
         ];
         
-        // Count processing jobs for this queue
         foreach (\$this->processing as \$processing) {
             if (\$processing['queue'] === \$queue) {
                 \$stats['processing']++;
             }
         }
         
-        // Count delayed jobs
         if (isset(\$this->jobs[\$queue])) {
             \$now = time();
             foreach (\$this->jobs[\$queue] as \$jobData) {
@@ -1716,18 +1985,30 @@ class {$name}Queue extends BaseQueue
             }
         }
         
+        foreach (\$this->failed as \$failedJob) {
+            if (\$failedJob['queue'] === \$queue) {
+                \$stats['failed']++;
+            }
+        }
+        
+        foreach (\$this->processed as \$processedJob) {
+            if (\$processedJob['queue'] === \$queue) {
+                \$stats['processed']++;
+            }
+        }
+        
         return \$stats;
     }
 }
 PHP;
-    }
+}
 
     /**
      * Generate file queue template
      */
     private function generateFileQueueTemplate(string $name): string
-    {
-        return <<<PHP
+{
+    return <<<PHP
 <?php
 
 namespace Mlangeni\Machinjiri\App\Queue\Drivers;
@@ -1774,8 +2055,7 @@ class {$name}Queue extends BaseQueue
             mkdir(\$this->storagePath, 0755, true);
         }
         
-        // Create queue subdirectories
-        foreach (['pending', 'processing', 'failed'] as \$subdir) {
+        foreach (['pending', 'processing', 'failed', 'processed'] as \$subdir) {
             \$path = \$this->storagePath . \$subdir . '/';
             if (!is_dir(\$path)) {
                 mkdir(\$path, 0755, true);
@@ -1818,31 +2098,25 @@ class {$name}Queue extends BaseQueue
      */
     public function pop(string \$queue = 'default'): ?JobInterface
     {
-        // Find next available job
         \$pattern = \$this->storagePath . 'pending/' . \$queue . '_*.json';
         \$files = glob(\$pattern);
-        
         \$now = time();
         
         foreach (\$files as \$filepath) {
             \$data = json_decode(file_get_contents(\$filepath), true);
             
             if (!\$data) {
-                // Corrupted file, move to failed
                 \$this->moveToFailed(\$filepath, 'Corrupted job file');
                 continue;
             }
             
-            // Check if job is available (not delayed)
             if (\$data['available_at'] > \$now) {
                 continue;
             }
             
-            // Move to processing directory
             \$processingPath = \$this->storagePath . 'processing/' . basename(\$filepath);
             rename(\$filepath, \$processingPath);
             
-            // Create job instance
             \$jobClass = \$data['job']['name'] ?? '';
             
             if (!class_exists(\$jobClass)) {
@@ -1861,7 +2135,6 @@ class {$name}Queue extends BaseQueue
      */
     public function release(JobInterface \$job, string \$queue = 'default', int \$delay = 0): bool
     {
-        // Find the job in processing directory
         \$pattern = \$this->storagePath . 'processing/*_' . \$job->getId() . '.json';
         \$files = glob(\$pattern);
         
@@ -1877,12 +2150,10 @@ class {$name}Queue extends BaseQueue
             return false;
         }
         
-        // Update data
         \$data['job'] = \$job->serialize();
         \$data['available_at'] = time() + \$delay;
         \$data['attempts'] = \$job->getAttempts();
         
-        // Move back to pending
         \$pendingPath = \$this->storagePath . 'pending/' . basename(\$filepath);
         file_put_contents(\$pendingPath, json_encode(\$data));
         unlink(\$filepath);
@@ -1895,7 +2166,6 @@ class {$name}Queue extends BaseQueue
      */
     public function delete(JobInterface \$job, string \$queue = 'default'): bool
     {
-        // Check in processing directory
         \$pattern = \$this->storagePath . 'processing/*_' . \$job->getId() . '.json';
         \$files = glob(\$pattern);
         
@@ -1906,7 +2176,6 @@ class {$name}Queue extends BaseQueue
             return true;
         }
         
-        // Check in pending directory
         \$pattern = \$this->storagePath . 'pending/' . \$queue . '_' . \$job->getId() . '.json';
         \$files = glob(\$pattern);
         
@@ -1952,10 +2221,8 @@ class {$name}Queue extends BaseQueue
     {
         \$count = 0;
         
-        // Clear pending
         \$pattern = \$this->storagePath . 'pending/' . \$queue . '_*.json';
         \$files = glob(\$pattern);
-        
         if (\$files) {
             foreach (\$files as \$file) {
                 unlink(\$file);
@@ -1963,10 +2230,8 @@ class {$name}Queue extends BaseQueue
             }
         }
         
-        // Clear processing
         \$pattern = \$this->storagePath . 'processing/' . \$queue . '_*.json';
         \$files = glob(\$pattern);
-        
         if (\$files) {
             foreach (\$files as \$file) {
                 unlink(\$file);
@@ -1993,7 +2258,6 @@ class {$name}Queue extends BaseQueue
                 \$queues[] = \$parts[0];
             }
         }
-        
         return array_unique(\$queues);
     }
 
@@ -2016,14 +2280,24 @@ class {$name}Queue extends BaseQueue
     protected function moveToFailed(string \$filepath, string \$error): void
     {
         \$failedPath = \$this->storagePath . 'failed/' . basename(\$filepath);
-        
         \$data = json_decode(file_get_contents(\$filepath), true);
         if (\$data) {
             \$data['failed_at'] = time();
             \$data['error'] = \$error;
             file_put_contents(\$failedPath, json_encode(\$data));
         }
-        
+        unlink(\$filepath);
+    }
+
+    protected function moveToProcessed(string \$filepath, array \$payload = []): void
+    {
+        \$processedPath = \$this->storagePath . 'processed/' . basename(\$filepath);
+        \$data = json_decode(file_get_contents(\$filepath), true);
+        if (\$data) {
+            \$data['processed_at'] = time();
+            \$data['result_payload'] = \$payload;
+            file_put_contents(\$processedPath, json_encode(\$data));
+        }
         unlink(\$filepath);
     }
 
@@ -2039,7 +2313,6 @@ class {$name}Queue extends BaseQueue
             return [];
         }
         
-        // Sort by modification time (newest first)
         usort(\$files, function(\$a, \$b) {
             return filemtime(\$b) - filemtime(\$a);
         });
@@ -2053,7 +2326,34 @@ class {$name}Queue extends BaseQueue
                 \$result[] = \$data;
             }
         }
+        return \$result;
+    }
+
+    /**
+     * Get processed jobs
+     */
+    public function getProcessed(string \$queue = 'default', int \$limit = 50, int \$offset = 0): array
+    {
+        \$pattern = \$this->storagePath . 'processed/' . \$queue . '_*.json';
+        \$files = glob(\$pattern);
         
+        if (!\$files) {
+            return [];
+        }
+        
+        usort(\$files, function(\$a, \$b) {
+            return filemtime(\$b) - filemtime(\$a);
+        });
+        
+        \$result = [];
+        \$files = array_slice(\$files, \$offset, \$limit);
+        
+        foreach (\$files as \$file) {
+            \$data = json_decode(file_get_contents(\$file), true);
+            if (\$data) {
+                \$result[] = \$data;
+            }
+        }
         return \$result;
     }
 
@@ -2076,23 +2376,59 @@ class {$name}Queue extends BaseQueue
             return false;
         }
         
-        // Create job instance
         \$jobClass = \$data['job']['name'] ?? '';
-        
         if (!class_exists(\$jobClass)) {
             return false;
         }
         
         \$job = \$jobClass::unserialize(\$data['job'], \$this->app);
         \$job->addMetadata('retried_at', date('Y-m-d H:i:s'));
-        
-        // Push back to queue
         \$this->push(\$job, \$queue, 0);
-        
-        // Remove from failed
         unlink(\$filepath);
-        
         return true;
+    }
+
+    /**
+     * Mark a job as failed
+     */
+    public function markAsFailed(string \$jobId, string \$error): void
+    {
+        \$pattern = \$this->storagePath . 'processing/*_' . \$jobId . '.json';
+        \$files = glob(\$pattern);
+        if (empty(\$files)) {
+            return;
+        }
+        \$this->moveToFailed(\$files[0], \$error);
+        \$this->events->trigger('queue.marked_failed', [
+            'job_id' => \$jobId,
+            'error' => \$error,
+        ]);
+    }
+
+    /**
+     * Mark a job as completed
+     */
+    public function markAsCompleted(string \$jobId, array \$payload = []): void
+    {
+        \$pattern = \$this->storagePath . 'processing/*_' . \$jobId . '.json';
+        \$files = glob(\$pattern);
+        if (empty(\$files)) {
+            // Try pending (unlikely)
+            \$pattern = \$this->storagePath . 'pending/*_' . \$jobId . '.json';
+            \$files = glob(\$pattern);
+            if (empty(\$files)) {
+                \$this->events->trigger('queue.warning', [
+                    'message' => 'Job file not found for marking as completed',
+                    'job_id'  => \$jobId,
+                ]);
+                return;
+            }
+        }
+        \$this->moveToProcessed(\$files[0], \$payload);
+        \$this->events->trigger('queue.marked_completed', [
+            'job_id' => \$jobId,
+            'payload' => \$payload,
+        ]);
     }
 
     /**
@@ -2100,13 +2436,12 @@ class {$name}Queue extends BaseQueue
      */
     public function getStats(string \$queue = 'default'): array
     {
-        \$stats = ['pending' => 0, 'processing' => 0, 'failed' => 0, 'delayed' => 0];
+        \$stats = ['pending' => 0, 'processing' => 0, 'failed' => 0, 'delayed' => 0, 'processed' => 0];
         \$now = time();
         
-        // Check pending directory
+        // Pending & delayed
         \$pattern = \$this->storagePath . 'pending/' . \$queue . '_*.json';
         \$files = glob(\$pattern);
-        
         if (\$files) {
             foreach (\$files as \$file) {
                 \$data = json_decode(file_get_contents(\$file), true);
@@ -2120,15 +2455,20 @@ class {$name}Queue extends BaseQueue
             }
         }
         
-        // Check processing directory
+        // Processing
         \$pattern = \$this->storagePath . 'processing/' . \$queue . '_*.json';
         \$files = glob(\$pattern);
         \$stats['processing'] = \$files ? count(\$files) : 0;
         
-        // Check failed directory
+        // Failed
         \$pattern = \$this->storagePath . 'failed/' . \$queue . '_*.json';
         \$files = glob(\$pattern);
         \$stats['failed'] = \$files ? count(\$files) : 0;
+        
+        // Processed
+        \$pattern = \$this->storagePath . 'processed/' . \$queue . '_*.json';
+        \$files = glob(\$pattern);
+        \$stats['processed'] = \$files ? count(\$files) : 0;
         
         return \$stats;
     }
@@ -2140,13 +2480,11 @@ class {$name}Queue extends BaseQueue
     {
         \$count = 0;
         \$now = time();
-        
-        \$directories = ['pending', 'processing', 'failed'];
+        \$directories = ['pending', 'processing', 'failed', 'processed'];
         
         foreach (\$directories as \$dir) {
             \$pattern = \$this->storagePath . \$dir . '/*.json';
             \$files = glob(\$pattern);
-            
             if (\$files) {
                 foreach (\$files as \$file) {
                     if (\$now - filemtime(\$file) > \$maxAge) {
@@ -2156,19 +2494,18 @@ class {$name}Queue extends BaseQueue
                 }
             }
         }
-        
         return \$count;
     }
 }
 PHP;
-    }
+}
 
     /**
      * Generate memory queue template
      */
     private function generateMemoryQueueTemplate(string $name): string
-    {
-        return <<<PHP
+{
+    return <<<PHP
 <?php
 
 namespace Mlangeni\Machinjiri\App\Queue\Drivers;
@@ -2187,6 +2524,7 @@ class {$name}Queue extends BaseQueue
     protected array \$queues = [];
     protected array \$processing = [];
     protected array \$failed = [];
+    protected array \$processed = [];
 
     /**
      * Create a new queue instance
@@ -2215,8 +2553,6 @@ class {$name}Queue extends BaseQueue
         ];
         
         \$this->queues[\$queue][] = \$jobData;
-        
-        // Sort by available time
         usort(\$this->queues[\$queue], function(\$a, \$b) {
             return \$a['available_at'] <=> \$b['available_at'];
         });
@@ -2240,27 +2576,20 @@ class {$name}Queue extends BaseQueue
         }
         
         \$now = time();
-        
         foreach (\$this->queues[\$queue] as \$index => \$jobData) {
             if (\$jobData['available_at'] <= \$now) {
                 \$job = \$jobData['job'];
-                
-                // Move to processing
                 \$this->processing[\$job->getId()] = [
                     'job' => \$job,
                     'queue' => \$queue,
                     'started_at' => \$now,
                     'index' => \$index,
                 ];
-                
-                // Remove from queue
                 unset(\$this->queues[\$queue][\$index]);
                 \$this->queues[\$queue] = array_values(\$this->queues[\$queue]);
-                
                 return \$job;
             }
         }
-        
         return null;
     }
 
@@ -2269,24 +2598,18 @@ class {$name}Queue extends BaseQueue
      */
     public function release(JobInterface \$job, string \$queue = 'default', int \$delay = 0): bool
     {
-        // Remove from processing
         if (!isset(\$this->processing[\$job->getId()])) {
             return false;
         }
-        
         unset(\$this->processing[\$job->getId()]);
-        
-        // Add back to queue
         if (!isset(\$this->queues[\$queue])) {
             \$this->queues[\$queue] = [];
         }
-        
         \$this->queues[\$queue][] = [
             'job' => \$job,
             'available_at' => time() + \$delay,
             'created_at' => time(),
         ];
-        
         return true;
     }
 
@@ -2295,13 +2618,11 @@ class {$name}Queue extends BaseQueue
      */
     public function delete(JobInterface \$job, string \$queue = 'default'): bool
     {
-        // Check in processing
         if (isset(\$this->processing[\$job->getId()])) {
             unset(\$this->processing[\$job->getId()]);
             return true;
         }
         
-        // Check in queue
         if (isset(\$this->queues[\$queue])) {
             foreach (\$this->queues[\$queue] as \$index => \$jobData) {
                 if (\$jobData['job']->getId() === \$job->getId()) {
@@ -2311,7 +2632,6 @@ class {$name}Queue extends BaseQueue
                 }
             }
         }
-        
         return false;
     }
 
@@ -2323,16 +2643,13 @@ class {$name}Queue extends BaseQueue
         if (!isset(\$this->queues[\$queue])) {
             return 0;
         }
-        
         \$count = 0;
         \$now = time();
-        
         foreach (\$this->queues[\$queue] as \$jobData) {
             if (\$jobData['available_at'] <= \$now) {
                 \$count++;
             }
         }
-        
         return \$count;
     }
 
@@ -2343,15 +2660,12 @@ class {$name}Queue extends BaseQueue
     {
         \$count = isset(\$this->queues[\$queue]) ? count(\$this->queues[\$queue]) : 0;
         unset(\$this->queues[\$queue]);
-        
-        // Also clear processing jobs for this queue
         foreach (\$this->processing as \$jobId => \$processing) {
             if (\$processing['queue'] === \$queue) {
                 unset(\$this->processing[\$jobId]);
                 \$count++;
             }
         }
-        
         return \$count;
     }
 
@@ -2368,7 +2682,6 @@ class {$name}Queue extends BaseQueue
      */
     public function isHealthy(): bool
     {
-        // Memory queue is always healthy
         return true;
     }
 
@@ -2378,19 +2691,32 @@ class {$name}Queue extends BaseQueue
     public function getFailed(string \$queue = 'default', int \$limit = 50, int \$offset = 0): array
     {
         \$failedInQueue = [];
-        
         foreach (\$this->failed as \$jobId => \$failedJob) {
             if (\$failedJob['queue'] === \$queue) {
                 \$failedInQueue[] = \$failedJob;
             }
         }
-        
-        // Sort by failed time (newest first)
         usort(\$failedInQueue, function(\$a, \$b) {
             return \$b['failed_at'] <=> \$a['failed_at'];
         });
-        
         return array_slice(\$failedInQueue, \$offset, \$limit);
+    }
+
+    /**
+     * Get processed jobs
+     */
+    public function getProcessed(string \$queue = 'default', int \$limit = 50, int \$offset = 0): array
+    {
+        \$processedInQueue = [];
+        foreach (\$this->processed as \$jobId => \$processedJob) {
+            if (\$processedJob['queue'] === \$queue) {
+                \$processedInQueue[] = \$processedJob;
+            }
+        }
+        usort(\$processedInQueue, function(\$a, \$b) {
+            return \$b['processed_at'] <=> \$a['processed_at'];
+        });
+        return array_slice(\$processedInQueue, \$offset, \$limit);
     }
 
     /**
@@ -2401,18 +2727,11 @@ class {$name}Queue extends BaseQueue
         if (!isset(\$this->failed[\$jobId])) {
             return false;
         }
-        
         \$failedJob = \$this->failed[\$jobId];
         \$job = \$failedJob['job'];
-        
         \$job->addMetadata('retried_at', date('Y-m-d H:i:s'));
-        
-        // Push back to queue
         \$this->push(\$job, \$queue, 0);
-        
-        // Remove from failed
         unset(\$this->failed[\$jobId]);
-        
         return true;
     }
 
@@ -2423,15 +2742,40 @@ class {$name}Queue extends BaseQueue
     {
         if (isset(\$this->processing[\$jobId])) {
             \$processing = \$this->processing[\$jobId];
-            
             \$this->failed[\$jobId] = [
                 'job' => \$processing['job'],
                 'queue' => \$processing['queue'],
                 'failed_at' => time(),
                 'error' => \$error,
             ];
-            
             unset(\$this->processing[\$jobId]);
+            \$this->events->trigger('queue.marked_failed', [
+                'job_id' => \$jobId,
+                'queue' => \$processing['queue'],
+                'error' => \$error,
+            ]);
+        }
+    }
+
+    /**
+     * Mark a job as completed
+     */
+    public function markAsCompleted(string \$jobId, array \$payload = []): void
+    {
+        if (isset(\$this->processing[\$jobId])) {
+            \$processing = \$this->processing[\$jobId];
+            \$this->processed[\$jobId] = [
+                'job' => \$processing['job'],
+                'queue' => \$processing['queue'],
+                'processed_at' => time(),
+                'result_payload' => \$payload,
+            ];
+            unset(\$this->processing[\$jobId]);
+            \$this->events->trigger('queue.marked_completed', [
+                'job_id' => \$jobId,
+                'queue' => \$processing['queue'],
+                'payload' => \$payload,
+            ]);
         }
     }
 
@@ -2445,16 +2789,15 @@ class {$name}Queue extends BaseQueue
             'processing' => 0,
             'delayed' => 0,
             'failed' => 0,
+            'processed' => 0,
         ];
         
-        // Count processing jobs
         foreach (\$this->processing as \$processing) {
             if (\$processing['queue'] === \$queue) {
                 \$stats['processing']++;
             }
         }
         
-        // Count delayed jobs
         if (isset(\$this->queues[\$queue])) {
             \$now = time();
             foreach (\$this->queues[\$queue] as \$jobData) {
@@ -2464,10 +2807,15 @@ class {$name}Queue extends BaseQueue
             }
         }
         
-        // Count failed jobs
         foreach (\$this->failed as \$failedJob) {
             if (\$failedJob['queue'] === \$queue) {
                 \$stats['failed']++;
+            }
+        }
+        
+        foreach (\$this->processed as \$processedJob) {
+            if (\$processedJob['queue'] === \$queue) {
+                \$stats['processed']++;
             }
         }
         
@@ -2475,7 +2823,7 @@ class {$name}Queue extends BaseQueue
     }
 }
 PHP;
-    }
+}
 
     /**
      * Generate custom queue template

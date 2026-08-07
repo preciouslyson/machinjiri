@@ -7,6 +7,7 @@ use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use \SensitiveParameter;  
 use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 use Mlangeni\Machinjiri\Core\Components\UUID\ULID\UlidComponent;
+use Mlangeni\Machinjiri\Core\Security\Encryption\Cipher;
 
 /**
  * Abstract Base Job
@@ -24,6 +25,7 @@ abstract class BaseJob implements JobInterface
     protected int $retryDelay = 60;
     protected array $metadata = [];
     protected bool $compressPayload = false;
+    private const KEY = "base-job";
 
     // Cache for decompressed payload
     private ?array $decompressedPayload = null;
@@ -255,12 +257,14 @@ abstract class BaseJob implements JobInterface
     
     protected function compressPayload(array $payload): string
     {
-        return gzcompress(serialize($payload), 1); // Level 1 compression
+        return (new Cipher(self::KEY))
+            ->encrypt(gzcompress(serialize($payload), 1));
     }
     
     protected function decompressPayload(string $compressed): array
     {
-        return unserialize(gzuncompress($compressed));
+        return (new Cipher(self::KEY))
+            ->decrypt(unserialize(gzuncompress($compressed)));
     }
 
     protected function calculateBackoffDelay(int $attempt): int

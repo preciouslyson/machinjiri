@@ -186,6 +186,8 @@ abstract class BaseJobProcessor implements JobProcessorInterface
         if (!method_exists($this->getQueue(), 'markAsCompleted')) {
             throw new MachinjiriException("Method markAsFailed not found in default Queue Driver");
         }
+
+        $this->getQueue()->markAsCompleted($job->getId(), $job->getPayload());
         
         $this->logger->info("Job {$job->getId()} marked as completed.");
     }

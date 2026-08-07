@@ -17,6 +17,7 @@ class MemoryQueue extends BaseQueue
     protected array $queues = [];
     protected array $processing = [];
     protected array $failed = [];
+    protected array $processed = [];
 
     /**
      * Create a new queue instance
@@ -224,6 +225,27 @@ class MemoryQueue extends BaseQueue
     }
 
     /**
+     * Get processed (completed) jobs
+     */
+    public function getProcessed(string $queue = 'default', int $limit = 50, int $offset = 0): array
+    {
+        $processedInQueue = [];
+        
+        foreach ($this->processed as $jobId => $processedJob) {
+            if ($processedJob['queue'] === $queue) {
+                $processedInQueue[] = $processedJob;
+            }
+        }
+        
+        // Sort by processed time (newest first)
+        usort($processedInQueue, function($a, $b) {
+            return $b['processed_at'] <=> $a['processed_at'];
+        });
+        
+        return array_slice($processedInQueue, $offset, $limit);
+    }
+
+    /**
      * Retry a failed job
      */
     public function retryFailed(string $jobId, string $queue = 'default'): bool
@@ -262,6 +284,37 @@ class MemoryQueue extends BaseQueue
             ];
             
             unset($this->processing[$jobId]);
+            
+            $this->events->trigger('queue.marked_failed', [
+                'job_id' => $jobId,
+                'queue' => $processing['queue'],
+                'error' => $error,
+            ]);
+        }
+    }
+
+    /**
+     * Mark a job as completed, moving it from processing to processed.
+     */
+    public function markAsCompleted(string $jobId, array $payload = []): void
+    {
+        if (isset($this->processing[$jobId])) {
+            $processing = $this->processing[$jobId];
+            
+            $this->processed[$jobId] = [
+                'job' => $processing['job'],
+                'queue' => $processing['queue'],
+                'processed_at' => time(),
+                'result_payload' => $payload,
+            ];
+            
+            unset($this->processing[$jobId]);
+            
+            $this->events->trigger('queue.marked_completed', [
+                'job_id' => $jobId,
+                'queue' => $processing['queue'],
+                'payload' => $payload,
+            ]);
         }
     }
 
@@ -275,6 +328,7 @@ class MemoryQueue extends BaseQueue
             'processing' => 0,
             'delayed' => 0,
             'failed' => 0,
+            'processed' => 0,
         ];
         
         // Count processing jobs
@@ -298,6 +352,13 @@ class MemoryQueue extends BaseQueue
         foreach ($this->failed as $failedJob) {
             if ($failedJob['queue'] === $queue) {
                 $stats['failed']++;
+            }
+        }
+        
+        // Count processed jobs
+        foreach ($this->processed as $processedJob) {
+            if ($processedJob['queue'] === $queue) {
+                $stats['processed']++;
             }
         }
         

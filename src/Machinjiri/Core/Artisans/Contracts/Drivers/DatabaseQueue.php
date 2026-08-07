@@ -119,6 +119,18 @@ class DatabaseQueue extends BaseQueue
     public function release(JobInterface $job, string $queue = 'default', int $delay = 0): bool
     {
         $serialized = json_encode($job->serialize());
+
+        // check if job is not already in queue 
+        $result = $this->queryBuilder
+            ->select()
+            ->where('job_id', '=', $job->getId())
+            ->where('queue', '=', $queue)
+            ->get()
+            ->first();
+
+        if ($result !== null) {
+            return false;
+        }
         
         $result = $this->queryBuilder
             ->update([
@@ -297,7 +309,7 @@ class DatabaseQueue extends BaseQueue
 
         // check if job already exists in failed
         $exists = $failedQuery->select()->where('job_id', '=', $job['job_id'])->first();
-        if ($exists === null | !$exists) {
+        if ($exists === null || !$exists) {
             $result = $failedQuery->insert([
                 'queue' => $job['queue'],
                 'job_id' => $job['job_id'],
@@ -320,7 +332,7 @@ class DatabaseQueue extends BaseQueue
     /**
      * Mark a job as completed
      */
-    public function markAsCompleted(string $jobId): void
+    public function markAsCompleted(string $jobId, array $payload = []): void
     {
         // Get the job from jobs table
         $job = $this->queryBuilder
@@ -332,16 +344,16 @@ class DatabaseQueue extends BaseQueue
             return;
         }
         
-        // Move to failed jobs table
+        // Move to processed jobs table
         $provessedQuery = new QueryBuilder($this->config['processed_table'] ?? 'processed_jobs');
 
-        // check if job already exists in failed
+        // check if job already exists in processed
         $exists = $provessedQuery->select()->where('job_id', '=', $job['job_id'])->first();
-        if ($exists === null | !$exists) {
+        if ($exists === null || !$exists) {
             $result = $provessedQuery->insert([
                 'queue' => $job['queue'],
                 'job_id' => $job['job_id'],
-                'payload' => $job['payload'],
+                'payload' => json_encode($payload, true),
                 'processed_at' => time(),
             ])->execute();
     

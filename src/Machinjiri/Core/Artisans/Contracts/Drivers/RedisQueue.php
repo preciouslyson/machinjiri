@@ -297,6 +297,11 @@ class RedisQueue extends BaseQueue
     {
         return $this->prefix . $queue . ':failed';
     }
+    
+    protected function getProcessedKey(string $queue): string
+    {
+        return $this->prefix . $queue . ':processed';
+    }
 
     /**
      * Move job to failed queue
@@ -315,12 +320,47 @@ class RedisQueue extends BaseQueue
     }
 
     /**
+     * Move job to processed queue
+     */
+    protected function moveToProcessed(string $queue, string $serialized, array $payload = []): void
+    {
+        $processedKey = $this->getProcessedKey($queue);
+        $processedData = [
+            'job' => $serialized,
+            'result_payload' => $payload,
+            'processed_at' => time(),
+            'queue' => $queue,
+        ];
+        
+        $this->redis->rpush($processedKey, json_encode($processedData));
+    }
+
+    /**
      * Get failed jobs
      */
     public function getFailed(string $queue = 'default', int $limit = 50, int $offset = 0): array
     {
         $failedKey = $this->getFailedKey($queue);
         $jobs = $this->redis->lrange($failedKey, $offset, $offset + $limit - 1);
+        
+        $result = [];
+        foreach ($jobs as $job) {
+            $data = json_decode($job, true);
+            if ($data) {
+                $result[] = $data;
+            }
+        }
+        
+        return $result;
+    }
+
+    /**
+     * Get processed (completed) jobs
+     */
+    public function getProcessed(string $queue = 'default', int $limit = 50, int $offset = 0): array
+    {
+        $processedKey = $this->getProcessedKey($queue);
+        $jobs = $this->redis->lrange($processedKey, $offset, $offset + $limit - 1);
         
         $result = [];
         foreach ($jobs as $job) {
@@ -392,6 +432,10 @@ class RedisQueue extends BaseQueue
         $failedKey = $this->getFailedKey($queue);
         $stats['failed'] = $this->redis->llen($failedKey);
         
+        // Processed queue size
+        $processedKey = $this->getProcessedKey($queue);
+        $stats['processed'] = $this->redis->llen($processedKey);
+        
         return $stats;
     }
     
@@ -405,6 +449,9 @@ class RedisQueue extends BaseQueue
         }
     }
 
+    /**
+     * Mark a job as failed, moving it from reserved to failed.
+     */
     public function markAsFailed(string $jobId, string $error): void
     {
         // Retrieve queue name from job metadata
@@ -453,6 +500,65 @@ class RedisQueue extends BaseQueue
         // Job not found in reserved queue – log a warning
         $this->events->trigger('queue.warning', [
             'message' => 'Job not found in reserved queue for marking as failed',
+            'job_id'  => $jobId,
+            'queue'   => $queue,
+        ]);
+    }
+
+    /**
+     * Mark a job as completed, moving it from reserved to processed.
+     *
+     * @param string $jobId
+     * @param array $payload Optional result payload to store with the completed job.
+     */
+    public function markAsCompleted(string $jobId, array $payload = []): void
+    {
+        // Retrieve queue name from job metadata
+        $metaKey = $this->getJobMetaKey($jobId);
+        $meta = $this->redis->hgetall($metaKey);
+        
+        if (empty($meta) || !isset($meta['queue'])) {
+            $this->events->trigger('queue.warning', [
+                'message' => 'Cannot mark job as completed: metadata not found',
+                'job_id'  => $jobId,
+            ]);
+            return;
+        }
+        
+        $queue = $meta['queue'];
+        $reservedKey = $this->getReservedQueueKey($queue);
+        
+        // Fetch all reserved jobs for this queue
+        $reservedJobs = $this->redis->lrange($reservedKey, 0, -1);
+        
+        foreach ($reservedJobs as $serialized) {
+            $jobData = json_decode($serialized, true);
+            if ($jobData && isset($jobData['id']) && $jobData['id'] === $jobId) {
+                // Remove from reserved
+                $this->redis->lrem($reservedKey, 1, $serialized);
+                
+                // Move to processed queue
+                $this->moveToProcessed($queue, $serialized, $payload);
+                
+                // Clean up timeout and metadata
+                $timeoutKey = $this->getTimeoutKey($jobId);
+                $this->redis->del($timeoutKey);
+                $this->redis->del($metaKey);
+                
+                // Notify listeners
+                $this->events->trigger('queue.marked_completed', [
+                    'job_id' => $jobId,
+                    'queue'  => $queue,
+                    'payload' => $payload,
+                ]);
+                
+                return;
+            }
+        }
+        
+        // Job not found in reserved queue – log a warning
+        $this->events->trigger('queue.warning', [
+            'message' => 'Job not found in reserved queue for marking as completed',
             'job_id'  => $jobId,
             'queue'   => $queue,
         ]);

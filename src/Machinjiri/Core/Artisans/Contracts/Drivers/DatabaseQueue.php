@@ -125,7 +125,6 @@ class DatabaseQueue extends BaseQueue
             ->select()
             ->where('job_id', '=', $job->getId())
             ->where('queue', '=', $queue)
-            ->get()
             ->first();
 
         if ($result !== null) {

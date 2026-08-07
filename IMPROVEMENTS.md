@@ -1,6 +1,6 @@
 # Machinjiri Framework Improvements
 
-This document summarizes the major improvements currently available in Machinjiri 2.1.6.
+This document summarizes the major improvements currently available in Machinjiri 2.1.9.
 
 ## Architecture and Developer Experience
 
@@ -9,6 +9,9 @@ This document summarizes the major improvements currently available in Machinjir
 - Added facades for convenient access to commonly used framework services.
 - Added environment-aware configuration loading with `.env` support.
 - Added Artisan generators and terminal tooling for common development tasks.
+- Added FTP filesystem adapter support for remote storage operations.
+- Added Redis integration for distributed queues and cache-driven workflows.
+- Added Angular SPA integration helpers for CSRF meta tags, script injection, and form/component bridging.
 
 ## Routing and HTTP
 
@@ -34,6 +37,7 @@ This document summarizes the major improvements currently available in Machinjir
 - Added seeders and factories to simplify test and development data setup.
 - Added support for multiple database connections, connection management, and transactions.
 - Added database caching and queue persistence capabilities.
+- Added Redis-backed queue driver support with delayed job scheduling, reservation, and retry handling.
 
 ## Authentication and Security
 
@@ -77,6 +81,9 @@ This document summarizes the major improvements currently available in Machinjir
 - Added Vite and Angular integration points for frontend workflows.
 - Added UUID components with validation and dedicated UUID exceptions.
 - Added webhook components and webhook-specific error handling.
+- Added ULID generation, validation, and parsing support.
+- Added OTP/TOTP generation and verification utilities for secure one-time authentication.
+- Added webhook processing with signature verification, idempotency, async dispatch, and provider subscription handling.
 - Added unified date and time handling with configurable timezone support.
 
 ## Testing and Quality

@@ -51,6 +51,10 @@ Machinjiri is designed to accelerate web development with:
 - **Provider System**: Modular service providers with lazy loading and bootstrapping
 - **Configuration Management**: Environment-aware config loading with `.env` support
 - **Service Facades**: Quick access to complex services with simple syntax
+- **FTP Filesystem Adapter**: Remote storage operations with FTP disk support
+- **Redis Integration**: Distributed cache and queue support for scalable workflows
+- **Webhook Processing**: Signature verification, idempotency, and async dispatch for webhook handling
+- **ULID & OTP Utilities**: ULID generation/validation and OTP/TOTP support for secure workflows
 
 ### Routing System
 
@@ -105,6 +109,7 @@ Machinjiri is designed to accelerate web development with:
 
 - **Background Job Processing**: Defer heavy operations to background queues
 - **Database Queue Driver**: Persist jobs in database for reliability
+- **Redis Queue Driver**: High-performance Redis-backed job queue with delayed dispatch, reservation, and retry handling
 - **Job Dispatcher**: Flexible job scheduling and dispatching
 - **Workers**: Process jobs with configurable retry logic
 - **Event System**: Event listeners and viewers for queue events
@@ -242,12 +247,13 @@ your-project/
 │   ├── Jobs/                 # Application Jobs
 │   ├── Middleware/           # Custom middleware classes
 │   ├── Queue/                # Queue Drivers
-│   │     └── Drivers/        # Driver Files (Database, etc)
+│   │     └── Drivers/        # Driver Files (Custom Queue Drivers)
 │   ├── Models/               # Data models
 │   ├── Providers/            # Service providers
 │   └── Exceptions/           # Custom exceptions
 ├── bootstrap/
 │   ├── app.php/              # Application bootstrap file
+│   ├── artisan.php/              # Application bootstrap file
 │   └── helpers.php           # Helper functions (API)
 ├── config/
 │   ├── app.php               # Application configuration

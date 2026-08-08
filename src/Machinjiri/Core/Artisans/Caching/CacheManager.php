@@ -194,6 +194,11 @@ class CacheManager
         return $this->store()->get($key, $default);
     }
 
+    public function has(string $key, mixed $default = null): mixed
+    {
+        return $this->store()->get($key, $default);
+    }
+
     public function set(string $key, mixed $value, ?int $ttl = null): bool
     {
         return $this->store()->set($key, $value, $ttl ?? $this->config['default_ttl']);
@@ -224,6 +229,11 @@ class CacheManager
     public function delete(string $key): bool
     {
         return $this->store()->delete($key);
+    }
+
+    public function increment(string $key, int $value = 1): bool
+    {
+        return $this->store()->increment($key, $value);
     }
 
     public function clear(): bool

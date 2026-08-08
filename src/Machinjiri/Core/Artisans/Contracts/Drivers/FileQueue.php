@@ -249,6 +249,27 @@ class FileQueue extends BaseQueue
     }
 
     /**
+     * Clear failed jobs
+     */
+    public function clearFailed(string $queue = 'default'): int
+    {
+        $count = 0;
+
+        // Clear failed
+        $pattern = $this->storagePath . 'failed/' . $queue . '_*.json';
+        $files = glob($pattern);
+        
+        if ($files) {
+            foreach ($files as $file) {
+                unlink($file);
+                $count++;
+            }
+        }
+        
+        return $count;
+    }
+
+    /**
      * Get all available queues
      */
     public function getQueues(): array

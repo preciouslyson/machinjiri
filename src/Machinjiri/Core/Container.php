@@ -49,6 +49,7 @@ class Container
     public $resources;
     public $app;
     public $config;
+    public $coreConfig;
     public $unitTesting;
     public $seeders;
     public $factories;
@@ -218,7 +219,7 @@ class Container
      * Ensure the provided application base path is a directory.
      *
      * @throws MachinjiriException
-     * eption
+     * @exception
      */
     protected function validateBasePath(): void
     {
@@ -245,6 +246,7 @@ class Container
         $this->routing = $root . "public/";
         $this->app = $root . "app/";
         $this->config = $root . "config/";
+        $this->coreConfig = $this->config . "core/";
         $this->unitTesting = $root . "tests/Unit";
         $this->seeders = $this->database . "seeders/";
         $this->factories = $this->database . "factories/";
@@ -289,7 +291,7 @@ class Container
      */
     public function getConfigurations(): array
     {
-        $configDir = $this->config . DIRECTORY_SEPARATOR;
+        $configDir = $this->coreConfig; // Use core config directory for loading configurations
         $appConfig = $configDir . "app.php";
         $databaseConfig = $configDir . "database.php";
         

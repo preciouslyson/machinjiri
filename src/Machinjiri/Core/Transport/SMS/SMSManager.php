@@ -6,6 +6,7 @@ use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
 use Mlangeni\Machinjiri\Core\Exceptions\SMSException;
 use Mlangeni\Machinjiri\Core\Container;
+use Mlangeni\Machinjiri\Core\Transport\SMS\Factory\TransportRegistry;
 use Mlangeni\Machinjiri\Core\Transport\SMS\Message;
 
 class SMSManager
@@ -17,6 +18,7 @@ class SMSManager
     private bool $asyncByDefault = false;
     private Container $app;
     private static array $config;
+    private static TransportRegistry $registry;
 
     public function __construct(
         Container $container,
@@ -41,6 +43,7 @@ class SMSManager
         }
         $dispatcher = $container->resolve('queue.dispatcher');
         self::$config = $config;
+        self::$registry = $registry;
         return new self($container, $transports, $logger, $dispatcher);
     }
 
@@ -56,23 +59,25 @@ class SMSManager
             return $this->dispatchAsync($message);
         }
 
-        $lastException = null;
-        foreach ($this->transports as $index => $transport) {
-            try {
-                $this->logger->info('Attempting send via transport', [
-                    'transport' => get_class($transport),
-                    'index' => $index
-                ]);
-                return $transport->send($message);
-            } catch (SMSException $e) {
-                $lastException = $e;
-                $this->logger->warning('Transport failed, trying next', [
-                    'transport' => get_class($transport),
-                    'error' => $e->getMessage()
-                ]);
-            }
+        $transport = self::$registry->defaultTransport();
+
+        try {
+            $response = $transport->send($message);
+            $this->logger->info('SMS sent successfully', [
+                'to' => $message->getTo(),
+                'transport' => get_class($transport),
+                'response' => $response
+            ]);
+            return $response;
+        } catch (SMSException $e) {
+            $this->logger->error('Failed to send SMS', [
+                'to' => $message->getTo(),
+                'transport' => get_class($transport),
+                'error' => $e->getMessage()
+            ]);
+            return new Response(false, null, $e->getMessage(), ['queued' => false]);
         }
-        throw new SMSException('All transports failed', 0, $lastException);
+
     }
 
     /**

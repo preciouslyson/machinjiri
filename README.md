@@ -1,6 +1,16 @@
 # Machinjiri PHP Framework
 
-Machinjiri is a **flexible, and powerful PHP framework** designed for rapid web development. Built with modern PHP 8.2+ principles, it provides a modular architecture, elegant routing system, comprehensive database abstraction, authentication & authorization, and robust security features. Designed for speed, scalability, and developer experience, Machinjiri empowers developers to build secure, maintainable applications efficiently.
+Machinjiri is a **flexible, powerful PHP framework** designed for rapid web development. Built for PHP 8.3+, it provides a modular architecture, elegant routing system, comprehensive database abstraction, authentication and authorization, and robust security features. Designed for speed, scalability, and developer experience, Machinjiri empowers developers to build secure, maintainable applications efficiently.
+
+Current stable version: `2.2.0`
+
+## What’s New in 2.2.0
+
+- Updated framework support to **PHP 8.3+** with modern dependency requirements
+- Clarified installation flow and local development setup
+- Updated Artisan command references to match implemented commands, including `queue:init`, service provider generators, webhook generators, and server management commands
+- Documented supported services: FTP filesystem adapter, Redis queue support, mail transport via PHPMailer, OAuth, LDAP, JWT, and webhook handling
+- Corrected license wording to **proprietary license** and improved README accuracy
 
 ## Table of Contents
 
@@ -155,27 +165,42 @@ Machinjiri is designed to accelerate web development with:
 
 ## System Requirements
 
-- **PHP**: 8.2 or higher
+- **PHP**: 8.3 or higher
 - **Extensions**:
   - PDO (for database support)
   - cURL (for HTTP client)
   - JSON (for API support)
   - OpenSSL (for encryption)
-    - LDAP (for directory integration)
-- **Composer**: For dependency management
+  - ftp (optional, for FTP filesystem support)
+  - ldap (optional, for LDAP authentication and directory integration)
+- **Composer**: 2.0 or higher
 - **Database**: MySQL 5.7+, PostgreSQL 10+, or SQLite 3+
 
 ## Installation
 
-### Using Global Installer
+### Install with Composer
 
-The easiest way to create a new Machinjiri project is using the global installer:
+Install Machinjiri as a dependency in your project:
 
 ```bash
-composer global require machinjiri/installer
-machinjiri create
+composer require machinjiri/framework
 ```
-We have now introduced an interactive installation process in the installer. Rather than using One line command
+
+### Local development
+
+To run the framework repository locally:
+
+```bash
+git clone https://github.com/mlangeni/machinjiri.git
+cd machinjiri
+composer install
+```
+
+### Recommended setup
+
+- Copy `.env.example` to `.env`
+- Set `APP_KEY`, database, and mail credentials
+- Run `composer test` to verify the installation
 
 ## Quick Start
 
@@ -448,38 +473,41 @@ return [
 **Query Builder:**
 
 ```php
-use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
+use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
 
 // Simple queries
-$users = QueryBuilder::table('users')->get();
-$user = QueryBuilder::table('users')->where('id', 5)->first();
+$users = (new QuerBuilder('users'))->select()->get();
+$user = (new QuerBuilder('users'))
+    ->select()
+    ->where('id', '=', 5)
+    ->first();
 
 // Complex queries
-$result = QueryBuilder::table('users')
+$result = (new QuerBuilder('users'))
     ->select(['id', 'name', 'email'])
-    ->where('active', true)
-    ->where('role', 'admin')
+    ->where('active', '=', true)
+    ->where('role', '=', 'admin')
     ->orderBy('name', 'asc')
     ->limit(10)
     ->get();
 
 // Insert
-QueryBuilder::table('users')->insert([
+(new QuerBuilder('users'))->insert([
     'name' => 'John',
     'email' => 'john@example.com',
 ]);
 
 // Update
-QueryBuilder::table('users')
-    ->where('id', 5)
+(new QuerBuilder('users'))
+    ->where('id', '=', 5)
     ->update(['name' => 'Jane']);
 
 // Delete
-QueryBuilder::table('users')->where('id', 5)->delete();
+(new QuerBuilder('users'))->where('id', '=', 5)->delete();
 
 // Aggregate functions
-$count = QueryBuilder::table('users')->count();
-$max = QueryBuilder::table('posts')->max('views');
+$count = (new QuerBuilder('users'))->select()->count();
+$max = (new QuerBuilder('posts'))->max('views');
 ```
 
 **Migrations:**
@@ -1058,14 +1086,14 @@ public function handle($request, $response)
 ### Database API
 
 ```php
-use Mlangeni\Machinjiri\Core\Database\QueryBuilder;
+use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
 use Mlangeni\Machinjiri\Core\Database\DatabaseConnection;
 
 // Get connection
 $conn = DatabaseConnection::connection('mysql');
 
 // Query builder
-$result = QueryBuilder::table('users')
+$result = (new QuerBuilder('users'))
     ->select(['id', 'name', 'email'])
     ->where('active', true)
     ->whereIn('role', ['admin', 'moderator'])
@@ -1074,29 +1102,29 @@ $result = QueryBuilder::table('users')
     ->get();
 
 // Retrieve single
-$user = QueryBuilder::table('users')->where('id', 5)->first();
+$user = (new QuerBuilder('users'))->where('id', 5)->first();
 
 // Insert
-QueryBuilder::table('users')->insert([
+(new QuerBuilder('users'))->insert([
     'name' => 'John',
     'email' => 'john@example.com',
 ]);
 
 // Update
-QueryBuilder::table('users')
+(new QuerBuilder('users'))
     ->where('id', 5)
     ->update(['name' => 'Jane']);
 
 // Delete
-QueryBuilder::table('users')->where('id', 5)->delete();
+(new QuerBuilder('users'))->where('id', 5)->delete();
 
 // Aggregate
-$count = QueryBuilder::table('users')->count();
-$max = QueryBuilder::table('posts')->max('views');
-$avg = QueryBuilder::table('orders')->avg('amount');
+$count = (new QuerBuilder('users'))->count();
+$max = (new QuerBuilder('posts'))->max('views');
+$avg = (new QuerBuilder('orders'))->select()->avg('amount');
 
 // Exists
-$exists = QueryBuilder::table('users')->where('email', $email)->exists();
+$exists = (new QuerBuilder('users'))->where('email', $email)->exists();
 ```
 
 ## Error Handling
@@ -1135,35 +1163,50 @@ try {
 
 ## Console Commands (Artisan)
 
-Machinjiri includes an Artisan console for common tasks:
+Machinjiri includes an Artisan console for many development workflows. Common commands include:
 
 ```bash
 # Server management
 php artisan server:start              # Start development server
 php artisan server:stop               # Stop development server
+php artisan server:restart           # Restart development server
+php artisan server:status            # Show server status
+php artisan server:logs              # View server logs
 
-# Database
-php artisan migrate                   # Run migrations
-php artisan migrate:rollback          # Rollback migrations
-php artisan migrate:reset             # Reset all migrations
-php artisan db:seed                   # Run seeders
+# Database and migrations
+php artisan db:migration:create      # Create a new migration file
+php artisan db:migration:list        # List available migrations
+php artisan db:migration:migrate     # Run migrations
+php artisan db:migration:rollback    # Roll back the last batch of migrations
+php artisan db:seeder:create         # Create a new seeder
+php artisan db:seeder:run            # Run a seeder
+php artisan db:seeder:run-all        # Run all seeders
+php artisan db:seeder:refresh        # Refresh seeders
+php artisan db:factory:create        # Create a new factory
 
 # Code generation
-php artisan make:controller Name      # Create controller
-php artisan make:middleware Name      # Create middleware
-php artisan make:migration Name       # Create migration
-php artisan make:seeder Name          # Create seeder
-php artisan make:job Name             # Create job
+php artisan make:controller Name     # Create controller
+php artisan make:middleware Name     # Create middleware
+php artisan make:job Name            # Create job
+php artisan make:webhook Name        # Create webhook scaffolding
+php artisan view:make Name           # Create a view template
+php artisan provider:make Name       # Create a service provider
 
-# Job queue
-php artisan queue:work                # Process jobs
-php artisan queue:failed              # List failed jobs
+# Queue and worker management
+php artisan queue:init               # Initialize queue resources
+php artisan queue:work               # Process jobs
+php artisan queue:failed             # List failed jobs
+php artisan queue:retry              # Retry a failed job
+php artisan queue:clear              # Clear queued jobs
+php artisan queue:status             # Show queue status
+php artisan queue:health             # Report queue health
 
 # Utilities
-php artisan key:generate              # Generate application key
-php artisan config:cache              # Cache configuration
-php artisan route:cache               # Cache routes
-php artisan view:cache                # Cache views
+php artisan test                     # Run test suite
+php artisan get:env                  # Display environment variables
+php artisan config:cache             # Cache configuration
+php artisan route:cache              # Cache routes
+php artisan view:cache               # Cache views
 ```
 
 ## Testing
@@ -1255,7 +1298,7 @@ composer cs-fix
 
 ## License
 
-This project is licensed under the **proprietor License** - see the [LICENSE](LICENSE) file for details.
+This project is licensed under a **proprietary license** - see the [LICENSE](LICENSE) file for details.
 
 ## Support
 
@@ -1273,7 +1316,7 @@ This project is licensed under the **proprietor License** - see the [LICENSE](LI
 ## Acknowledgments
 
 - Inspired by Laravel's elegant syntax and structure
-- Built on modern PHP 8.2+ features
+- Built on modern PHP 8.3+ features
 - Community contributions and feedback
 
 ---

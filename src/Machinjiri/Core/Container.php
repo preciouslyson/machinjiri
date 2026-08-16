@@ -356,6 +356,7 @@ class Container
                 "app_key" => $envVars["APP_DEBUG"] ?? '',
                 "app_env" => $envVars["APP_ENV"] ?? '',
                 "app_url" => $envVars["APP_URL"] ?? '',
+                "app_maintenance" => $envVars["APP_MAINTENANCE"] ?? false,
             ];
         }
         
@@ -989,6 +990,13 @@ class Container
     protected static function systemLogger(string $logFile, bool $event = false): Logger 
     {
         return LoggerFactory::system($logFile, "system", $event);
+    }
+
+    public function isDownForMaintenance(): bool 
+    {
+        $configuration = $this->getConfigurations()['app'];
+        $maintenanceMode = $configuration['app_maintenance'] ?? $configuration['maintenance'];
+        return filter_var($maintenanceMode, FILTER_VALIDATE_BOOLEAN);
     }
     
 }

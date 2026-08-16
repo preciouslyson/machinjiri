@@ -310,6 +310,12 @@ class Router
 
     public function instanceDispatch(): void
     {
+        // if app is in maintenance render maintenance page
+        if ($this->container->isDownForMaintenance()) {
+            $this->renderMaintenancePage();
+            return;
+        }
+
         // Method spoofing
         if ($this->httpRequest->getMethod() === 'POST' && $method = $this->httpRequest->getPostParam('_method')) {
             $this->httpRequest->setMethod(strtoupper($method));
@@ -618,5 +624,164 @@ class Router
         // Container::$appBasePath is e.g. /var/www/project/app
         $projectRoot = dirname(Container::$appBasePath);
         return $projectRoot . '/resources/errors/' . $statusCode . '.php';
+    }
+
+    protected function renderMaintenancePage(): void 
+    {
+        $content = <<<'HTML'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>App Maintenance - Under renovation</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: #f9fafc;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.5rem;
+      margin: 0;
+      color: #C4633A;
+      /* subtle animated gradient – fresh & calm */
+      background: linear-gradient(145deg, #f0f4ff 0%, #e9effa 100%);
+    }
+
+    /* main card – glassmorphism + soft shadow */
+    .maintenance-card {
+      max-width: 800px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      padding: 3rem 2.5rem;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 
+                  0 2px 10px 0 rgba(0, 0, 0, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      transition: all 0.2s ease;
+      text-align: center;
+    }
+
+    /* status chip */
+    .status-badge {
+      display: inline-block;
+      background: #2E2C2A;
+      color: #C4633A;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      padding: 0.4rem 1.2rem;
+      border-radius: 40px;
+      margin-bottom: 1.5rem;
+      border: 1px solid #C4633A;
+      backdrop-filter: blur(4px);
+      text-transform: uppercase;
+    }
+
+    .status-badge i {
+      margin-right: 6px;
+      font-size: 0.7rem;
+    }
+
+    /* typography */
+    h1 {
+      font-size: 2.6rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin-bottom: 0.5rem;
+      color: #E68A5E;
+    }
+
+    .subhead {
+      font-size: 1.1rem;
+      color: #C4633A;
+      margin-bottom: 0.5rem;
+      font-weight: 450;
+      max-width: 520px;
+      margin-left: auto;
+      margin-right: auto;
+      line-height: 1.5;
+    }
+
+    .message {
+      font-size: 1rem;
+      color: #C4633A;
+      margin: 1.5rem 0 2rem;
+      background: rgba(255, 255, 255, 0.4);
+      padding: 1rem 1.8rem;
+      border-radius: 60px;
+      display: inline-block;
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      font-weight: 450;
+    }
+
+    .message i {
+      color: #2563eb;
+      margin-right: 8px;
+    }
+
+    /* responsive */
+    @media (max-width: 600px) {
+      .maintenance-card {
+        padding: 2rem 1.5rem;
+        border-radius: 32px;
+      }
+      h1 {
+        font-size: 2.2rem;
+      }
+      .gear-ring {
+        width: 76px;
+        height: 76px;
+        font-size: 2.6rem;
+      }
+      .subhead {
+        font-size: 1rem;
+      }
+      .message {
+        font-size: 0.9rem;
+        padding: 0.8rem 1.2rem;
+      }
+    }
+
+    @media (max-width: 420px) {
+      h1 {
+        font-size: 1.9rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="maintenance-card" role="main" aria-label="App maintenance notice">
+
+    <div class="status-badge">
+      scheduled maintenance
+    </div>
+
+    <h1>App will be back soon</h1>
+    <p class="subhead">
+      Our team is polishing the experience — we're deploying fresh features and a smoother interface.
+    </p>
+
+    <div class="message">
+      Under renovation
+    </div>
+
+  </div>
+</body>
+</html>
+HTML;
+        print $content;
     }
 }

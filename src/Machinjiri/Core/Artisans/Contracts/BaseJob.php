@@ -5,7 +5,7 @@ namespace Mlangeni\Machinjiri\Core\Artisans\Contracts;
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use \SensitiveParameter;  
-use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\{LoggerFactory, Logger};
 use Mlangeni\Machinjiri\Core\Components\UUID\ULID\UlidComponent;
 use Mlangeni\Machinjiri\Core\Security\Encryption\Cipher;
 
@@ -26,6 +26,7 @@ abstract class BaseJob implements JobInterface
     protected array $metadata = [];
     protected bool $compressPayload = false;
     private const KEY = "base-job";
+    protected Logger $logger;
 
     // Cache for decompressed payload
     private ?array $decompressedPayload = null;
@@ -56,6 +57,9 @@ abstract class BaseJob implements JobInterface
                 $this->payload = $this->compressPayload($payload);
             }
         }
+
+        $this->logger = LoggerFactory::system('queue-jobs', 'queue');
+        
     }
 
     private function generateJobId(): string
@@ -279,9 +283,6 @@ abstract class BaseJob implements JobInterface
     
     protected function getLogger(): Logger
     {
-        if ($this->logger === null) {
-            $this->logger = LoggerFactory::system('queue-jobs', 'queue');
-        }
         return $this->logger;
     }
     

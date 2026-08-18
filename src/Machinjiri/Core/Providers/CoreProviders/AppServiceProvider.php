@@ -33,7 +33,7 @@ use Mlangeni\Machinjiri\Core\Security\Encryption\Bangwe;
 use Mlangeni\Machinjiri\Core\Authentication\ThirdParty\ThirdPartyAuth;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Components\Network\Tools\{Manager, Scanner, Monitor, NetworkConfig};
-
+use Mlangeni\Machinjiri\Core\Components\Webhooks\{WebhookSubscriptionManager, WebhookManager};
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -212,27 +212,40 @@ class AppServiceProvider extends ServiceProvider
             return is_file($config) ? require $config : new NetworkConfig();
         });
 
+        // -------------------- Webhook Components --------------------
+        // WebhookSubscriptionManager, and WebhookManager are registered as singletons.
+        $this->singleton(WebhookSubscriptionManager::class, function ($app) {
+            return new WebhookSubscriptionManager($app->configurations['webhooks'] ?? []);
+        });
+
+        $this->singleton(WebhookManager::class, function ($app) {
+            return new WebhookManager($app, $app->resolve(WebhookSubscriptionManager::class), $app->resolve(CacheManager::class));
+        });
+
+
         // -------------------- Aliases for Convenience --------------------
         // Provide shorter names for common services to simplify dependency resolution.
         $this->aliasMany([
-            'request'           => HttpRequest::class,
-            'response'          => HttpResponse::class,
-            'auth.session'      => Session::class,
-            'auth.cookie'       => Cookie::class,
-            'auth.thirdparty'   => ThirdPartyAuth::class,
-            'debugger'          => Debugger::class,
-            'events'            => EventListener::class,
-            'fs.adapter.local'  => LocalAdapter::class,
-            'fs.adapter.ftp'    => FtpAdapter::class,
-            'fs.manager'        => FileSystemManager::class,
-            'cache.manager'     => CacheManager::class,
-            'mail.manager'      => MailManager::class,
-            'sms.manager'       => SMSManager::class,
-            'logger'            => Logger::class,
-            'routing.config'    => RoutingConfig::class,
-            'auth.manager'      => AuthManager::class,
-            'security.hasher'   => Hasher::class,
-            'security.bangwe'   => Bangwe::class,
+            'request'                       => HttpRequest::class,
+            'response'                      => HttpResponse::class,
+            'auth.session'                  => Session::class,
+            'auth.cookie'                   => Cookie::class,
+            'auth.thirdparty'               => ThirdPartyAuth::class,
+            'debugger'                      => Debugger::class,
+            'events'                        => EventListener::class,
+            'fs.adapter.local'              => LocalAdapter::class,
+            'fs.adapter.ftp'                => FtpAdapter::class,
+            'fs.manager'                    => FileSystemManager::class,
+            'cache.manager'                 => CacheManager::class,
+            'mail.manager'                  => MailManager::class,
+            'sms.manager'                   => SMSManager::class,
+            'logger'                        => Logger::class,
+            'routing.config'                => RoutingConfig::class,
+            'auth.manager'                  => AuthManager::class,
+            'security.hasher'               => Hasher::class,
+            'security.bangwe'               => Bangwe::class,
+            'webhook.manager'               => WebhookManager::class,
+            'webhook.subscription.manager'  => WebhookSubscriptionManager::class,
         ]);
     }
 
@@ -264,6 +277,7 @@ class AppServiceProvider extends ServiceProvider
             $this->mergeConfigFrom($configDir . 'logger.php', 'logger');
             $this->mergeConfigFrom($configDir . 'redis.php', 'redis');
             $this->mergeConfigFrom($configDir . 'sms.php', 'sms');
+            $this->mergeConfigFrom($configDir . 'webhooks.php', 'webhooks');
         }
     }
 

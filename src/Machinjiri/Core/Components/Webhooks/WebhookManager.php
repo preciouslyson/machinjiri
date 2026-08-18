@@ -132,7 +132,7 @@ class WebhookManager
             }
         }
         return end($responses);
-    }
+    } 
 
     private function dispatchAsync(WebhookPayload $payload): WebhookResponse
     {

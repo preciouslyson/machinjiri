@@ -11,7 +11,7 @@ class WebhookSubscriptionManager
     {
         $this->config = $config;
     }
-
+ 
     public function registerHandler(WebhookHandlerInterface $handler): void
     {
         $events = (array) $handler->supportsEvent();

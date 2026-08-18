@@ -269,7 +269,7 @@ class {$name} extends BaseServiceProvider
         // Register middleware
         \$this->registerMiddleware([
             // Add your middleware classes here
-            'middleware.name' => 'MiddlewareClass::class',
+            // 'middleware.name' => 'MiddlewareClass::class',
         ]);
         
         // Load routes if any

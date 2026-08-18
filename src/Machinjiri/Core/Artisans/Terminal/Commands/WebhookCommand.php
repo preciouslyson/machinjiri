@@ -10,6 +10,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Mlangeni\Machinjiri\Core\Artisans\Generators\ServiceProviderGenerator;
 use Mlangeni\Machinjiri\Core\Container;
+use Mlangeni\Machinjiri\Core\Exceptions\WebhookException;
 
 /**
  * Console command to generate webhook components.
@@ -48,7 +49,6 @@ class WebhookCommand
                 {
                     $this->addArgument('name', InputArgument::REQUIRED, 'The webhook name (e.g., Stripe, GitHub)');
                     $this->addOption('controller', null, InputOption::VALUE_NONE, 'Generate webhook controller only');
-                    $this->addOption('job', null, InputOption::VALUE_NONE, 'Generate queued job only');
                     $this->addOption('config', null, InputOption::VALUE_NONE, 'Add webhook provider configuration');
                     $this->addOption('handler', null, InputOption::VALUE_NONE, 'Generate an event handler class');
                     $this->addOption('provider', null, InputOption::VALUE_NONE, 'Generate a service provider for webhook registration');
@@ -68,7 +68,6 @@ class WebhookCommand
 
                         $generateAll = $input->getOption('all') || (
                             !$input->getOption('controller') &&
-                            !$input->getOption('job') &&
                             !$input->getOption('config') &&
                             !$input->getOption('handler') &&
                             !$input->getOption('provider')
@@ -83,28 +82,21 @@ class WebhookCommand
                             }
                         }
 
-                        // 2. Generate Job
-                        if ($generateAll || $input->getOption('job')) {
-                            if ($this->generateJob($normalizedName, $io)) {
-                                $created[] = 'Job';
-                            }
-                        }
-
-                        // 3. Update Configuration
+                        // 2. Update Configuration
                         if ($generateAll || $input->getOption('config')) {
                             if ($this->updateConfig($normalizedName, $io)) {
                                 $created[] = 'Configuration';
                             }
                         }
 
-                        // 4. Generate Handler
+                        // 3. Generate Handler
                         if ($generateAll || $input->getOption('handler')) {
                             if ($this->generateHandler($normalizedName, $io)) {
                                 $created[] = 'Handler';
                             }
                         }
 
-                        // 5. Generate Service Provider
+                        // 4. Generate Service Provider
                         if ($generateAll || $input->getOption('provider')) {
                             if ($this->generateServiceProvider($normalizedName, $io)) {
                                 $created[] = 'Service Provider';
@@ -145,25 +137,6 @@ class WebhookCommand
                     return false;
                 }
 
-                private function generateJob(string $name, SymfonyStyle $io): bool
-                {
-                    $jobName = $name . 'WebhookJob';
-                    $jobPath = $this->getJobsPath() . $jobName . '.php';
-
-                    if (file_exists($jobPath)) {
-                        $io->warning("Job {$jobName} already exists. Skipping.");
-                        return false;
-                    }
-
-                    $template = $this->getJobTemplate($name, $jobName);
-                    if ($this->writeFile($jobPath, $template)) {
-                        $io->text("Created job: app/Jobs/{$jobName}.php");
-                        return true;
-                    }
-                    $io->error("Failed to create job: {$jobName}");
-                    return false;
-                }
-
                 private function updateConfig(string $name, SymfonyStyle $io): bool
                 {
                     $configFile = $this->getConfigPath() . 'webhooks.php';
@@ -201,7 +174,7 @@ class WebhookCommand
                     // Write config file with pretty printed array
                     $content = "<?php\n\nreturn [\n" . $this->varExportPretty($config, 1) . "\n];\n";
                     if ($this->writeFile($configFile, $content)) {
-                        $io->text("Updated configuration: config/webhooks.php");
+                        $io->text("Updated configuration: config/core/webhooks.php");
                         $io->text("  - You may want to adjust 'event_resolver' and 'verify' settings for your provider.");
                         return true;
                     }
@@ -262,32 +235,19 @@ class WebhookCommand
                 // File system helpers
                 // -------------------------------------------------------------------------
 
-                private function getBasePath(): string
-                {
-                    if (class_exists(Container::class) && method_exists(Container::class, 'getBasePath')) {
-                        return Container::getBasePath();
-                    }
-                    return getcwd();
-                }
-
                 private function getControllersPath(): string
                 {
-                    return $this->getBasePath() . '/app/Controllers/';
-                }
-
-                private function getJobsPath(): string
-                {
-                    return $this->getBasePath() . '/app/Jobs/';
+                    return $this->artisanContainer()->app . '/Controllers/';
                 }
 
                 private function getConfigPath(): string
                 {
-                    return $this->getBasePath() . '/config/';
+                    return $this->artisanContainer()->coreConfig;
                 }
 
                 private function getWebhookHandlersPath(): string
                 {
-                    return $this->getBasePath() . '/app/Webhooks/Handlers/';
+                    return $this->artisanContainer()->app . '/Webhooks/Handlers/';
                 }
 
                 private function writeFile(string $path, string $content): bool
@@ -388,80 +348,6 @@ class {$className} extends AbstractController
         );
         \$webhookResponse = \$this->webhookManager->process(\$payload);
         return \$webhookResponse->toHttpResponse();
-    }
-}
-PHP;
-                }
-
-                private function getJobTemplate(string $name, string $className): string
-                {
-                    $providerKey = strtolower($name);
-                    return <<<PHP
-<?php
-
-namespace Mlangeni\Machinjiri\App\Jobs;
-
-use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseJob;
-use Mlangeni\Machinjiri\Core\Container;
-use Mlangeni\Machinjiri\Core\Components\Webhooks\WebhookPayload;
-use Mlangeni\Machinjiri\Core\Components\Webhooks\WebhookManager;
-use Mlangeni\Machinjiri\Core\Components\Webhooks\CacheIdempotencyStore;
-use Mlangeni\Machinjiri\Core\Artisans\Caching\CacheManager;
-
-/**
- * Asynchronous job for processing {$name} webhooks.
- */
-class {$className} extends BaseJob
-{
-    private WebhookPayload \$payload;
-
-    public function __construct(Container \$app, WebhookPayload \$payload)
-    {
-        parent::__construct(\$app, \$payload->getParsedData() ?? [], [
-            'name'        => 'webhook.{$providerKey}',
-            'queue'       => 'webhooks',
-            'maxAttempts' => 3,
-            'retryDelay'  => 60,
-            'timeout'     => 120,
-        ]);
-        \$this->payload = \$payload;
-    }
-
-    public function handle(): void
-    {
-        /** @var WebhookManager \$manager */
-        \$manager = \$this->app->resolve(WebhookManager::class);
-        /** @var CacheManager \$cacheManager */
-        \$cacheManager = \$this->app->resolve(CacheManager::class);
-
-        \$idempotencyKey = \$this->payload->getIdempotencyKey();
-        \$cacheKey = "webhook_{\$this->payload->getProvider()}_{\$idempotencyKey}";
-        \$idempotencyStore = new CacheIdempotencyStore(\$cacheManager);
-
-        // Check if already processed (duplicate job)
-        if (\$idempotencyKey && \$idempotencyStore->isDone(\$cacheKey)) {
-            \$this->logger->info('Async webhook already processed, skipping', [
-                'provider' => \$this->payload->getProvider(),
-                'key' => \$idempotencyKey
-            ]);
-            return;
-        }
-
-        // Acquire lock (ensures at-most-one processing across retries)
-        if (\$idempotencyKey && !\$idempotencyStore->lock(\$cacheKey)) {
-            \$this->release(30); // wait and retry
-            return;
-        }
-
-        try {
-            \$manager->dispatchToHandlers(\$this->payload);
-            if (\$idempotencyKey) {
-                \$idempotencyStore->markDone(\$cacheKey);
-            }
-        } catch (\Throwable \$e) {
-            \$this->logger->error('Async webhook failed', ['error' => \$e->getMessage()]);
-            throw \$e;
-        }
     }
 }
 PHP;

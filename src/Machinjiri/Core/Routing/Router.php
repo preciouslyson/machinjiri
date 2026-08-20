@@ -312,7 +312,7 @@ class Router
     {
         // if app is in maintenance render maintenance page
         if ($this->container->isDownForMaintenance()) {
-            $this->renderMaintenancePage();
+            $this->sendError(503, ['message' => 'Service Unavailable']);
             return;
         }
 
@@ -396,23 +396,24 @@ class Router
         }
 
         // Use View class to render error page
+        $body = '';
         try {
             // The error template should be located in $this->config->errorsDir . "/$code.php"
             // It can optionally extend a layout using View::extend()
             $view = View::make("errors.{$code}", array_merge($context, [
                 'request' => $this->httpRequest,
-                'response' => $this->httpResponse,
-                'appName' => env('APP_NAME') ?? 'Machinjiri'
+                'response' => $this->httpResponse
             ]));
             $body = $view->render();
         } catch (\Exception $e) {
             // Fallback if view not found
             $message = $context['message'] ?? 'An error occurred';
-            $body = "<!DOCTYPE html><html><head><title>Error $code</title></head>
-                     <body><h1>Error $code</h1><p>{$message}</p></body></html>";
+            $description = $context['description'] ?? 'An internal error has occurred';
+            $body = $this->buitInErrorPage($code, $message, $description);
         }
 
         $this->httpResponse->setStatusCode($code)->setBody($body)->send();
+        
     }
 
     protected function handleHandlerResult(mixed $result): void
@@ -514,9 +515,6 @@ class Router
 
     protected function getRateLimitMax(string $limiterName): int
     {
-        // This should be configurable; for simplicity return default
-        // In original there is rateLimiter definition method; we'll keep compatibility
-        // For now, you can extend to store definitions in container
         return 60;
     }
 
@@ -609,8 +607,10 @@ class Router
         }
     
         // Fallback in case the error template is missing
-        return "<!DOCTYPE html><html><head><title>Error {$statusCode}</title></head>
-                <body><h1>Error {$statusCode}</h1><p>An unexpected error occurred.</p></body></html>";
+        return $this->buitInErrorPage(
+            $statusCode,
+            $context['message'] ?? 'An error occurred'
+        );
     }
     
     /**
@@ -626,162 +626,161 @@ class Router
         return $projectRoot . '/resources/errors/' . $statusCode . '.php';
     }
 
-    protected function renderMaintenancePage(): void 
+    private function buitInErrorPage(int $code, string $message, ?string $description = null): string
     {
-        $content = <<<'HTML'
+         $appName = ucfirst(env('APP_NAME', 'Machinjiri'));
+         return <<<HTML
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>App Maintenance - Under renovation</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{$appName} - {$code} Error</title>
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      background: #f9fafc;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem 1.5rem;
-      margin: 0;
-      color: #C4633A;
-      /* subtle animated gradient – fresh & calm */
-      background: linear-gradient(145deg, #f0f4ff 0%, #e9effa 100%);
-    }
+        :root {
+            --bg: #f7f9fc;
+            --card-bg: #ffffff;
+            --text-primary: #1a1a2e;
+            --text-muted: #4a4a6a;
+            --border-color: #e2e8f0;
+            --accent: #e68a5e;
+            --accent-hover: #d4794a;
+            --shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.15);
+            --radius: 1.25rem;
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            --code-font: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            --transition: 0.2s ease-in-out;
+        }
 
-    /* main card – glassmorphism + soft shadow */
-    .maintenance-card {
-      max-width: 800px;
-      width: 100%;
-      background: rgba(255, 255, 255, 0.75);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      padding: 3rem 2.5rem;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 
-                  0 2px 10px 0 rgba(0, 0, 0, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.5);
-      transition: all 0.2s ease;
-      text-align: center;
-    }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0f1117;
+                --card-bg: #1a1c23;
+                --text-primary: #edf2f7;
+                --text-muted: #a0aec0;
+                --border-color: #2d3748;
+                --shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.6);
+                --accent: #f09b74;
+                --accent-hover: #e68a5e;
+            }
+        }
 
-    /* status chip */
-    .status-badge {
-      display: inline-block;
-      background: #2E2C2A;
-      color: #C4633A;
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 0.03em;
-      padding: 0.4rem 1.2rem;
-      border-radius: 40px;
-      margin-bottom: 1.5rem;
-      border: 1px solid #C4633A;
-      backdrop-filter: blur(4px);
-      text-transform: uppercase;
-    }
+        body {
+            background: var(--bg);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-family);
+            color: var(--text-primary);
+            padding: 1.5rem;
+            margin: 0;
+            transition: background var(--transition), color var(--transition);
+        }
 
-    .status-badge i {
-      margin-right: 6px;
-      font-size: 0.7rem;
-    }
+        .error-container {
+            background: var(--card-bg);
+            max-width: 600px;
+            width: 100%;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 2.5rem 2.5rem 2rem;
+            transition: background var(--transition), box-shadow var(--transition);
+            border: 1px solid var(--border-color);
+        }
 
-    /* typography */
-    h1 {
-      font-size: 2.6rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      line-height: 1.2;
-      margin-bottom: 0.5rem;
-      color: #E68A5E;
-    }
+        .error-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 0.75rem 1rem;
+            margin-bottom: 1.5rem;
+        }
 
-    .subhead {
-      font-size: 1.1rem;
-      color: #C4633A;
-      margin-bottom: 0.5rem;
-      font-weight: 450;
-      max-width: 520px;
-      margin-left: auto;
-      margin-right: auto;
-      line-height: 1.5;
-    }
+        .error-code {
+            font-size: 4rem;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--accent);
+            letter-spacing: -0.04em;
+            font-family: var(--code-font);
+        }
 
-    .message {
-      font-size: 1rem;
-      color: #C4633A;
-      margin: 1.5rem 0 2rem;
-      background: rgba(255, 255, 255, 0.4);
-      padding: 1rem 1.8rem;
-      border-radius: 60px;
-      display: inline-block;
-      backdrop-filter: blur(4px);
-      border: 1px solid rgba(255, 255, 255, 0.6);
-      font-weight: 450;
-    }
+        .app-name {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            background: var(--bg);
+            padding: 0.4rem 1rem;
+            border-radius: 2rem;
+            border: 1px solid var(--border-color);
+            white-space: nowrap;
+        }
 
-    .message i {
-      color: #2563eb;
-      margin-right: 8px;
-    }
+        .error-message {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0.25rem 0 0.75rem 0;
+            color: var(--text-primary);
+        }
 
-    /* responsive */
-    @media (max-width: 600px) {
-      .maintenance-card {
-        padding: 2rem 1.5rem;
-        border-radius: 32px;
-      }
-      h1 {
-        font-size: 2.2rem;
-      }
-      .gear-ring {
-        width: 76px;
-        height: 76px;
-        font-size: 2.6rem;
-      }
-      .subhead {
-        font-size: 1rem;
-      }
-      .message {
-        font-size: 0.9rem;
-        padding: 0.8rem 1.2rem;
-      }
-    }
+        .error-description {
+            font-size: 1rem;
+            line-height: 1.6;
+            color: var(--text-muted);
+            margin: 0 0 2rem 0;
+            padding: 1rem 0 0 0;
+            border-top: 1px solid var(--border-color);
+        }
 
-    @media (max-width: 420px) {
-      h1 {
-        font-size: 1.9rem;
-      }
-    }
-  </style>
+        /* ----- Responsive ----- */
+        @media (max-width: 480px) {
+            .error-container {
+                padding: 1.75rem 1.25rem 1.5rem;
+            }
+
+            .error-code {
+                font-size: 3rem;
+            }
+
+            .error-message {
+                font-size: 1.25rem;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+            }
+        }
+    </style>
 </head>
 <body>
+    <div class="error-container" role="alert" aria-live="assertive">
+        <div class="error-header">
+            <span class="error-code">{$code}</span>
+            <span class="app-name">{$appName}</span>
+        </div>
 
-  <div class="maintenance-card" role="main" aria-label="App maintenance notice">
+        <h1 class="error-message">{$message}</h1>
+        <p class="error-description">{$description}</p>
 
-    <div class="status-badge">
-      scheduled maintenance
     </div>
-
-    <h1>App will be back soon</h1>
-    <p class="subhead">
-      Our team is polishing the experience — we're deploying fresh features and a smoother interface.
-    </p>
-
-    <div class="message">
-      Under renovation
-    </div>
-
-  </div>
 </body>
 </html>
 HTML;
-        print $content;
     }
+
 }

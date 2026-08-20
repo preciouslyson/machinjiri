@@ -995,7 +995,7 @@ class Container
     public function isDownForMaintenance(): bool 
     {
         $configuration = $this->getConfigurations()['app'];
-        $maintenanceMode = $configuration['app_maintenance'] ?? $configuration['maintenance'];
+        $maintenanceMode = $configuration['app_maintenance'] ?? $configuration['maintenance'] ?? false;
         return filter_var($maintenanceMode, FILTER_VALIDATE_BOOLEAN);
     }
     

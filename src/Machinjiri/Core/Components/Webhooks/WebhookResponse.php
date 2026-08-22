@@ -2,6 +2,8 @@
 
 namespace Mlangeni\Machinjiri\Core\Components\Webhooks;
 
+use Mlangeni\Machinjiri\Core\Http\HttpResponse;
+
 class WebhookResponse
 {
     private int $statusCode;
@@ -44,7 +46,7 @@ class WebhookResponse
     public function getHeaders(): array { return $this->headers; }
     public function getBody(): ?array { return $this->body; }
 
-    public function toHttpResponse(): \Mlangeni\Machinjiri\Core\Http\HttpResponse
+    public function toHttpResponse(): HttpResponse
     {
         $httpResponse = new \Mlangeni\Machinjiri\Core\Http\HttpResponse();
         $httpResponse->setStatusCode($this->statusCode);
@@ -56,4 +58,13 @@ class WebhookResponse
         }
         return $httpResponse;
     }
+
+    public function toJson(): string 
+    {
+        return json_encode(array_merge([
+            'status' => $this->getStatusCode(),
+            'statusText' => (new HttpResponse())->statusTexts[$this->getStatusCode()],
+        ], $this->getBody() ?? []));
+    }
+    
 }

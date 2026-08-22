@@ -19,8 +19,7 @@ class CacheIdempotencyStore implements IdempotencyStore
     {
         $store = $this->cache->store();
         $lockKey = $this->prefix . $key . ':lock';
-        // Use add() which only sets if not exists (atomic)
-        return $store->add($lockKey, true, $ttl);
+        return $store->set($lockKey, true, $ttl);
     }
 
     public function markDone(string $key): void

@@ -279,6 +279,9 @@ class AppServiceProvider extends ServiceProvider
             $this->mergeConfigFrom($configDir . 'sms.php', 'sms');
             $this->mergeConfigFrom($configDir . 'webhooks.php', 'webhooks');
         }
+
+        $wsm = $this->app->resolve(WebhookSubscriptionManager::class);
+        $wsm->registerWebhookHandlers();
     }
 
     /**

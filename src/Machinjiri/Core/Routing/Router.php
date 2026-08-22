@@ -629,7 +629,7 @@ class Router
         return $projectRoot . '/resources/errors/' . $statusCode . '.php';
     }
 
-    private function buitInErrorPage(int $code, string $message, ?string $description = null): string
+    public function buitInErrorPage(int $code, string $message, ?string $description = null): string
     {
          $appName = ucfirst(env('APP_NAME', 'Machinjiri'));
          return <<<HTML

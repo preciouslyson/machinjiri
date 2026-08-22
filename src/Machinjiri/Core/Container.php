@@ -124,7 +124,7 @@ class Container
     {
         // Normalize and store the base path for later use.
         self::$appBasePath = rtrim($appBasePath, DIRECTORY_SEPARATOR);
-        
+
         $this->appEnvironment = $appEnvironment;
 
         // Prepare an event listener with a dedicated logger for event-related messages

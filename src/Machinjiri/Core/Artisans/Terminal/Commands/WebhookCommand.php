@@ -111,7 +111,8 @@ class WebhookCommand
                         $io->success('Webhook components generated: ' . implode(', ', $created));
                         $io->note("Don't forget to:");
                         $io->text(" - Register the handler in your service provider (if not done automatically)");
-                        $io->text(" - Add the route: \$router->post('/webhook/{$normalizedName}', [{$normalizedName}WebhookController::class, 'handle'])");
+                        $route = strtolower($normalizedName);
+                        $io->text(" - Add the route: \$router->post('/webhook/{$route}', [{$normalizedName}WebhookController::class, 'handle'])");
                         $io->text(" - Set the webhook secret in your .env file (e.g., {$normalizedName}_WEBHOOK_SECRET)");
 
                         return Command::SUCCESS;
@@ -154,12 +155,14 @@ class WebhookCommand
                         return false;
                     }
 
-                    // Build new provider configuration with improved defaults
+                    // Build new provider configuration
                     $newProvider = [
                         'secret' => '${' . strtoupper($name) . '_WEBHOOK_SECRET}',
-                        'async'  => true,
-                        'handler_failure_mode' => 'stop',   // 'stop' or 'continue'
+                        'async'  => false, // for async processing
                         'event_resolver' => ['type' => 'type'], // dot notation in JSON body
+                        'handler' => "Mlangeni\\Machinjiri\\App\\Webhooks\\Handlers\\" . ucfirst($name) . "WebhookHandler",
+                        'handler_failure_mode' => 'stop',   // 'stop' or 'continue'
+                        'verify_signature' => true, // whether to verify signature or not
                         'verify' => [
                             'type'   => 'hmac',           // or 'hmac_timestamp' for Stripe-like
                             'header' => 'X-Signature',
@@ -299,10 +302,7 @@ class WebhookCommand
                     return (string) $value;
                 }
 
-                // -------------------------------------------------------------------------
-                // Updated Templates
-                // -------------------------------------------------------------------------
-
+                
                 private function getControllerTemplate(string $name, string $className): string
                 {
                     $providerKey = strtolower($name);
@@ -326,18 +326,15 @@ class {$className} extends AbstractController
     private WebhookManager \$webhookManager;
     private WebhookSubscriptionManager \$subscriptionManager;
 
-    public function __construct(
-        WebhookManager \$webhookManager,
-        WebhookSubscriptionManager \$subscriptionManager
-    ) {
-        \$this->webhookManager = \$webhookManager;
-        \$this->subscriptionManager = \$subscriptionManager;
+    public function __construct() {
+        \$this->webhookManager = resolve(WebhookManager::class);
+        \$this->subscriptionManager = resolve(WebhookSubscriptionManager::class);
     }
 
     /**
      * Handle incoming {$name} webhook requests.
      */
-    public function handle(HttpRequest \$request, HttpResponse \$response): HttpResponse
+    public function handle(HttpRequest \$request, HttpResponse \$response): string|HttpResponse
     {
         \$providerConfig = \$this->subscriptionManager->getEventResolver('{$providerKey}');
         \$payload = WebhookPayload::fromHttpRequest(
@@ -347,7 +344,7 @@ class {$className} extends AbstractController
             \$providerConfig
         );
         \$webhookResponse = \$this->webhookManager->process(\$payload);
-        return \$webhookResponse->toHttpResponse();
+        return \$webhookResponse->toJson();
     }
 }
 PHP;
@@ -367,10 +364,6 @@ use Mlangeni\Machinjiri\Core\Components\Webhooks\WebhookResponse;
 
 /**
  * Handler for {$name} webhook events.
- *
- * Register this handler in your service provider:
- *   \$manager = \$app->resolve(WebhookSubscriptionManager::class);
- *   \$manager->registerHandler(new {$className}());
  */
 class {$className} implements WebhookHandlerInterface
 {

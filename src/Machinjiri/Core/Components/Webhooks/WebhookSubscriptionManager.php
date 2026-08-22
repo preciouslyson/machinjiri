@@ -2,10 +2,12 @@
 
 namespace Mlangeni\Machinjiri\Core\Components\Webhooks;
 
+use Mlangeni\Machinjiri\Core\Exceptions\WebhookException;
+
 class WebhookSubscriptionManager
 {
     private array $config;
-    private array $handlers = [];
+    public array $handlers = [];
 
     public function __construct(array $config = [])
     {
@@ -16,6 +18,7 @@ class WebhookSubscriptionManager
     {
         $events = (array) $handler->supportsEvent();
         foreach ($events as $event) {
+            if (isset($this->handlers[$event]) && in_array($handler, $this->handlers[$event])) continue;
             $this->handlers[$event][] = $handler;
         }
     }
@@ -67,6 +70,14 @@ class WebhookSubscriptionManager
     }
 
     /**
+     * Get verify signature.
+     */
+    public function mustVerifySignature(string $provider): bool
+    {
+        return $this->config['providers'][$provider]['verify_signature'] ?? true;
+    }
+
+    /**
      * Validate provider configuration (optional).
      */
     public function validateProviderConfig(string $provider): void
@@ -75,9 +86,45 @@ class WebhookSubscriptionManager
             throw new \InvalidArgumentException("Provider [{$provider}] not configured.");
         }
         $cfg = $this->config['providers'][$provider];
-        if (empty($cfg['secret'])) {
-            throw new \InvalidArgumentException("Missing secret for provider [{$provider}].");
+        $keys = ['secret', 'async', 'handler_failure_mode', 'verify_signature', 'handler', 'verify'];
+        foreach ($keys as $key) {
+            $this->validateProvider($cfg, $key, $provider);
+            if ($key == 'verify') {
+                $this->validateProviderVerificationCfg($cfg['verify']);
+            }
         }
-        // further checks if needed
+        
+    }
+
+    private function validateProviderVerificationCfg(array $cfg): void 
+    {
+        $keys = ['type', 'header', 'algo','prefix'];
+        foreach ($keys as $key) {
+            if (empty($cfg[$key])) {
+                throw new \InvalidArgumentException("Missing {$key} for provider [{$provider}] verification.");
+            }
+        }
+    }
+
+    private function validateProvider(array $cfg, string $key, $provider): void 
+    {
+        if (empty($cfg[$key])) {
+            throw new \InvalidArgumentException("Missing {$key} for provider [{$provider}].");
+        }
+    }
+
+    public function registerWebhookHandlers(): void
+    {
+        $providers = $this->config['providers'] ?? false;
+        if (!$providers) {
+            return;
+        }
+        foreach ($providers as $provider => $providerConfig) {
+            $handler = $providerConfig['handler'] ?? false;
+            if (!$handler || !class_exists($handler)) {
+                continue;
+            }
+            $this->registerHandler(new $handler);
+        }
     }
 }

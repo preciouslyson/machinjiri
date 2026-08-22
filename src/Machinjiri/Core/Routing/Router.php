@@ -432,6 +432,9 @@ class Router
             $this->httpResponse->setBody($result);
         } elseif ($result === null) {
             $this->httpResponse->setStatusCode(204);
+            $this->httpResponse->setBody(
+                $this->buitInErrorPage(204, "No Content", "There was no content returned from your request")
+            );
         } else {
             throw new MachinjiriException(
                 'Returning an array or object in a traditional (non‑AJAX) route is not allowed. ' .

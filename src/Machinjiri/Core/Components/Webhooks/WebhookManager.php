@@ -48,23 +48,23 @@ class WebhookManager
 
         // 2. Idempotency check – already completed?
         $cacheKey = $this->getIdempotencyCacheKey($provider, $idempotencyKey);
-        if ($idempotencyKey && $this->idempotencyStore->isDone($cacheKey)) {
-            $this->logger->info('Duplicate webhook (already processed) ignored', [
-                'provider' => $provider,
-                'key' => $idempotencyKey,
-                'event' => $eventType
-            ]);
-            return WebhookResponse::accepted();
-        }
+        // if ($idempotencyKey && $this->idempotencyStore->isDone($cacheKey)) {
+        //     $this->logger->info('Duplicate webhook (already processed) ignored', [
+        //         'provider' => $provider,
+        //         'key' => $idempotencyKey,
+        //         'event' => $eventType
+        //     ]);
+        //     return WebhookResponse::accepted();
+        // }
 
-        // 3. Try to acquire lock for this key (prevents concurrent processing)
-        if ($idempotencyKey && !$this->idempotencyStore->lock($cacheKey)) {
-            $this->logger->info('Webhook currently being processed by another request', [
-                'provider' => $provider,
-                'key' => $idempotencyKey
-            ]);
-            return WebhookResponse::accepted();
-        }
+        // // 3. Try to acquire lock for this key (prevents concurrent processing)
+        // if ($idempotencyKey && !$this->idempotencyStore->lock($cacheKey)) {
+        //     $this->logger->info('Webhook currently being processed by another request', [
+        //         'provider' => $provider,
+        //         'key' => $idempotencyKey
+        //     ]);
+        //     return WebhookResponse::accepted();
+        // }
 
         // 4. Decide sync vs async
         $async = $this->subscriptionManager->isAsync($provider);
@@ -88,6 +88,7 @@ class WebhookManager
     public function dispatchToHandlers(WebhookPayload $payload): WebhookResponse
     {
         $handlers = $this->subscriptionManager->getHandlersForEvent($payload->getEventType());
+        
         if (empty($handlers)) {
             $this->logger->warning('No handler for webhook event', [
                 'event' => $payload->getEventType(),
@@ -160,6 +161,10 @@ class WebhookManager
         $secret = $this->subscriptionManager->getSecretForProvider($provider);
         if (!$secret) {
             throw WebhookException::missingSecret($provider);
+        }
+
+        if (!$this->subscriptionManager->mustVerifySignature($provider)) {
+            return;
         }
 
         $method = $this->subscriptionManager->getVerificationMethod($provider);

@@ -9,7 +9,7 @@ class HttpResponse {
     private $headers = [];
     private $body = '';
     private $sent = false;
-    private $statusTexts = [
+    public $statusTexts = [
         100 => 'Continue',
         101 => 'Switching Protocols',
         200 => 'OK',

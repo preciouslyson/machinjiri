@@ -4,7 +4,7 @@ namespace Mlangeni\Machinjiri\Core\Artisans\Logging;
 
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-use Mlangeni\Machinjiri\Core\FileSystem\Filesystem;
+use Mlangeni\Machinjiri\Core\FileSystem\FileSystem;
 use Mlangeni\Machinjiri\Core\FileSystem\Adapters\LocalAdapter;
 
 class Logger
@@ -42,7 +42,7 @@ class Logger
 
         $root = self::getLogsRoot();
         $adapter = new LocalAdapter($root);
-        $this->filesystem = new Filesystem($adapter);
+        $this->filesystem = new FileSystem($adapter);
 
         // 5. Optionally include backtrace for DEBUG level
         $this->includeBacktrace = ($this->minLevel === self::DEBUG);

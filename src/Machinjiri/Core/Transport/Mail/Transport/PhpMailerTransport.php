@@ -58,7 +58,7 @@ class PhpMailerTransport implements MailerInterface
             $this->config['from_email'],
             $this->config['from_name'] ?? ''
         );
-        $this->mailer->SMTPDebug = $this->config['debug'];
+        $this->mailer->SMTPDebug = $this->config['debug'] ?? false;
     }
 
     public function send(MailMessage $message): MailResponse

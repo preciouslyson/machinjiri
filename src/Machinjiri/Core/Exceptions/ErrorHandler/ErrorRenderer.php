@@ -158,7 +158,7 @@ class ErrorRenderer
         
         $snippet = '<div class="code-snippet">';
         $snippet .= '<div class="code-header">';
-        $snippet .= '<span><i class="fas fa-code"></i> Code around line ' . $errorLine . '</span>';
+        $snippet .= '<span>Code around line ' . $errorLine . '</span>';
         $snippet .= '<button class="copy-btn" onclick="copyCodeSnippet()"><i class="far fa-copy"></i> Copy</button>';
         $snippet .= '</div>';
         $snippet .= '<div class="code-wrapper">';
@@ -426,13 +426,13 @@ class ErrorRenderer
         $showTrace = self::$detailLevel >= 1;
         $showEnvironment = self::$detailLevel >= 2;
         
-        $appName = getenv("APP_NAME") ?? "Machinjiri";
+        $appName = ucfirst(getenv("APP_NAME") ?? "Machinjiri");
         $appVersion = getenv("APP_VERSION") ?? "1.0.0";
         $environment = getenv("APP_ENV") ?? "development";
 
         $primaryColor = '#E68A5E';
         $primaryDark = '#C4633A';
-        $bgColor = '#f7f9fc';
+        $bgColor = '#dedede';
         $cardBg = '#fefefe';
         $textColor = '#2E2C2A';
         $subtleBorder = '#e2e8f0';
@@ -446,7 +446,6 @@ class ErrorRenderer
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{$appName} - Error/Exception</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
             --primary: {$primaryColor};
@@ -463,6 +462,60 @@ class ErrorRenderer
             --radius: 1.25rem;
             --radius-sm: 0.165rem;
             --transition: all 0.2s ease;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #2A2622;
+                --card-bg: #3A3530DD;
+                --text: #F0E6DC;
+                --text-light: #CBBBA8;
+                --border: #5B4F42;
+            }
+
+            body.dark-mode .error-message { background: #3E332A; }
+            body.dark-mode .error-location { background: #3E3530; }
+            body.dark-mode .preformatted { background: #3A332C; }
+            body.dark-mode .btn-secondary { background: #4A4038; color: #F0DCC0; border-color: #6B5A4A; }
+
+            .app-info .environment {
+                background: var(--bg) !important;
+                border-color: var(--border) !important;
+            }
+
+            .error-badge {
+                background: var(--bg) !important;
+                border-color: var(--border) !important;
+                color: var(--primary-dark) !important;
+            }
+
+            .error-message {
+                background: var(--bg) !important;
+            }
+            
+            .error-message h3 {
+                color: var(--primary-dark);
+            }
+            
+            .error-location {
+                background: var(--bg) !important;
+                color: var(--text) !important;
+            }
+
+            .trace-item {
+                background: var(--bg) !important;
+            }
+            
+            .trace-location {
+                color: var(--text) !important;
+                font-family: monospace;
+                font-size: 0.8rem;
+                margin-bottom: 0.3rem;
+            }
+            
+            .trace-file {
+                color: var(--text-light);
+            }
         }
         
         * {
@@ -585,7 +638,7 @@ class ErrorRenderer
         }
         
         .error-location {
-            background: #f1f1f1;
+            background: var(--bg);
             padding: 0.8rem 1rem;
             border-radius: var(--radius-sm);
             font-family: 'SF Mono', 'Fira Code', monospace;
@@ -600,6 +653,7 @@ class ErrorRenderer
         .code-snippet {
             background: #2D2A27;
             border-radius: var(--radius-sm);
+            border: 1px solid var(--primary);
             overflow: hidden;
             margin-bottom: 1.5rem;
             color: #F5E6D3;
@@ -651,6 +705,7 @@ class ErrorRenderer
         .trace-item {
             background: #FEF9F4;
             border: 1px solid var(--border);
+            border-left: 4px solid var(--primary);
             border-radius: var(--radius-sm);
             padding: 1rem;
             margin-bottom: 0.8rem;
@@ -752,46 +807,6 @@ class ErrorRenderer
             border: 1px solid var(--border);
         }
         
-        .actions {
-            display: flex;
-            gap: 0.8rem;
-            margin-top: 1.5rem;
-            flex-wrap: wrap;
-        }
-        
-        .btn {
-            padding: 0.6rem 1.2rem;
-            border: none;
-            font-weight: 500;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            transition: var(--transition);
-            font-size: 0.85rem;
-        }
-        
-        .btn-primary {
-            background: var(--primary);
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            background: var(--primary-dark);
-            transform: translateY(-2px);
-        }
-        
-        .btn-secondary {
-            background: #FFF3E6;
-            color: var(--primary-dark);
-            border: 1px solid #FFE2CC;
-        }
-        
-        .btn-secondary:hover {
-            background: #FDE5D4;
-            transform: translateY(-2px);
-        }
-        
         .copy-btn {
             background: var(--info);
             color: white;
@@ -848,18 +863,6 @@ class ErrorRenderer
                 width: 100%;
             }
         }
-        
-        body.dark-mode {
-            --bg: #2A2622;
-            --card-bg: #3A3530DD;
-            --text: #F0E6DC;
-            --text-light: #CBBBA8;
-            --border: #5B4F42;
-        }
-        body.dark-mode .error-message { background: #3E332A; }
-        body.dark-mode .error-location { background: #3E3530; }
-        body.dark-mode .preformatted { background: #3A332C; }
-        body.dark-mode .btn-secondary { background: #4A4038; color: #F0DCC0; border-color: #6B5A4A; }
     </style>
 </head>
 <body>
@@ -868,7 +871,7 @@ class ErrorRenderer
             <div class="app-info">
                 <h1>{$appName} <span style="font-size:0.8rem;">v{$appVersion}</span></h1>
                 <div>
-                    <span class="environment">{$environment}</span>
+                    <span class="environment"><b>{$environment}</b></span>
                     <span class="environment" style="background: #FDE8E8; color: var(--danger);">Error #{$errorCode}</span>
                 </div>
             </div>
@@ -986,22 +989,7 @@ HTML;
         }
 
         echo <<<HTML
-                <div>
-                    <div class="actions">
-                        <button class="btn btn-primary" onclick="copyErrorDetails()">
-                            <i class="far fa-copy"></i> Copy Error
-                        </button>
-                        <button class="btn btn-secondary" onclick="reloadPage()">
-                            <i class="fas fa-redo"></i> Reload
-                        </button>
-                        <button class="btn btn-secondary" onclick="goHome()">
-                            <i class="fas fa-home"></i> Home
-                        </button>
-                        <button class="btn btn-secondary" onclick="toggleDarkMode()">
-                            <i class="fas fa-moon"></i> Dark
-                        </button>
-                    </div>
-                </div>
+                
             </div>
             
             <div class="sidebar">
@@ -1073,17 +1061,6 @@ HTML;
             event.target.classList.add('active');
         }
         
-        function switchDebugTab(tabId) {
-            document.querySelectorAll('#debug-request, #debug-session, #debug-environment, #debug-routes').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            document.querySelectorAll('.tab-button').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.getElementById(tabId).classList.add('active');
-            event.target.classList.add('active');
-        }
-        
         function toggleExpand(elementId) {
             const element = document.getElementById(elementId);
             const button = event.target;
@@ -1099,28 +1076,8 @@ HTML;
         function copyErrorDetails() {
             const details = `Error: {$errorMessage}\\nFile: {$errorFile}\\nLine: {$errorLine}\\nCode: {$errorCode}\\nClass: {$errorClass}\\nTime: {$context['timestamp']}\\nURL: {$_SERVER['REQUEST_URI']}\\nIP: {$_SERVER['REMOTE_ADDR']}`;
             navigator.clipboard.writeText(details).then(() => {
-                alert('📋 Error details copied!');
+                alert('Error details copied!');
             });
-        }
-        
-        function reloadPage() { window.location.reload(); }
-        function goHome() { window.location.href = '/'; }
-        
-        function toggleDarkMode() {
-            document.body.classList.toggle('dark-mode');
-        }
-        
-        function clearCache() {
-            if (confirm('Clear cache? Might log you out.')) {
-                fetch('/api/clear-cache', { method: 'POST' }).catch(() => alert('Cache clear endpoint not configured.'));
-            }
-        }
-        
-        function runDiagnostics() {
-            fetch('/api/diagnostics')
-                .then(res => res.json())
-                .then(data => alert('Diagnostics complete. Check console.'))
-                .catch(() => alert('Diagnostics not available.'));
         }
         
         // Highlight error line in code

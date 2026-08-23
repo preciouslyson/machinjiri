@@ -41,7 +41,7 @@ class ServiceProviderCommand
                 protected function configure(): void
                 {
                     $this->addArgument('service', InputArgument::REQUIRED, 'The Service Provider name');
-                    $this->addOption('deferred', null, InputOption::VALUE_OPTIONAL, 'Set Service Provider as Deferred');
+                    $this->addOption('deferred', null, InputOption::VALUE_NONE, 'Set Service Provider as Deferred');
                     $this->addOption('no-config', null, InputOption::VALUE_NONE, 'Do not create configuration file');
                     $this->addOption('stub', null, InputOption::VALUE_OPTIONAL, 'Use custom stub template');
                     $this->addOption('bind', null, InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY, 'Add bindings (format: abstract=concrete)');

@@ -34,7 +34,7 @@ class MiddlewareDispatcher implements MiddlewareDispatcherInterface
 
     protected function resolveMiddleware(string $name): callable
     {
-        $class = "Mlangeni\\Machinjiri\\App\\Middleware\\{$name}";
+        $class = "App\\Middleware\\{$name}";
         if (!class_exists($class)) {
             throw new MachinjiriException("Middleware class '{$class}' not found");
         }

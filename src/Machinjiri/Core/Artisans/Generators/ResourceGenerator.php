@@ -36,7 +36,7 @@ class ResourceGenerator
      */
     private function createModel(string $className): bool
     {
-        $namespace = 'Mlangeni\\Machinjiri\\App\\Models';
+        $namespace = 'App\\Models';
         $filePath = $this->basePath . 'Models/' . $className . '.php';
     
         $template = <<<EOT
@@ -153,7 +153,7 @@ EOT;
      */
     private function createMiddleware(string $className): bool
     {
-        $namespace = 'Mlangeni\\Machinjiri\\App\\Middleware';
+        $namespace = 'App\\Middleware';
         $filePath = $this->basePath . 'Middleware/' . $className . '.php';
         
         $template = <<<EOT
@@ -210,7 +210,7 @@ EOT;
      */
     private function createController(string $className): bool
     {
-        $namespace = 'Mlangeni\\Machinjiri\\App\\Controllers';
+        $namespace = 'App\\Controllers';
         $filePath = $this->basePath . 'Controllers/' . $className . '.php';
         
         $template = <<<EOT

@@ -71,7 +71,7 @@ class TaskSchedulerServiceProvider extends ServiceProvider
                 return new DatabaseScheduleRepository($app);
             default:
                 // Try loading a custom repository
-                $repository = "\\Mlangeni\\Machinjiri\\App\\Tasks\\Repositories\\" . ucfirst($driver) . "ScheduleRepository";
+                $repository = "\\App\\Tasks\\Repositories\\" . ucfirst($driver) . "ScheduleRepository";
                 if (class_exists($repository)) {
                     return new $repository($app);
                 }
@@ -86,7 +86,7 @@ class TaskSchedulerServiceProvider extends ServiceProvider
         // Validate driver
         $driver = $config['default'] ?? 'database';
         $validDrivers = ['database', 'redis', 'file'];
-        if (!in_array($driver, $validDrivers) && !class_exists("\\Mlangeni\\Machinjiri\\App\\Tasks\\Repositories\\" . ucfirst($driver) . "ScheduleRepository")) {
+        if (!in_array($driver, $validDrivers) && !class_exists("\App\\Tasks\\Repositories\\" . ucfirst($driver) . "ScheduleRepository")) {
             throw TaskSchedulerException::repositoryError(
                 "Invalid task driver: {$driver}. Supported: " . implode(', ', $validDrivers)
             );

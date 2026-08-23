@@ -2,15 +2,17 @@
 
 Machinjiri is a **flexible, powerful PHP framework** designed for rapid web development. Built for PHP 8.3+, it provides a modular architecture, elegant routing system, comprehensive database abstraction, authentication and authorization, and robust security features. Designed for speed, scalability, and developer experience, Machinjiri empowers developers to build secure, maintainable applications efficiently.
 
-Current stable version: `2.2.0`
+Current stable version: `2.2.1`
 
-## What’s New in 2.2.0
+## What’s New in 2.2.1
 
-- Updated framework support to **PHP 8.3+** with modern dependency requirements
-- Clarified installation flow and local development setup
-- Updated Artisan command references to match implemented commands, including `queue:init`, service provider generators, webhook generators, and server management commands
-- Documented supported services: FTP filesystem adapter, Redis queue support, mail transport via PHPMailer, OAuth, LDAP, JWT, and webhook handling
-- Corrected license wording to **proprietary license** and improved README accuracy
+- Added a persistent task scheduler with cron expressions, queued execution, overlap locks, task groups, priorities, retries, caching, and health checks
+- Added scheduler Artisan commands for creating, listing, running, enabling, disabling, and inspecting scheduled tasks
+- Improved webhook processing with provider subscriptions, configurable synchronous or asynchronous handling, signature verification, response handling, and idempotency support
+- Reworked exception handling into separate context, logging, reporting, rendering, and throttling services
+- Added configurable SMS transports with synchronous delivery and queue-backed asynchronous delivery
+- Updated core routing, middleware resolution, service-provider loading, generators, and mail integration
+- Updated framework support to **PHP 8.3+** and package version `2.2.1`
 
 ## Table of Contents
 
@@ -30,6 +32,9 @@ Current stable version: `2.2.0`
   - [Service Providers](#service-providers)
   - [Mail System](#mail-system)
   - [Queues & Jobs](#queues--jobs)
+    - [Task Scheduler](#task-scheduler)
+    - [Webhooks](#webhooks)
+    - [SMS](#sms)
 - [Usage Examples](#usage-examples)
 - [Configuration](#-configuration)
 - [API Reference](#-api-reference)
@@ -50,6 +55,9 @@ Machinjiri is designed to accelerate web development with:
 - **Built-in authentication** with OAuth, sessions, and cookies
 - **Advanced security** with encryption, hashing, CSRF tokens, and SQL injection prevention
 - **Job queues** for background processing
+- **Task scheduling** with cron expressions and persistent execution history
+- **Webhook handling** with signature verification and synchronous or queued dispatch
+- **SMS transport** with configurable providers and asynchronous delivery
 - **Comprehensive logging** and error handling
 
 ## Features
@@ -124,6 +132,30 @@ Machinjiri is designed to accelerate web development with:
 - **Workers**: Process jobs with configurable retry logic
 - **Event System**: Event listeners and viewers for queue events
 - **Artisan Commands**: Generate jobs and manage queue processing
+
+### Task Scheduler
+
+- **Persistent schedules**: Store scheduled tasks and execution history through the database repository
+- **Cron expressions**: Define when tasks run using standard cron syntax
+- **Queued execution**: Dispatch due tasks to the scheduler queue
+- **Overlap protection**: Lock tasks to prevent concurrent execution
+- **Task management**: Register, sync, enable, disable, run, and delete tasks
+- **Operational controls**: Group and prioritize tasks, configure retries, cache schedule data, and inspect scheduler health
+
+### Webhooks
+
+- **Provider subscriptions**: Register event handlers and provider-specific behavior
+- **Signature verification**: Support HMAC, timestamped HMAC, and custom verification callbacks
+- **Synchronous or asynchronous processing**: Route providers to immediate handling or the `webhooks` queue
+- **Idempotency support**: Track processed webhook keys through the cache-backed idempotency store
+- **Response handling**: Return accepted, unauthorized, not-found, and other HTTP responses based on processing results
+
+### SMS
+
+- **Transport registry**: Configure and select SMS transports through the SMS manager
+- **Synchronous delivery**: Send messages immediately through the default transport
+- **Asynchronous delivery**: Queue SMS sends on the `sms` queue when enabled
+- **Extensible providers**: Add custom transports and receive structured delivery responses
 
 ### Components
 
@@ -223,7 +255,7 @@ Router::get('/hello/{name}', function($name) {
 
 ```php
 // app/Controllers/HomeController.php
-namespace Mlangeni\Machinjiri\App\Controllers;
+namespace App\Controllers;
 
 class HomeController
 {
@@ -476,14 +508,14 @@ return [
 use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
 
 // Simple queries
-$users = (new QuerBuilder('users'))->select()->get();
-$user = (new QuerBuilder('users'))
+$users = (new QueryBuilder('users'))->select()->get();
+$user = (new QueryBuilder('users'))
     ->select()
     ->where('id', '=', 5)
     ->first();
 
 // Complex queries
-$result = (new QuerBuilder('users'))
+$result = (new QueryBuilder('users'))
     ->select(['id', 'name', 'email'])
     ->where('active', '=', true)
     ->where('role', '=', 'admin')
@@ -492,22 +524,22 @@ $result = (new QuerBuilder('users'))
     ->get();
 
 // Insert
-(new QuerBuilder('users'))->insert([
+(new QueryBuilder('users'))->insert([
     'name' => 'John',
     'email' => 'john@example.com',
 ]);
 
 // Update
-(new QuerBuilder('users'))
+(new QueryBuilder('users'))
     ->where('id', '=', 5)
     ->update(['name' => 'Jane']);
 
 // Delete
-(new QuerBuilder('users'))->where('id', '=', 5)->delete();
+(new QueryBuilder('users'))->where('id', '=', 5)->delete();
 
 // Aggregate functions
-$count = (new QuerBuilder('users'))->select()->count();
-$max = (new QuerBuilder('posts'))->max('views');
+$count = (new QueryBuilder('users'))->select()->count();
+$max = (new QueryBuilder('posts'))->max('views');
 ```
 
 **Migrations:**
@@ -645,7 +677,7 @@ The LDAP component provides configured connections, escaped query filters, and L
 
 ```php
 // app/Providers/LdapServiceProvider.php
-namespace Mlangeni\Machinjiri\App\Providers;
+namespace App\Providers;
 
 use Mlangeni\Machinjiri\Core\Components\LDAP\Manager as LdapManager;
 use Mlangeni\Machinjiri\Core\Container;
@@ -778,7 +810,7 @@ php artisan make:job SendWelcomeEmail
 
 ```php
 // app/Jobs/SendWelcomeEmail.php
-namespace Mlangeni\Machinjiri\App\Jobs;
+namespace App\Jobs;
 
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\JobInterface;
 
@@ -814,6 +846,39 @@ dispatch(new SendWelcomeEmail($user->id))->onQueue('default');
 ```bash
 php artisan queue:work
 ```
+
+### Task Scheduler
+
+Scheduled tasks extend `ScheduledTask`, define a cron expression, and implement `handle()`. Register task classes with the task manager or use the generator to create and register one:
+
+```bash
+php artisan scheduler:create-task SendDailyReport --cron="0 9 * * *" --register
+php artisan scheduler:list
+php artisan scheduler:run
+```
+
+The scheduler persists task definitions and execution history, dispatches work to the `scheduler` queue, prevents overlapping runs by default, and supports task groups, priorities, retries, maintenance-mode behavior, and cached status data. Use `scheduler:status`, `scheduler:stats`, `scheduler:enable`, and `scheduler:disable` to operate it.
+
+### Webhooks
+
+Configure provider subscriptions with their signing secret, verification method, event handlers, and whether processing should be synchronous or queued. Incoming requests are processed through `WebhookManager`:
+
+```php
+$response = $webhookManager->process($payload);
+```
+
+Queued providers are dispatched to the `webhooks` queue and return an accepted response. Synchronous providers invoke all matching handlers and return the first failed response, or the final successful response. HMAC, timestamped HMAC, and custom signature callbacks are supported.
+
+### SMS
+
+Configure one or more SMS transports and send through the manager. Delivery can be immediate or queued on the `sms` queue:
+
+```php
+$response = $smsManager->send($message);
+$queuedResponse = $smsManager->send($message, true);
+```
+
+The manager returns a structured response, logs delivery failures, and supports custom transports through the transport registry.
 
 ### Components
 
@@ -905,9 +970,9 @@ return [
 // config/providers.php
 return [
     'providers' => [
-        Mlangeni\Machinjiri\App\Providers\AppServiceProvider::class,
-        Mlangeni\Machinjiri\App\Providers\AuthServiceProvider::class,
-        Mlangeni\Machinjiri\App\Providers\RouteServiceProvider::class,
+        App\Providers\AppServiceProvider::class,
+        App\Providers\AuthServiceProvider::class,
+        App\Providers\RouteServiceProvider::class,
     ],
     
     'aliases' => [
@@ -1093,7 +1158,7 @@ use Mlangeni\Machinjiri\Core\Database\DatabaseConnection;
 $conn = DatabaseConnection::connection('mysql');
 
 // Query builder
-$result = (new QuerBuilder('users'))
+$result = (new QueryBuilder('users'))
     ->select(['id', 'name', 'email'])
     ->where('active', true)
     ->whereIn('role', ['admin', 'moderator'])
@@ -1102,29 +1167,29 @@ $result = (new QuerBuilder('users'))
     ->get();
 
 // Retrieve single
-$user = (new QuerBuilder('users'))->where('id', 5)->first();
+$user = (new QueryBuilder('users'))->where('id', 5)->first();
 
 // Insert
-(new QuerBuilder('users'))->insert([
+(new QueryBuilder('users'))->insert([
     'name' => 'John',
     'email' => 'john@example.com',
 ]);
 
 // Update
-(new QuerBuilder('users'))
+(new QueryBuilder('users'))
     ->where('id', 5)
     ->update(['name' => 'Jane']);
 
 // Delete
-(new QuerBuilder('users'))->where('id', 5)->delete();
+(new QueryBuilder('users'))->where('id', 5)->delete();
 
 // Aggregate
-$count = (new QuerBuilder('users'))->count();
-$max = (new QuerBuilder('posts'))->max('views');
-$avg = (new QuerBuilder('orders'))->select()->avg('amount');
+$count = (new QueryBuilder('users'))->count();
+$max = (new QueryBuilder('posts'))->max('views');
+$avg = (new QueryBuilder('orders'))->select()->avg('amount');
 
 // Exists
-$exists = (new QuerBuilder('users'))->where('email', $email)->exists();
+$exists = (new QueryBuilder('users'))->where('email', $email)->exists();
 ```
 
 ## Error Handling
@@ -1160,6 +1225,11 @@ try {
 - Detailed stack traces in development
 - HTTP status code mapping
 - Custom error handlers per exception type
+- Request and application context attached to error reports
+- Configurable error reporting by email through the mail manager
+- Error throttling to prevent repeated failures from overwhelming logs or notifications
+- Error, exception, and shutdown handlers for runtime and fatal errors
+- Custom exception renderers through `ErrorHandler::setExceptionRenderer()`
 
 ## Console Commands (Artisan)
 
@@ -1201,6 +1271,18 @@ php artisan queue:clear              # Clear queued jobs
 php artisan queue:status             # Show queue status
 php artisan queue:health             # Report queue health
 
+# Scheduled task management
+php artisan scheduler:create-task Name --register
+php artisan scheduler:list
+php artisan scheduler:run
+php artisan scheduler:status
+php artisan scheduler:enable ID
+php artisan scheduler:disable ID
+php artisan scheduler:stats [ID]
+php artisan scheduler:clean --days=30
+php artisan scheduler:cache-preload
+php artisan scheduler:cache-clear
+
 # Utilities
 php artisan test                     # Run test suite
 php artisan get:env                  # Display environment variables
@@ -1215,13 +1297,13 @@ Run tests with PHPUnit:
 
 ```bash
 # Run all tests
-phpunit
+composer test
 
 # Run specific test
-phpunit tests/Unit/UserTest.php
+vendor/bin/phpunit tests/Unit/UserTest.php
 
 # Run with coverage
-phpunit --coverage-html coverage
+vendor/bin/phpunit --coverage-html coverage
 ```
 
 **Example Test:**

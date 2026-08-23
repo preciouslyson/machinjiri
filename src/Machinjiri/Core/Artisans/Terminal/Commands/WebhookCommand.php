@@ -160,7 +160,7 @@ class WebhookCommand
                         'secret' => '${' . strtoupper($name) . '_WEBHOOK_SECRET}',
                         'async'  => false, // for async processing
                         'event_resolver' => ['type' => 'type'], // dot notation in JSON body
-                        'handler' => "Mlangeni\\Machinjiri\\App\\Webhooks\\Handlers\\" . ucfirst($name) . "WebhookHandler",
+                        'handler' => "App\\Webhooks\\Handlers\\" . ucfirst($name) . "WebhookHandler",
                         'handler_failure_mode' => 'stop',   // 'stop' or 'continue'
                         'verify_signature' => true, // whether to verify signature or not
                         'verify' => [

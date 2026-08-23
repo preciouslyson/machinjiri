@@ -17,7 +17,7 @@ class RouteHandlerResolver implements HandlerResolverInterface
 
         if (is_string($handler) && str_contains($handler, '@')) {
             [$controller, $method] = explode('@', $handler, 2);
-            $controllerClass = "Mlangeni\\Machinjiri\\App\\Controllers\\$controller";
+            $controllerClass = "App\\Controllers\\$controller";
             if (!class_exists($controllerClass)) {
                 throw new MachinjiriException("Controller class '$controllerClass' not found");
             }

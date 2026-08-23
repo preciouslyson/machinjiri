@@ -34,6 +34,12 @@ use Mlangeni\Machinjiri\Core\Authentication\ThirdParty\ThirdPartyAuth;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Components\Network\Tools\{Manager, Scanner, Monitor, NetworkConfig};
 use Mlangeni\Machinjiri\Core\Components\Webhooks\{WebhookSubscriptionManager, WebhookManager};
+use Mlangeni\Machinjiri\Core\Components\LDAP\{
+    Manager as LDAPManager,
+    Connection as LDAPConnection,
+    EntryManager as LDAPEntryManager
+};
+
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -177,8 +183,12 @@ class AppServiceProvider extends ServiceProvider
 
         // -------------------- LDAP Manager --------------------
         // Custom LDAP manager registered with a string alias, using LDAP config.
-        $this->singleton('ldap.manager', function ($app) {
-            return new \Mlangeni\Machinjiri\Core\Components\LDAP\Manager($app->configurations['ldap']);
+        $this->singleton(LDAPManager::class, function ($app) {
+            return new LDAPManager($app->configurations['ldap']);
+        });
+
+        $this->singleton(LDAPConnection::class, function ($app) {
+            return $app->resolve(LDAPManager::class)->connection();
         });
 
         // -------------------- Network Components --------------------
@@ -246,6 +256,8 @@ class AppServiceProvider extends ServiceProvider
             'security.bangwe'               => Bangwe::class,
             'webhook.manager'               => WebhookManager::class,
             'webhook.subscription.manager'  => WebhookSubscriptionManager::class,
+            'ldap.manager'                  => LDAPManager::class,
+            'ldap.connection'               => LDAPConnection::class,
         ]);
     }
 

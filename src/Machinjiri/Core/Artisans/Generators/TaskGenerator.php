@@ -134,7 +134,7 @@ class TaskGenerator
         return <<<PHP
 <?php
 
-namespace Mlangeni\Machinjiri\App\Scheduler\Tasks;
+namespace App\Scheduler\Tasks;
 
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Components\Task\ScheduledTask;
@@ -203,7 +203,7 @@ PHP;
         return <<<PHP
 <?php
 
-namespace Mlangeni\Machinjiri\App\Scheduler\Tasks;
+namespace App\Scheduler\Tasks;
 
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Components\Task\ScheduledTask;
@@ -241,7 +241,7 @@ PHP;
         return <<<PHP
 <?php
 
-namespace Mlangeni\Machinjiri\App\Scheduler\Tasks;
+namespace App\Scheduler\Tasks;
 
 use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Components\Task\ScheduledTask;

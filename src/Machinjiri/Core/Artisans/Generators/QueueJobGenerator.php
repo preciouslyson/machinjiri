@@ -241,7 +241,7 @@ class QueueJobGenerator
         return <<<PHP
 <?php
 
-namespace Mlangeni\Machinjiri\App\Jobs;
+namespace App\Jobs;
 
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseJob;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\LoggerFactory;
@@ -335,7 +335,7 @@ PHP;
         return <<<PHP
 <?php
 
-namespace Mlangeni\Machinjiri\App\Jobs;
+namespace App\Jobs;
 
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseJob;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
@@ -713,7 +713,7 @@ PHP;
     return <<<PHP
 <?php
 
-namespace Mlangeni\Machinjiri\App\Queue\Drivers;
+namespace App\Queue\Drivers;
 
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseQueue;
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\JobInterface;
@@ -1169,7 +1169,7 @@ PHP;
     return <<<PHP
 <?php
 
-namespace Mlangeni\Machinjiri\App\Queue\Drivers;
+namespace App\Queue\Drivers;
 
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseQueue;
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\JobInterface;
@@ -1677,7 +1677,7 @@ PHP;
     return <<<PHP
 <?php
 
-namespace Mlangeni\Machinjiri\App\Queue\Drivers;
+namespace App\Queue\Drivers;
 
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseQueue;
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\JobInterface;
@@ -2011,7 +2011,7 @@ PHP;
     return <<<PHP
 <?php
 
-namespace Mlangeni\Machinjiri\App\Queue\Drivers;
+namespace App\Queue\Drivers;
 
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseQueue;
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\JobInterface;
@@ -2508,7 +2508,7 @@ PHP;
     return <<<PHP
 <?php
 
-namespace Mlangeni\Machinjiri\App\Queue\Drivers;
+namespace App\Queue\Drivers;
 
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseQueue;
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\JobInterface;
@@ -2833,7 +2833,7 @@ PHP;
         return <<<PHP
 <?php
 
-namespace Mlangeni\Machinjiri\App\Queue\Drivers;
+namespace App\Queue\Drivers;
 
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseQueue;
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\JobInterface;
@@ -3444,7 +3444,7 @@ PHP;
         $template = <<<'PHP'
 <?php
 
-namespace Mlangeni\Machinjiri\App\Providers;
+namespace App\Providers;
 
 use Mlangeni\Machinjiri\Core\Providers\ServiceProvider;
 
@@ -3505,15 +3505,15 @@ class QueueServiceProvider extends ServiceProvider
         
         switch ($driver) {
             case 'database':
-                return new \Mlangeni\Machinjiri\App\Queue\Drivers\DatabaseQueue($this->app, $driver, $driverConfig);
+                return new \App\Queue\Drivers\DatabaseQueue($this->app, $driver, $driverConfig);
             case 'redis':
-                return new \Mlangeni\Machinjiri\App\Queue\Drivers\RedisQueue($this->app, $driver, $driverConfig);
+                return new \App\Queue\Drivers\RedisQueue($this->app, $driver, $driverConfig);
             case 'file':
-                return new \Mlangeni\Machinjiri\App\Queue\Drivers\FileQueue($this->app, $driver, $driverConfig);
+                return new \App\Queue\Drivers\FileQueue($this->app, $driver, $driverConfig);
             case 'memory':
-                return new \Mlangeni\Machinjiri\App\Queue\Drivers\MemoryQueue($this->app, $driver, $driverConfig);
+                return new \App\Queue\Drivers\MemoryQueue($this->app, $driver, $driverConfig);
             case 'sync':
-                return new \Mlangeni\Machinjiri\App\Queue\Drivers\SyncQueue($this->app, $driver, $driverConfig);
+                return new \App\Queue\Drivers\SyncQueue($this->app, $driver, $driverConfig);
             default:
                 // Try to load custom driver
                 $driverClass = "App\\Queue\\Drivers\\" . ucfirst($driver) . 'Queue';
@@ -3874,7 +3874,7 @@ PHP;
         return <<<PHP
 <?php
 
-namespace Mlangeni\Machinjiri\App\Jobs;
+namespace App\Jobs;
 
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseJob;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
@@ -4148,7 +4148,7 @@ TEXT;
       return <<<PHP
 <?php
 
-namespace Mlangeni\Machinjiri\App\Jobs;
+namespace App\Jobs;
 
 use Mlangeni\Machinjiri\Core\Artisans\Contracts\BaseJob;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;

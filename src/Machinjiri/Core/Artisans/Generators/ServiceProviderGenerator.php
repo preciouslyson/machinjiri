@@ -211,7 +211,7 @@ class ServiceProviderGenerator
         
         return <<<PHP
 <?php
-namespace Mlangeni\Machinjiri\App\Providers;
+namespace App\Providers;
 
 use Mlangeni\Machinjiri\Core\Providers\ServiceProvider as BaseServiceProvider;
 
@@ -519,12 +519,12 @@ return [
 
     'providers' => [
         // Core providers
-        Mlangeni\Machinjiri\App\Providers\AppServiceProvider::class,
-        Mlangeni\Machinjiri\App\Providers\DatabaseServiceProvider::class,
-        Mlangeni\Machinjiri\App\Providers\AuthServiceProvider::class,
-        Mlangeni\Machinjiri\App\Providers\EventServiceProvider::class,
-        Mlangeni\Machinjiri\App\Providers\RouteServiceProvider::class,
-        Mlangeni\Machinjiri\App\Providers\ViewServiceProvider::class,
+        App\Providers\AppServiceProvider::class,
+        App\Providers\DatabaseServiceProvider::class,
+        App\Providers\AuthServiceProvider::class,
+        App\Providers\EventServiceProvider::class,
+        App\Providers\RouteServiceProvider::class,
+        App\Providers\ViewServiceProvider::class,
     ],
 
     /*
@@ -538,8 +538,8 @@ return [
     */
 
     'deferred' => [
-        Mlangeni\Machinjiri\App\Providers\DatabaseServiceProvider::class,
-        Mlangeni\Machinjiri\App\Providers\ViewServiceProvider::class,
+        App\Providers\DatabaseServiceProvider::class,
+        App\Providers\ViewServiceProvider::class,
     ],
 ];
 PHP;

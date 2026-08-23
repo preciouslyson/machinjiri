@@ -309,7 +309,7 @@ class WebhookCommand
                     return <<<PHP
 <?php
 
-namespace Mlangeni\Machinjiri\App\Controllers;
+namespace App\Controllers;
 
 use Mlangeni\Machinjiri\Core\Http\HttpRequest;
 use Mlangeni\Machinjiri\Core\Http\HttpResponse;
@@ -356,7 +356,7 @@ PHP;
                     return <<<PHP
 <?php
 
-namespace Mlangeni\Machinjiri\App\Webhooks\Handlers;
+namespace App\Webhooks\Handlers;
 
 use Mlangeni\Machinjiri\Core\Components\Webhooks\WebhookHandlerInterface;
 use Mlangeni\Machinjiri\Core\Components\Webhooks\WebhookPayload;

@@ -154,7 +154,7 @@ class ServiceProviderGenerator
         }
         
         // Check if class already exists
-        $className = "Mlangeni\\Machinjiri\\App\\Providers\\{$name}";
+        $className = "App\\Providers\\{$name}";
         if (class_exists($className)) {
             throw new MachinjiriException(
                 "Service provider class already exists: {$className}",
@@ -470,7 +470,7 @@ PHP;
         $config = require $providersConfig;
         
         // Add provider to providers array
-        $providerClass = "Mlangeni\\Machinjiri\\App\\Providers\\{$providerName}";
+        $providerClass = "App\\Providers\\{$providerName}";
         
         // Add to deferred array if needed
         if ($options['deferred']) {
@@ -589,7 +589,7 @@ PHP;
             }
             
             $providerName = pathinfo($file, PATHINFO_FILENAME);
-            $providerClass = "Mlangeni\\Machinjiri\\App\\Providers\\{$providerName}";
+            $providerClass = "App\\Providers\\{$providerName}";
             
             $providers[] = [
                 'name' => $providerName,
@@ -664,7 +664,7 @@ PHP;
         
         // Read current configuration
         $config = require $providersConfig;
-        $providerClass = "Mlangeni\\Machinjiri\\App\\Providers\\{$providerName}";
+        $providerClass = "App\\Providers\\{$providerName}";
         
         // Remove from providers array
         if (isset($config['providers']) && ($key = array_search($providerClass, $config['providers'])) !== false) {
@@ -743,7 +743,7 @@ PHP;
         
         // Apply replacements
         $replacements = array_merge([
-            '{{namespace}}' => 'Mlangeni\\Machinjiri\\App\\Providers',
+            '{{namespace}}' => 'App\\Providers',
             '{{class}}' => $name,
             '{{deferred}}' => 'false',
         ], $replacements);

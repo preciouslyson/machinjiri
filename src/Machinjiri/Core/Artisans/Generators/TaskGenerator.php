@@ -83,7 +83,7 @@ class TaskGenerator
             );
         }
         
-        $className = "Mlangeni\\Machinjiri\\App\\Scheduler\\Tasks\\{$name}";
+        $className = "App\\Scheduler\\Tasks\\{$name}";
         if (class_exists($className)) {
             throw new MachinjiriException(
                 "Task class already exists: {$className}",
@@ -326,7 +326,7 @@ PHP;
         
         // Read current configuration
         $config = require $configFile;
-        $className = "Mlangeni\\Machinjiri\\App\\Scheduler\\Tasks\\{$name}";
+        $className = "App\\Scheduler\\Tasks\\{$name}";
 
         // Add to registered tasks if not already present
         if (!isset($config['registered_tasks']) || !in_array($className, $config['registered_tasks'])) {

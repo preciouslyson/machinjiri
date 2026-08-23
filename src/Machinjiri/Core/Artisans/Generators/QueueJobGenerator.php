@@ -3417,7 +3417,7 @@ PHP;
           return;
       }
       $config = require $providersConfig;
-      $queueProvider = "Mlangeni\\Machinjiri\\App\\Providers\\QueueServiceProvider";
+      $queueProvider = "App\\Providers\\QueueServiceProvider";
       if (!in_array($queueProvider, $config['providers'] ?? [])) {
             $config['providers'][] = $queueProvider;
             // Write updated configuration
@@ -3516,7 +3516,7 @@ class QueueServiceProvider extends ServiceProvider
                 return new \Mlangeni\Machinjiri\App\Queue\Drivers\SyncQueue($this->app, $driver, $driverConfig);
             default:
                 // Try to load custom driver
-                $driverClass = "Mlangeni\\Machinjiri\\App\\Queue\\Drivers\\" . ucfirst($driver) . 'Queue';
+                $driverClass = "App\\Queue\\Drivers\\" . ucfirst($driver) . 'Queue';
                 if (class_exists($driverClass)) {
                     return new $driverClass($this->app, $driver, $driverConfig);
                 }
@@ -3964,7 +3964,7 @@ PHP;
         // Add queue driver to command configuration
         if (!isset($config['queue']['drivers'][$driverName])) {
             $config['queue']['drivers'][$driverName] = [
-                'class' => "Mlangeni\\Machinjiri\\App\\Queue\\Drivers\\{$name}",
+                'class' => "App\\Queue\\Drivers\\{$name}",
                 'type' => $type,
                 'enabled' => true,
             ];
@@ -4001,7 +4001,7 @@ PHP;
         // Add job to command configuration
         if (!isset($config['jobs'][$jobKey])) {
             $config['jobs'][$jobKey] = [
-                'class' => "Mlangeni\\Machinjiri\\App\\Jobs\\{$name}",
+                'class' => "App\\Jobs\\{$name}",
                 'queue' => $queue,
                 'command' => "queue:job {$jobKey}",
                 'enabled' => true,
@@ -4118,7 +4118,7 @@ Service Provider:
 Register in app/Providers/QueueServiceProvider.php:
 
 \$this->app->bind('queue.driver.{$driverKey}', function (\$app) {
-    return new \\Mlangeni\\Machinjiri\\App\\Queue\\Drivers\\{$name}Queue(\$app, '{$driverKey}', \$app['config']['queue.drivers.{$driverKey}']);
+    return new \\App\\Queue\\Drivers\\{$name}Queue(\$app, '{$driverKey}', \$app['config']['queue.drivers.{$driverKey}']);
 });
 TEXT;
         

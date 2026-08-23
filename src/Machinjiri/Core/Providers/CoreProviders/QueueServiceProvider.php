@@ -73,7 +73,7 @@ class QueueServiceProvider extends ServiceProvider
                 return new SyncQueue($this->app, $driver, $driverConfig);
             default:
                 // Try to load custom driver
-                $driverClass = "Mlangeni\\Machinjiri\\App\\Queue\\Drivers\\" . ucfirst($driver) . 'Queue';
+                $driverClass = "App\\Queue\\Drivers\\" . ucfirst($driver) . 'Queue';
                 if (class_exists($driverClass)) {
                     return new $driverClass($this->app, $driver, $driverConfig);
                 }

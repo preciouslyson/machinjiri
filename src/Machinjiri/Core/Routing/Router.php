@@ -27,6 +27,7 @@ class Router
     protected RoutingConfig $config;
     protected ?Route $fallbackRoute = null;
     protected array $bindings = [];
+    protected $constraints;
 
     private Container $container;
 
@@ -180,7 +181,7 @@ class Router
 
         // Support optional parameters {param?}
         $constraints = $options['where'] ?? [];
-        $regex = $this->compilePattern($pattern, $constraints, true);
+        $regex = $this->compilePattern($pattern, $constraints);
 
         $route = new Route(
             methods: array_map('strtoupper', $methods),
@@ -265,7 +266,7 @@ class Router
         } else {
             $constraints[$param] = $regex;
         }
-        $newRegex = $this->compilePattern($this->lastRoute->getPattern(), $constraints, true);
+        $newRegex = $this->compilePattern($this->lastRoute->getPattern(), $constraints);
         $this->lastRoute->setRegex($newRegex);
         // Update constraints via reflection (or make property writable)
         (fn() => $this->constraints = $constraints)->call($this->lastRoute);
@@ -321,7 +322,7 @@ class Router
 
         // Method spoofing
         if ($this->httpRequest->getMethod() === 'POST' && $method = $this->httpRequest->getPostParam('_method')) {
-            $this->httpRequest->setMethod(strtoupper($method));
+            // $this->httpRequest->setMethod(strtoupper($method));
         }
 
         // CORS preflight
@@ -359,7 +360,7 @@ class Router
 
         // Rate limiting
         if ($rateLimit = $route->getRateLimit()) {
-            $clientId = $this->httpRequest->getClientIp();
+            $clientId = $this->httpRequest->getIp();
             if (!$this->rateLimiter->attempt($rateLimit, $clientId)) {
                 $this->sendError(429, [
                     'message' => $this->httpResponse->statusTexts[429], 
@@ -547,7 +548,7 @@ class Router
             return;
         }
     
-        if ($this->isAjaxRequest() || $this->expectsJson()) {
+        if ($this->httpRequest->isAjax() || $this->expectsJson()) {
             $this->httpResponse
                 ->setStatusCode(404)
                 ->setJsonBody([
@@ -575,7 +576,7 @@ class Router
     
     protected function sendRateLimitExceeded(): void
     {
-        if ($this->isAjaxRequest() || $this->expectsJson()) {
+        if ($this->httpRequest->isAjax() || $this->expectsJson()) {
             $this->httpResponse
                 ->setStatusCode(429)
                 ->setHeader('Retry-After', '60')

@@ -3,10 +3,7 @@
 namespace Mlangeni\Machinjiri\Core\Exceptions;
 
 use Mlangeni\Machinjiri\Core\Http\HttpResponse;
-use Mlangeni\Machinjiri\Core\Machinjiri;
-use Symfony\Component\Console\Input\ArrayInput;
-use Symfony\Component\Console\Output\ConsoleOutput;
-use Symfony\Component\Console\Style\SymfonyStyle;
+use Mlangeni\Machinjiri\Core\Exceptions\ErrorHandler\{ErrorHandler, ErrorRenderer};
 
 class MachinjiriException extends \Exception {
   
@@ -202,52 +199,25 @@ class MachinjiriException extends \Exception {
     public final function show(): void
     {
         // 1. CLI detection → styled console output
-        if ($this->isCli()) {
-            $this->renderCli();
+        if (ErrorRenderer::isCli()) {
+            ErrorRenderer::renderCli();
             return;
         }
 
         // 2. Ajax / API request → JSON response
-        if ($this->shouldRenderAsJson()) {
-            $this->renderJson($this->getEnvironment());
+        if (ErrorRenderer::shouldRenderAsJson()) {
+            $this->renderJson(ErrorRenderer::getEnvironment());
             return;
         }
 
-        // 3. Web request → HTML output
+        // 2. Web request → HTML output
         $appName = getenv("APP_NAME") ?? "Machinjiri";
 
-        if ($this->getEnvironment() === 'development') {
+        if (ErrorRenderer::getEnvironment() === 'development') {
             $this->showException($appName);
         } else {
             $this->renderGeneric($appName);
         }
-    }
-
-    /**
-     * Check if exception should be rendered as JSON
-     *
-     * @return bool
-     */
-    private function shouldRenderAsJson(): bool
-    {
-        // Check if it's an AJAX request or API call
-        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
-                  strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
-        
-        $acceptsJson = strpos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') !== false;
-        
-        return $isAjax || $acceptsJson || $this->isApiRequest();
-    }
-
-    /**
-     * Check if it's an API request
-     *
-     * @return bool
-     */
-    private function isApiRequest(): bool
-    {
-        $path = $_SERVER['REQUEST_URI'] ?? '';
-        return strpos($path, '/api/') === 0 || strpos($path, '/ajax/') === 0;
     }
 
     /**
@@ -256,7 +226,7 @@ class MachinjiriException extends \Exception {
      * @param string $environment
      * @return void
      */
-    private function renderJson(string $environment): void
+    public function renderJson(string $environment): void
     {
         $response = [
             'success' => false,
@@ -375,20 +345,6 @@ HTML;
     }
 
     /**
-     * Get formatted error message with category
-     *
-     * @return string
-     */
-    public function getFormattedMessage(): string
-    {
-        return sprintf(
-            "[%s] %s",
-            strtoupper($this->category),
-            $this->getMessage()
-        );
-    }
-
-    /**
      * Get suggestion for fixing the error
      *
      * @return string|null
@@ -447,42 +403,6 @@ HTML;
         ];
 
         return $statusTexts[$this->getCode()] ?? 'Unknown Status';
-    }
-    
-    private function isCli(): bool
-    {
-        return PHP_SAPI === 'cli' || (defined('STDIN') && defined('STDOUT'));
-    }
-    
-    private function renderCli(): void
-    {
-        // Create a SymfonyStyle instance from ConsoleOutput
-        $output = new ConsoleOutput();
-        $io = new SymfonyStyle(new ArrayInput([]), $output);
-
-        $io->title('Machinjiri - CLI Exception');
-        $io->section('Error Details');
-        $io->error($this->getFormattedMessage());
-        $io->writeln("File: {$this->getFile()}:{$this->getLine()}");
-        $io->writeln("Code: {$this->getCode()}");
-        $io->writeln("Category: {$this->category}");
-
-        if ($output->isVerbose()) {
-            $io->section('Stack Trace');
-            $io->writeln($this->getTraceAsString());
-        }
-
-        $suggestion = $this->getSuggestion();
-        if ($suggestion) {
-            $io->section('Suggestion');
-            $io->text($suggestion);
-        }
-    }
-    
-    private function getEnvironment(): string
-    {
-        $app = Machinjiri::getInstance();
-        return $app ? $app->getEnvironment() : (getenv('APP_ENV') ?: 'development');
     }
     
 }

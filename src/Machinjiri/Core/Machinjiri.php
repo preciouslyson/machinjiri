@@ -19,8 +19,8 @@
 
 namespace Mlangeni\Machinjiri\Core;
 
+use Mlangeni\Machinjiri\Core\Exceptions\ErrorHandler\ErrorHandler;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
-use Mlangeni\Machinjiri\Core\Exceptions\ErrorHandler;
 use Mlangeni\Machinjiri\Core\Artisans\Helpers\DotEnv;
 
 /**
@@ -121,12 +121,10 @@ final class Machinjiri extends Container
     private function __construct(string $appBasePath, bool $dev = true)
     {
         parent::__construct($appBasePath, $dev);
-
         // Set the global instance
         self::setInstance($this);
 
-        // Register the global error/exception handler for the chosen environment
-        ErrorHandler::register($dev);
+        ErrorHandler::register($this, $dev);
 
         try {
             // Initialize service provider loader

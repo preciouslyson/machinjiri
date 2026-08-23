@@ -34,7 +34,7 @@ class Connection
 
         $hosts = $this->config['hosts'] ?? [];
         $port = $this->config['port'] ?? 389;
-        $protocol = ($this->config['use_ssl'] ?? false) ? 'ldaps://' : 'ldap://';
+        $protocol = ($this->useSSL()) ? 'ldaps://' : 'ldap://';
         $connected = false;
 
         foreach ($hosts as $host) {
@@ -51,18 +51,20 @@ class Connection
 
         // Set options
         foreach ($this->config['options'] ?? [] as $option => $value) {
-            ldap_set_option($this->link, $option, $value);
+            if (array_key_exists($option, $this->optionValuesMap())) {
+                ldap_set_option($this->link, $this->optionValuesMap()[$option], $value);
+            }
         }
 
         // TLS
-        if ($this->config['use_tls'] ?? false) {
+        if ($this->useTLS()) {
             if (!ldap_start_tls($this->link)) {
                 throw new LdapException('TLS failed: ' . ldap_error($this->link), 500, null, ['host' => $host]);
             }
         }
-
+        
         // Auto-bind if credentials provided
-        if (!empty($this->config['username']) && ($this->config['auto_bind'] ?? true)) {
+        if (!empty($this->config['username']) && ($this->autoBind())) {
             $this->bind($this->config['username'], $this->config['password']);
         }
 
@@ -125,5 +127,47 @@ class Connection
     public function __destruct()
     {
         $this->close();
+    }
+
+    private function useSSL(): bool
+    {
+        if (isset($this->config['use_ssl'])) {
+            $ssl = filter_var($this->config['use_ssl'], FILTER_VALIDATE_BOOLEAN);
+            if ($ssl) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function useTLS(): bool
+    {
+        if (isset($this->config['use_tls'])) {
+            $tls = filter_var($this->config['use_tls'], FILTER_VALIDATE_BOOLEAN);
+            if ($tls) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function autoBind(): bool
+    {
+        if (isset($this->config['auto_bind'])) {
+            $tls = filter_var($this->config['auto_bind'], FILTER_VALIDATE_BOOLEAN);
+            if ($tls) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function optionValuesMap(): array 
+    {
+        return [
+            "LDAP_OPT_PROTOCOL_VERSION" => LDAP_OPT_PROTOCOL_VERSION,
+            "LDAP_OPT_REFERRALS"        => LDAP_OPT_REFERRALS,
+            "LDAP_OPT_NETWORK_TIMEOUT"  => LDAP_OPT_NETWORK_TIMEOUT,
+        ];
     }
 }

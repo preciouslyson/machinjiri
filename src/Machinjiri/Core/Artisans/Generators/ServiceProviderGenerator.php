@@ -472,14 +472,14 @@ PHP;
         // Add provider to providers array
         $providerClass = "Mlangeni\\Machinjiri\\App\\Providers\\{$providerName}";
         
-        if (!in_array($providerClass, $config['providers'] ?? [])) {
-            $config['providers'][] = $providerClass;
-        }
-        
         // Add to deferred array if needed
         if ($options['deferred']) {
             if (!in_array($providerClass, $config['deferred'] ?? [])) {
                 $config['deferred'][] = $providerClass;
+            }
+        } else {
+            if (!in_array($providerClass, $config['providers'] ?? [])) {
+                $config['providers'][] = $providerClass;
             }
         }
         

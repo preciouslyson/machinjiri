@@ -45,7 +45,7 @@ class ErrorHandler
         ErrorRenderer::setHttpResponse(self::$httpResponse);
 
         ErrorThrottle::setConfig($config['throttle'] ?? []);
-        ErrorReporter::setReportErrors($config['report_errors'] ?? filter_var(env('REPORT_ERRORS'), FILTER_VALIDATE_BOOLEAN));
+        ErrorReporter::setReportErrors(self::shouldReport($config));
         ErrorReporter::setEventListener(new EventListener(LoggerFactory::system("error-handler", "exception", true)));
 
         $logger = LoggerFactory::system("error-handler", "exception", false);
@@ -123,7 +123,7 @@ class ErrorHandler
 
     public static function handleException(\Throwable $exception): void
     {
-        ErrorReporter::reportException($exception, ErrorContext::getContext());
+        self::report($exception);
 
         if (ErrorRenderer::shouldRenderException($exception)) {
             ErrorRenderer::renderException($exception);
@@ -140,7 +140,7 @@ class ErrorHandler
             $exception = new \ErrorException(
                 $error['message'], 0, $error['type'], $error['file'], $error['line']
             );
-            ErrorReporter::reportException($exception, ErrorContext::getContext());
+            self::report($exception);
             if (ErrorRenderer::shouldRenderException($exception)) {
                 ErrorRenderer::renderException($exception);
             }
@@ -202,6 +202,20 @@ class ErrorHandler
     public static function getLogFile(): ?string 
     {
         return self::$logFile;
+    }
+
+    private static function report(\Throwable $exception): void 
+    {
+        ErrorReporter::reportException($exception, ErrorContext::getContext());
+    }
+
+    private static function shouldReport(array $config = []): bool
+    {
+        $fromConfig = $config['report_errors'] ?? filter_var(env('REPORT_ERRORS'), FILTER_VALIDATE_BOOLEAN);
+        if ($fromConfig && self::$app->getEnvironment() == "production") {
+            return true;
+        }
+        return false;
     }
 
 }

@@ -312,7 +312,10 @@ class Router
     {
         // if app is in maintenance render maintenance page
         if ($this->container->isDownForMaintenance()) {
-            $this->sendError(503, ['message' => 'Service Unavailable']);
+            $this->sendError(503, [
+                'message' => $this->httpResponse->statusTexts[503], 
+                'description' => 'Could not complete your request at the moment due to: Service Unavailable.'
+            ]);
             return;
         }
 
@@ -332,7 +335,10 @@ class Router
         }
 
         if (!$match) {
-            $this->sendError(404);
+            $this->sendError(404, [
+                'message' => $this->httpResponse->statusTexts[404], 
+                'description' => 'The page you are looking for could not be found.'
+            ]);
             return;
         }
 
@@ -355,7 +361,10 @@ class Router
         if ($rateLimit = $route->getRateLimit()) {
             $clientId = $this->httpRequest->getClientIp();
             if (!$this->rateLimiter->attempt($rateLimit, $clientId)) {
-                $this->sendError(429);
+                $this->sendError(429, [
+                    'message' => $this->httpResponse->statusTexts[429], 
+                    'description' => 'You have been rate limited. try again after some time.'
+                ]);
                 return;
             }
         }

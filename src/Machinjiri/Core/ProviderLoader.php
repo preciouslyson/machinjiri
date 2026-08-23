@@ -5,7 +5,6 @@ namespace Mlangeni\Machinjiri\Core;
 
 use Mlangeni\Machinjiri\Core\Providers\ServiceProvider;
 
-
 /**
  * Service Provider Loader
  *
@@ -168,10 +167,9 @@ class ProviderLoader
         
         if (file_exists($providerConfig)) {
             $config = require $providerConfig;
-            return $config['providers'] ?? [];
+            return array_merge(self::getCoreProviders()['providers'], $config['providers'] ?? []);
         }
         
-        // Default: no providers. Providers should be declared in config/services/providers.php
         return [];
     }
 
@@ -215,5 +213,35 @@ class ProviderLoader
         $this->providers = [];
         $this->booted = [];
         $this->deferred = [];
+    }
+
+    /**
+     * Register Core App providers
+     * 
+     * @return array
+     */
+    private static function getCoreProviders(): array 
+    {
+        return [
+            /*
+            |--------------------------------------------------------------------------
+            | Core Providers
+            |--------------------------------------------------------------------------
+            */
+
+            'providers' => [
+                \Mlangeni\Machinjiri\Core\Providers\CoreProviders\AppServiceProvider::class,
+                \Mlangeni\Machinjiri\Core\Providers\CoreProviders\DatabaseServiceProvider::class,
+                \Mlangeni\Machinjiri\Core\Providers\CoreProviders\QueueServiceProvider::class,
+            ],
+            
+            /**
+             * Deferred Core Service Providers that are loaded only when needed to
+             * improve app performance
+             */
+            'deffered' => [
+                
+            ],
+        ];
     }
 }

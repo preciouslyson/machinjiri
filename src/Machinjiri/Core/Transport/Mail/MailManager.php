@@ -84,7 +84,7 @@ class MailManager
      */
     private function loadConfigFromContainer(): array
     {
-        $configPath = $this->app->config . 'mail.php';
+        $configPath = $this->app->coreConfig . 'mail.php';
         
         if (!file_exists($configPath)) {
             throw new MachinjiriException(
@@ -120,12 +120,12 @@ class MailManager
      */
     private function registerTransport(string $name, array $config): void
     {
-        $type = $config['type'] ?? $name;
+        $type = $config['transport'] ?? $name;
         $transport = null;
         
         switch ($type) {
             case 'phpmailer':
-                $transport = new Transport\PhpMailerTransport($config['options'] ?? [], $this->logger);
+                $transport = new Transport\PhpMailerTransport($config, $this->logger);
                 break;
             default:
                 throw new MachinjiriException(

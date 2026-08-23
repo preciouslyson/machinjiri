@@ -46,7 +46,7 @@ class PHPServerManager
             ];
         }
 
-        $result = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN'
+        $result = strtoupper(substr(PHP_OS, 0, 3)) == 'WIN'
             ? $this->startOnWindows()
             : $this->startOnUnix();
 
@@ -103,20 +103,12 @@ class PHPServerManager
         $outputFile = $this->logFile;
         $argumentList = [];
 
-        if (isset($this->options['router'])) {
-            $argumentList = [
-                '-S',
-                $this->address,
-                $this->options['router']
-            ];
-        } else {
-            $argumentList = [
-                '-S',
-                $this->address,
-                '-t',
-                $this->documentRoot
-            ];
-        }
+        $argumentList = [
+            '-S',
+            $this->address,
+            '-t',
+            $this->documentRoot
+        ];
 
         foreach ($argumentList as &$arg) {
             $arg = $this->quoteForPowerShell($arg);

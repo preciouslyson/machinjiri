@@ -290,7 +290,7 @@ Router::get('/', 'HomeController@index', 'home');
 ### 5. Start Development Server
 
 ```bash
-php artisan server:start
+php artisan run:dev
 ```
 
 Visit `http://localhost:3000` in your browser.
@@ -1237,11 +1237,8 @@ Machinjiri includes an Artisan console for many development workflows. Common co
 
 ```bash
 # Server management
-php artisan server:start              # Start development server
-php artisan server:stop               # Stop development server
-php artisan server:restart           # Restart development server
-php artisan server:status            # Show server status
-php artisan server:logs              # View server logs
+php artisan run:dev              # Start development server
+php artisan stop:dev               # Stop development server
 
 # Database and migrations
 php artisan db:migration:create      # Create a new migration file

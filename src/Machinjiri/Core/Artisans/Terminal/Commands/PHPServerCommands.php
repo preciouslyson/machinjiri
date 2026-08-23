@@ -20,7 +20,7 @@ class PHPServerCommands
 
                 public function __construct()
                 {
-                    parent::__construct('server:start');
+                    parent::__construct('run:dev');
                     $this->setDescription('Start a developmental Server for Machinjiri');
                 }
 
@@ -72,7 +72,7 @@ class PHPServerCommands
 
                 public function __construct()
                 {
-                    parent::__construct('server:stop');
+                    parent::__construct('stop:dev');
                     $this->setDescription('Stop a developmental Server for Machinjiri');
                 }
 
@@ -93,96 +93,6 @@ class PHPServerCommands
                 }
             },
 
-            new class extends Command {
-                use CommandHelper;
-
-                public function __construct()
-                {
-                    parent::__construct('server:restart');
-                    $this->setDescription('Restart developmental Server for Machinjiri');
-                }
-
-                protected function execute(InputInterface $input, OutputInterface $output): int
-                {
-                    return $this->executeWithStyle($input, $output, 'Development Server', function (SymfonyStyle $ss) {
-                        $serverMgr = new PHPServerManager();
-                        $result = $serverMgr->restart();
-
-                        if (isset($result['success']) && $result['success']) {
-                            $ss->success($result['message']);
-                            return Command::SUCCESS;
-                        } else {
-                            $ss->error($result['message']);
-                            return Command::FAILURE;
-                        }
-                    });
-                }
-            },
-
-            new class extends Command {
-                use CommandHelper;
-
-                public function __construct()
-                {
-                    parent::__construct('server:status');
-                    $this->setDescription('Get developmental Server Status');
-                }
-
-                protected function execute(InputInterface $input, OutputInterface $output): int
-                {
-                    return $this->executeWithStyle($input, $output, 'Development Server', function (SymfonyStyle $ss) {
-                        $serverMgr = new PHPServerManager();
-                        $result = $serverMgr->status();
-                        $list = [];
-                        $ss->section('Server Status');
-                        foreach ($result as $key => $value) {
-                            $list[] = strtoupper($key) . ' => ' . $value;
-                        }
-                        $ss->listing($list);
-                        return Command::SUCCESS;
-                    });
-                }
-            },
-
-            new class extends Command {
-                use CommandHelper;
-
-                public function __construct()
-                {
-                    parent::__construct('server:logs');
-                    $this->setDescription('Start a developmental Server for Machinjiri');
-                }
-
-                protected function configure(): void
-                {
-                    $this->addOption("lines", null, InputOption::VALUE_OPTIONAL, 'Number of lines to be returned. Default is 50');
-                }
-
-                protected function execute(InputInterface $input, OutputInterface $output): int
-                {
-                    return $this->executeWithStyle($input, $output, 'Development Server', function (SymfonyStyle $ss) use ($input) {
-                        $userLines = $input->getOption('lines');
-                        $lines = ($userLines !== null && $userLines > 0) ? $userLines : 50;
-
-                        $serverMgr = new PHPServerManager();
-                        $result = $serverMgr->getLogs($lines);
-
-                        if (isset($result['success']) && $result['success']) {
-                            $ss->section('Server Logs');
-                            $log = [];
-                            foreach ($result['lines'] as $line) {
-                                $log[] = $line;
-                            }
-                            $ss->listing($log);
-                            $ss->info("Log File : " . $result['file']);
-                            return Command::SUCCESS;
-                        } else {
-                            $ss->warning($result['message']);
-                            return Command::FAILURE;
-                        }
-                    });
-                }
-            },
         ];
     }
 }

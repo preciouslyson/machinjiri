@@ -987,15 +987,22 @@ return [
 ```php
 // config/mail.php
 return [
-    'driver' => env('MAIL_DRIVER', 'smtp'),
-    'host' => env('MAIL_HOST', 'smtp.mailtrap.io'),
-    'port' => env('MAIL_PORT', 465),
-    'username' => env('MAIL_USERNAME'),
-    'password' => env('MAIL_PASSWORD'),
-    'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'noreply@machinjiri.com'),
-        'name' => env('MAIL_FROM_NAME', 'Machinjiri'),
+  'default' => env('MAIL_DRIVER', 'phpmailer'),
+  'transports' => [
+    'phpmailer' => [
+      'transport' => 'phpmailer',
+      'host' => env('MAIL_HOST', 'smtp.mailtrap.io'),
+      'port' => env('MAIL_PORT', 2525),
+      'encryption' => env('MAIL_ENCRYPTION', 'tls'),
+      'username' => env('MAIL_USERNAME'),
+      'password' => env('MAIL_PASSWORD'),
+      'timeout' => null,
+      'auth_mode' => null,
+      'debug' => false, //debug mode for smtp
+      'from_address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
     ],
+      // Add other transports as needed
+  ]
 ];
 ```
 
@@ -1004,7 +1011,7 @@ return [
 ### Application Container
 
 ```php
-use Mlangeni\Machinjiri\Machinjiri\Machinjiri;
+use Mlangeni\Machinjiri\Core\Machinjiri;
 
 // Get application instance
 $app = Machinjiri::getInstance();
@@ -1152,10 +1159,6 @@ public function handle($request, $response)
 
 ```php
 use Mlangeni\Machinjiri\Core\Database\Builders\QueryBuilder;
-use Mlangeni\Machinjiri\Core\Database\DatabaseConnection;
-
-// Get connection
-$conn = DatabaseConnection::connection('mysql');
 
 // Query builder
 $result = (new QueryBuilder('users'))
@@ -1167,7 +1170,7 @@ $result = (new QueryBuilder('users'))
     ->get();
 
 // Retrieve single
-$user = (new QueryBuilder('users'))->where('id', 5)->first();
+$user = (new QueryBuilder('users'))->select()->where('id', 5)->first();
 
 // Insert
 (new QueryBuilder('users'))->insert([

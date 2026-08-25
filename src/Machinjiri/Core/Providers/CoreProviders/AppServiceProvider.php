@@ -15,9 +15,7 @@ namespace Mlangeni\Machinjiri\Core\Providers\CoreProviders;
 
 use Mlangeni\Machinjiri\Core\Providers\ServiceProvider;
 use Mlangeni\Machinjiri\Core\Http\{HttpRequest, HttpResponse, HttpClient};
-use Mlangeni\Machinjiri\Core\Authentication\Session;
-use Mlangeni\Machinjiri\Core\Authentication\Cookie;
-use Mlangeni\Machinjiri\Core\Authentication\AuthManager;
+use Mlangeni\Machinjiri\Core\Authentication\{Session, Cookie, AuthManager};
 use Mlangeni\Machinjiri\Core\Artisans\Logging\{Logger, LoggerFactory};
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 use Mlangeni\Machinjiri\Core\Debug\Debugger;
@@ -37,7 +35,7 @@ use Mlangeni\Machinjiri\Core\Components\Webhooks\{WebhookSubscriptionManager, We
 use Mlangeni\Machinjiri\Core\Components\LDAP\{
     Manager as LDAPManager,
     Connection as LDAPConnection,
-    EntryManager as LDAPEntryManager
+    EntryManager
 };
 
 
@@ -191,6 +189,10 @@ class AppServiceProvider extends ServiceProvider
             return $app->resolve(LDAPManager::class)->connection();
         });
 
+        $this->singleton(EntryManager::class, function ($app) {
+            return new EntryManager($app->resolve(LDAPConnection::class));
+        });
+
         // -------------------- Network Components --------------------
         // Network Manager, Scanner, and Monitor are registered as singletons.
         $this->singleton("network.manager", function ($app) {
@@ -203,6 +205,7 @@ class AppServiceProvider extends ServiceProvider
                 $app->resolve(EventListener::class)
             );
         });
+
         $this->singleton("network.scanner", function ($app) {
             return new Scanner(
                 $app->resolve("cache.manager"),
@@ -210,6 +213,7 @@ class AppServiceProvider extends ServiceProvider
                 $app->resolve(HttpClient::class)
             );
         });
+
         $this->singleton("network.monitor", function ($app) {
             return new Monitor(
                 $app->resolve("network.scanner"),
@@ -217,6 +221,7 @@ class AppServiceProvider extends ServiceProvider
                 $app->resolve("network.config")
             );
         });
+        
         $this->singleton("network.config", function ($app) {
             $config = $this->app->coreConfig . 'network.php';
             return is_file($config) ? require $config : new NetworkConfig();
@@ -241,6 +246,7 @@ class AppServiceProvider extends ServiceProvider
             'auth.session'                  => Session::class,
             'auth.cookie'                   => Cookie::class,
             'auth.thirdparty'               => ThirdPartyAuth::class,
+            'auth.manager'                  => AuthManager::class,
             'debugger'                      => Debugger::class,
             'events'                        => EventListener::class,
             'fs.adapter.local'              => LocalAdapter::class,

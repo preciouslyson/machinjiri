@@ -169,9 +169,32 @@ class Dumper
     {
         return <<<CSS
 <style>
+:root {
+    --bg: #f3f3f3;
+    --color: #2E2C2A;
+    --primary: #CD7350;
+    --int: #7F9EB5;
+    --radius-sm: 0.165rem;
+    --border: #e2e8f0;
+    --dump-color-dark: #3A3530DD;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #2E2C2A;
+        --color: #CD7350;
+    }
+    .machinjiri-dump.cozy-dump {
+        background: var(--bg) !important;
+        color: var(--color) !important;
+    }
+}
+body {
+    padding: 1rem 3rem;
+    background: var(--bg);
+}
 .machinjiri-dump.cozy-dump {
-    background: #f3f3f3;
-    color: #2E2C2A;
+    background: var(--dump-color-dark);
+    color: var(--color);
     font-family: 'SF Mono', Monaco, Menlo, Consolas, 'Courier New', monospace;
     font-size: 14px;
     line-height: 1.6;
@@ -184,6 +207,8 @@ class Dumper
     border: 1px solid #F2E5D8;
     border-left-width: 5px;
     border-left-color: #CD7350;
+    border-radius: var(--radius-sm);
+
 }
 .machinjiri-dump.cozy-dump pre {
     margin: 0;
@@ -224,7 +249,6 @@ class Dumper
 }
 .dump-property {
     color: #9C7A5C;
-}ox-shadow: 0 10px 20px rgba(0, 0, 0, 0.06);
 }
 </style>
 CSS;

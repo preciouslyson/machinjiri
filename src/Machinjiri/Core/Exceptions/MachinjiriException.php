@@ -200,7 +200,7 @@ class MachinjiriException extends \Exception {
     {
         // 1. CLI detection → styled console output
         if (ErrorRenderer::isCli()) {
-            ErrorRenderer::renderCli();
+            ErrorRenderer::renderCli($this);
             return;
         }
 
@@ -210,13 +210,10 @@ class MachinjiriException extends \Exception {
             return;
         }
 
-        // 2. Web request → HTML output
-        $appName = getenv("APP_NAME") ?? "Machinjiri";
-
         if (ErrorRenderer::getEnvironment() === 'development') {
-            $this->showException($appName);
+            $this->showException();
         } else {
-            $this->renderGeneric($appName);
+            $this->renderGeneric();
         }
     }
 
@@ -260,11 +257,9 @@ class MachinjiriException extends \Exception {
 
     /**
      * Render generic error page for production
-     *
-     * @param string $appName
      * @return void 
      */
-    public function renderGeneric(string $appName): void 
+    public function renderGeneric(): void 
     {
         // Use the enhanced ErrorHandler's generic error page
         ErrorHandler::renderGenericErrorPage();
@@ -272,11 +267,9 @@ class MachinjiriException extends \Exception {
   
     /**
      * Show detailed exception for development
-     *
-     * @param string $appName
      * @return void 
      */
-    public function showException(string $appName): void 
+    public function showException(): void 
     {
         // Use the enhanced ErrorHandler's error page
         ErrorHandler::renderErrorPage($this);

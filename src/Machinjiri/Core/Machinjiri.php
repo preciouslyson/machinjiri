@@ -22,6 +22,8 @@ namespace Mlangeni\Machinjiri\Core;
 use Mlangeni\Machinjiri\Core\Exceptions\ErrorHandler\ErrorHandler;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Helpers\DotEnv;
+use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
+use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
 
 /**
  * Final application class that bootstraps the framework.
@@ -166,14 +168,15 @@ final class Machinjiri extends Container
         try {
             // Allow listeners to react before resources are loaded
             $this->listener->trigger('app.load.resources');
-
-            // Return the same instance for chaining
-            return $this;
         } catch (MachinjiriException $e) {
             // Show any initialization error to the user/developer
             $e->show();
         }
+
+        return $this;
     }
+
+
     
     /**
      * Resolve a service from the container
@@ -231,9 +234,7 @@ final class Machinjiri extends Container
     {
         // Add classes that should be singletons by default
         $sharedClasses = [
-            Logger::class,
-            ProviderLoader::class,
-            DatabaseConnection::class,
+            
         ];
         
         return in_array($abstract, $sharedClasses) || 

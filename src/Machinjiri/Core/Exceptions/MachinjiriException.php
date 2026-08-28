@@ -210,9 +210,6 @@ class MachinjiriException extends \Exception {
             return;
         }
 
-        // 2. Web request → HTML output
-        $appName = getenv("APP_NAME") ?? "Machinjiri";
-
         if (ErrorRenderer::getEnvironment() === 'development') {
             $this->showException();
         } else {
@@ -260,8 +257,6 @@ class MachinjiriException extends \Exception {
 
     /**
      * Render generic error page for production
-     *
-     * @param string $appName
      * @return void 
      */
     public function renderGeneric(): void 
@@ -272,8 +267,6 @@ class MachinjiriException extends \Exception {
   
     /**
      * Show detailed exception for development
-     *
-     * @param string $appName
      * @return void 
      */
     public function showException(): void 

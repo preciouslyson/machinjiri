@@ -24,6 +24,8 @@ use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 use Mlangeni\Machinjiri\Core\Artisans\Helpers\DotEnv;
 use Mlangeni\Machinjiri\Core\Artisans\Logging\Logger;
 use Mlangeni\Machinjiri\Core\Artisans\Events\EventListener;
+use Mlangeni\Machinjiri\Core\{Container, ProviderLoader};
+use Mlangeni\Machinjiri\Core\Http\HttpRequest;
 
 /**
  * Final application class that bootstraps the framework.
@@ -131,51 +133,18 @@ final class Machinjiri extends Container
         try {
             // Initialize service provider loader
             $this->providerLoader = new ProviderLoader($this);
+            $this->providerLoader->register();
+            $this->providerLoader->boot();
 
             // Initialize application resources and services
             $this->initialize();
 
             $this->dbConnect();
 
-            // Register service providers
-            $this->providerLoader->register();
-
-            // Boot service providers
-            $this->providerLoader->boot();
-            
-            // load and render routes
-            $this->loadRoutes();
-
-            // Signal that the application has finished initializing
-            $this->listener->trigger('app.initialize');
         } catch (MachinjiriException $me) {
-            // Present the error to the user/developer via the framework's error presentation
             $me->show();
         }
     }
-
-    /**
-     * Initialize application resources that are loaded after bootstrap.
-     *
-     * This method triggers an event, loads designated route containers and returns
-     * the application instance for convenient chaining.
-     *
-     * @throws MachinjiriException bubbled up and shown via show()
-     * @return self
-     */
-    public function init(): self
-    {
-        try {
-            // Allow listeners to react before resources are loaded
-            $this->listener->trigger('app.load.resources');
-        } catch (MachinjiriException $e) {
-            // Show any initialization error to the user/developer
-            $e->show();
-        }
-
-        return $this;
-    }
-
 
     
     /**
@@ -410,9 +379,7 @@ final class Machinjiri extends Container
         
         // Set up paths
         $this->setupPaths();
-        
-        // Trigger initialization event
-        $this->listener->trigger('app.initializing');
+    
     }
     
     /**
@@ -622,9 +589,24 @@ final class Machinjiri extends Container
 
     public static function resolveDebugMode(string $path): bool
     {
-        $dotEnv = new DotEnv(null, true, $path)->load()->getVariables();
+        $dotEnv = (new DotEnv(null, true, $path))->load()->getVariables();
         $envDebug = $dotEnv['APP_DEBUG'] ?? true;
         return filter_var($envDebug, FILTER_VALIDATE_BOOLEAN);
     }
+
+    public static function isCli(): bool
+    {
+        $httpRequest = HttpRequest::createFromGlobals();
+        return PHP_SAPI === 'cli' ||
+                defined('STDIN') ||
+                (empty($httpRequest->getServerParam('REMOTE_ADDR')) && $httpRequest->getServerParam('HTTP_USER_AGENT') === null);
+    }
+
+    public function start(): void
+    {
+        // load and render routes
+        $this->loadRoutes();
+    }
+
     
 }

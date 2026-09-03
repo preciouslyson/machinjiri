@@ -6,59 +6,52 @@ use Mlangeni\Machinjiri\Core\Container;
 use Mlangeni\Machinjiri\Core\Exceptions\MachinjiriException;
 
 class Session {
+
     private int $timeout;
     private string $cookieName;
     private ?string $domain;
     private bool $secure;
 
-    public function __construct() {
+    private Container $container;
+
+    public function __construct(?Container $container = null) {
+
+        $this->container = $container ?? (Container::instancePresent()) ? Container::getInstance() : null;
         // Load environment-based configurations
         $this->loadSessionConfig();
         
         if (session_status() == PHP_SESSION_NONE) {
             $this->configureSession();
-            session_start();
+            @session_start();
             $this->initializeSession();
         }
+
     }
 
     private function loadSessionConfig(): void {
         // Convert minutes to seconds for timeout
-        $lifetimeMinutes = (int)($_ENV['SESSION_LIFETIME'] ?? 120);
+        $lifetimeMinutes = (int)(env('SESSION_LIFETIME') ?? 120);
         $this->timeout = $lifetimeMinutes * 60;
         
-        $this->cookieName = $_ENV['SESSION_COOKIE'] ?? 'machinjiri_session';
-        $this->domain = $_ENV['SESSION_DOMAIN'] ?? null;
-        $this->secure = filter_var($_ENV['SESSION_SECURE_COOKIE'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $this->cookieName = env('SESSION_COOKIE') ?? 'machinjiri_session';
+        $this->domain = env('SESSION_DOMAIN') ?? null;
+        $this->secure = filter_var(env('SESSION_SECURE_COOKIE') ?? false, FILTER_VALIDATE_BOOLEAN);
     }
 
     private function configureSession(): void {
-        // Determine session save path based on driver
-        $sessionPath = env('SESSION_DRIVER') === 'file' 
-            ? Container::$appBasePath . "/../storage/session/"
-            : '';
-
-        if ($sessionPath && !is_dir($sessionPath)) {
-            mkdir($sessionPath, 0755, true);
-        }
-
-        session_name($this->cookieName);
+        @session_name($this->cookieName);
         
-        session_set_cookie_params([
+        @session_set_cookie_params([
             'lifetime' => $this->timeout,
-            'path' => '/',
+            'path' => $this->container->cookies,
             'domain' => $this->domain ?? ($_SERVER['HTTP_HOST'] ?? 'localhost'),
             'secure' => $this->secure,
             'httponly' => true,
             'samesite' => 'Strict'
         ]);
-        
-        if ($sessionPath) {
-            session_save_path($sessionPath);
-        }
-        
-        ini_set('session.use_strict_mode', '1');
-        ini_set('session.gc_maxlifetime', $this->timeout);
+        @session_save_path($this->container->session);
+        @ini_set('session.use_strict_mode', '1');
+        @ini_set('session.gc_maxlifetime', $this->timeout);
     }
 
     private function initializeSession(): void {
@@ -128,4 +121,5 @@ class Session {
           $this->initializeSession();
       }
     }
+
 }

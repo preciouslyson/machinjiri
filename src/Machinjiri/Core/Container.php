@@ -53,6 +53,8 @@ class Container
     public $unitTesting;
     public $seeders;
     public $factories;
+    public $session;
+    public $cookies;
     
     /**
      * Service container properties
@@ -250,6 +252,8 @@ class Container
         $this->unitTesting = $root . "tests/Unit";
         $this->seeders = $this->database . "seeders/";
         $this->factories = $this->database . "factories/";
+        $this->session = $this->storage . "session/";
+        $this->cookies = $this->storage . "cookies/";
         
         // Also store in paths array for easy access
         $this->paths = [
